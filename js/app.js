@@ -860,11 +860,76 @@ async function renderRRHH(container) {
 
         <!-- 4. VISTA: DASHBOARD ANALÍTICO -->
         <div id="rrhh-view-metricas" class="hidden">
-            <div class="card">
-                <div class="card-body">
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-                        <div style="position: relative; height: 350px; width: 100%;"><canvas id="chartRRHHPuntualidad"></canvas></div>
-                        <div style="position: relative; height: 350px; width: 100%;"><canvas id="chartRRHHTiempo"></canvas></div>
+            <!-- KPIs rápidos del módulo de analítica -->
+            <div class="rrhh-kpi-grid mb-3">
+                <div class="card" style="padding: 14px 16px; margin-bottom: 0;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:40px; height:40px; border-radius:10px; background:rgba(16, 185, 129, 0.12); color:#10b981; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;">
+                            <i class="ph ph-check-circle"></i>
+                        </div>
+                        <div>
+                            <span class="text-sec text-small" style="font-size:11px; display:block;">Índice de Puntualidad</span>
+                            <div style="font-size:18px; font-weight:700; color:var(--text-main);" id="metric-pct-puntual">--%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="padding: 14px 16px; margin-bottom: 0;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:40px; height:40px; border-radius:10px; background:rgba(239, 68, 68, 0.12); color:#ef4444; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;">
+                            <i class="ph ph-warning-circle"></i>
+                        </div>
+                        <div>
+                            <span class="text-sec text-small" style="font-size:11px; display:block;">Total Tardanzas</span>
+                            <div style="font-size:18px; font-weight:700; color:var(--text-main);" id="metric-total-tardanzas">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="padding: 14px 16px; margin-bottom: 0;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:40px; height:40px; border-radius:10px; background:rgba(59, 130, 246, 0.12); color:#3b82f6; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;">
+                            <i class="ph ph-clock"></i>
+                        </div>
+                        <div>
+                            <span class="text-sec text-small" style="font-size:11px; display:block;">Horas Registradas</span>
+                            <div style="font-size:18px; font-weight:700; color:var(--text-main);" id="metric-total-horas">-- hrs</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grid de Gráficos: 1 columna en móvil/tablet, 2 en pantallas grandes -->
+            <div class="rrhh-charts-grid">
+                <!-- Gráfico 1: Puntualidad y Asistencia (Doughnut) -->
+                <div class="card" style="margin-bottom:0; overflow:hidden;">
+                    <div class="card-header flex-between" style="padding: 12px 16px; border-bottom: 1px solid var(--border-color);">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <i class="ph ph-chart-pie-slice" style="color:var(--primary); font-size:18px;"></i>
+                            <span style="font-weight:600; font-size:14px;">Distribución de Puntualidad</span>
+                        </div>
+                        <span class="badge badge-secondary" style="font-size:11px;">Histórico</span>
+                    </div>
+                    <div class="card-body" style="padding: 16px; position:relative;">
+                        <div class="chart-container-responsive">
+                            <canvas id="chartRRHHPuntualidad"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráfico 2: Horas Trabajadas (Bar) -->
+                <div class="card" style="margin-bottom:0; overflow:hidden;">
+                    <div class="card-header flex-between" style="padding: 12px 16px; border-bottom: 1px solid var(--border-color);">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <i class="ph ph-chart-bar" style="color:var(--primary); font-size:18px;"></i>
+                            <span style="font-weight:600; font-size:14px;">Horas por Colaborador</span>
+                        </div>
+                        <span class="badge badge-secondary" style="font-size:11px;">Acumulado</span>
+                    </div>
+                    <div class="card-body" style="padding: 16px; position:relative;">
+                        <div class="chart-container-responsive">
+                            <canvas id="chartRRHHTiempo"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1147,15 +1212,63 @@ async function renderRRHH(container) {
     actualizarBadgeJustificaciones();
 }
 
-window.refrescarRRHHActual = function() {
+// ==========================================
+// COMPONENTE VISUAL: AVATAR DE EMPLEADO CIRCULAR
+// ==========================================
+window.renderEmpleadoAvatar = function(nombre, apellido, fotoUrl, size = 36) {
+    if (fotoUrl && typeof fotoUrl === 'string' && fotoUrl.trim() !== '') {
+        return `<img src="${fotoUrl}" class="emp-avatar-img" style="width:${size}px; height:${size}px; min-width:${size}px; min-height:${size}px;" alt="${nombre || 'Avatar'}">`;
+    }
+    
+    // Generar iniciales limpias (ej: "Luis Mendoza" -> "LM", "Admin" -> "AD")
+    let n = (nombre || '').trim();
+    let a = (apellido || '').trim();
+    let iniciales = 'EM';
+    
+    if (n && a) {
+        iniciales = (n.charAt(0) + a.charAt(0)).toUpperCase();
+    } else if (n) {
+        let parts = n.split(/\s+/);
+        if (parts.length > 1) {
+            iniciales = (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+        } else {
+            iniciales = n.substring(0, 2).toUpperCase();
+        }
+    }
+    
+    // Paleta de gradientes modernos y armónicos (nunca rojo alarmante ni aplastado)
+    const palettes = [
+        'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)', // Indigo
+        'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', // Sky Blue
+        'linear-gradient(135deg, #059669 0%, #047857 100%)', // Emerald
+        'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)', // Violet
+        'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', // Orange
+        'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)', // Teal
+        'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', // Royal Blue
+        'linear-gradient(135deg, #db2777 0%, #be185d 100%)'  // Pink
+    ];
+    let hash = 0;
+    const strForHash = (n + a) || iniciales;
+    for (let i = 0; i < strForHash.length; i++) hash = (hash * 31 + strForHash.charCodeAt(i)) & 0xFFFFFF;
+    const bg = palettes[Math.abs(hash) % palettes.length];
+    
+    const fontSize = Math.max(10, Math.round(size * 0.38));
+    return `<div class="emp-avatar" style="width:${size}px; height:${size}px; min-width:${size}px; min-height:${size}px; font-size:${fontSize}px; background:${bg}; flex-shrink:0;">${iniciales}</div>`;
+};
+
+window.refrescarRRHHActual = async function() {
     if (window.currentRRHHTab === 'justificaciones') loadJustificaciones();
     else if (window.currentRRHHTab === 'personal') loadFichasPersonal();
     else if (window.currentRRHHTab === 'ajustes') { loadRolesHorarios(); loadAjustesRRHHYTotp(); }
+    else if (window.currentRRHHTab === 'metricas') {
+        await loadHistorialAsistencia();
+        if (window.renderMetricasRRHH) window.renderMetricasRRHH(window.historialAsistenciaData || []);
+    }
     else loadHistorialAsistencia();
     actualizarBadgeJustificaciones();
 };
 
-window.switchRRHHTab = function(tabName) {
+window.switchRRHHTab = async function(tabName) {
     window.currentRRHHTab = tabName;
     document.querySelectorAll('.rrhh-nav-tab').forEach(el => el.classList.remove('active'));
     document.querySelector('#tab-rrhh-' + tabName)?.classList.add('active');
@@ -1173,8 +1286,13 @@ window.switchRRHHTab = function(tabName) {
         loadJustificaciones();
     } else if (tabName === 'personal') {
         loadFichasPersonal();
-    } else if (tabName === 'metricas' && window.renderMetricasRRHH && window.historialAsistenciaData) {
-        window.renderMetricasRRHH(window.historialAsistenciaData);
+    } else if (tabName === 'metricas') {
+        if (!window.historialAsistenciaData || window.historialAsistenciaData.length === 0) {
+            await loadHistorialAsistencia();
+        }
+        if (window.renderMetricasRRHH) {
+            window.renderMetricasRRHH(window.historialAsistenciaData || []);
+        }
     } else if (tabName === 'ajustes') {
         loadRolesHorarios();
         loadAjustesRRHHYTotp();
@@ -1292,7 +1410,10 @@ window.loadHistorialAsistencia = async function() {
                 return `
                     <tr>
                         <td>
-                            <div class="fw-500">${item.nombre} ${item.apellido || ''}</div>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                ${window.renderEmpleadoAvatar(item.nombre, item.apellido, item.foto_perfil, 32)}
+                                <div class="fw-500">${item.nombre} ${item.apellido || ''}</div>
+                            </div>
                         </td>
                         <td>${item.dni}</td>
                         <td>
@@ -1503,9 +1624,7 @@ window.loadJustificaciones = async function(filtro = null) {
                     ? `<button class="btn-icon" onclick="window.open('${item.foto_evidencia_url}', '_blank')" title="Ver evidencia adjunta"><i class="ph ph-file-image" style="font-size:18px; color:var(--primary);"></i></button>`
                     : '<span class="text-sec" style="font-size:11px;">Sin adjunto</span>';
 
-                let avatarHtml = item.foto_perfil 
-                    ? `<img src="${item.foto_perfil}" style="width:32px; height:32px; border-radius:50%; object-fit:cover;">`
-                    : `<div class="avatar" style="width:32px; height:32px; font-size:12px;">${item.nombre.substring(0,2).toUpperCase()}</div>`;
+                let avatarHtml = window.renderEmpleadoAvatar(item.nombre, item.apellido, item.foto_perfil, 34);
 
                 tbody.innerHTML += `
                     <tr>
@@ -1717,9 +1836,7 @@ window.loadFichasPersonal = async function() {
                 const m = item.metricas;
                 const l = item.liquidacion;
 
-                const avatarHtml = u.foto_perfil 
-                    ? `<img src="${u.foto_perfil}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">`
-                    : `<div class="avatar" style="width:36px; height:36px; font-size:12px;">${u.nombre.substring(0,2).toUpperCase()}</div>`;
+                const avatarHtml = window.renderEmpleadoAvatar(u.nombre, u.apellido, u.foto_perfil, 36);
 
                 let sueldoTxt = `${moneda} ${parseFloat(c.sueldo_base || 0).toFixed(2)}`;
                 if (c.tipo_pago === 'hora') {
@@ -1860,23 +1977,13 @@ window.verFichaIndividualPersonal = function(id) {
             </div>
         </div>
 
-        <!-- Datos del Colaborador (2 columnas limpias) -->
-        <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; background:var(--bg-main); padding:12px 14px; border-radius:10px; margin-bottom:16px; border:1px solid var(--border);">
-            <div>
-                <span class="text-sec text-small" style="display:block; font-size:11px;">Colaborador</span>
-                <div style="font-weight:600; font-size:13px; margin-top:2px; word-break:break-word;">${u.nombre} ${u.apellido || ''}</div>
-            </div>
-            <div>
-                <span class="text-sec text-small" style="display:block; font-size:11px;">Documento DNI</span>
-                <div style="font-weight:600; font-size:13px; margin-top:2px;">${u.dni}</div>
-            </div>
-            <div>
-                <span class="text-sec text-small" style="display:block; font-size:11px;">Puesto / Rol</span>
-                <div style="font-weight:600; font-size:13px; margin-top:2px;">${u.rol}</div>
-            </div>
-            <div>
-                <span class="text-sec text-small" style="display:block; font-size:11px;">Modalidad Salarial</span>
-                <div style="font-weight:600; font-size:13px; margin-top:2px; text-transform:capitalize;">${c.tipo_pago} (${moneda} ${c.sueldo_base})</div>
+        <!-- Datos del Colaborador (Avatar e información limpia) -->
+        <div style="display:flex; align-items:center; gap:14px; background:var(--bg-main); padding:14px; border-radius:12px; margin-bottom:16px; border:1px solid var(--border);">
+            ${window.renderEmpleadoAvatar(u.nombre, u.apellido, u.foto_perfil, 46)}
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; font-size:15px; color:var(--text-main); word-break:break-word;">${u.nombre} ${u.apellido || ''}</div>
+                <div class="text-sec text-small" style="margin-top:2px;">DNI: ${u.dni} &bull; <span class="badge badge-secondary" style="font-size:11px;">${u.rol}</span></div>
+                <div class="text-sec text-small" style="margin-top:4px;">Modalidad: <strong style="text-transform:capitalize;">${c.tipo_pago} (${moneda} ${parseFloat(c.sueldo_base).toFixed(2)})</strong></div>
             </div>
         </div>
 
@@ -3035,7 +3142,8 @@ renderInventario = function(container) {
 // CHART.JS: RRHH MÉTRICAS
 // ==========================================
 window.renderMetricasRRHH = function(data) {
-    if (!data || data.length === 0) return;
+    // Si no hay datos, inicializar arreglo vacío
+    data = data || [];
     
     // Contar puntualidad vs tardanzas
     let puntual = 0, tardanza = 0, otras = 0;
@@ -3048,65 +3156,161 @@ window.renderMetricasRRHH = function(data) {
         else if (item.condicion === 'tardanza') tardanza++;
         else otras++;
         
-        let nombre = item.nombre + " " + (item.apellido || '').charAt(0) + ".";
-        if (!horasPorEmpleado[nombre]) horasPorEmpleado[nombre] = 0;
+        let empNombre = (item.nombre || '').trim();
+        let empApellido = (item.apellido || '').trim();
+        let displayName = empNombre;
+        if (empApellido) {
+            displayName = `${empNombre.split(/\s+/)[0]} ${empApellido.charAt(0)}.`;
+        } else if (empNombre.includes(' ')) {
+            let parts = empNombre.split(/\s+/);
+            displayName = `${parts[0]} ${parts[1].charAt(0)}.`;
+        }
+
+        if (!horasPorEmpleado[displayName]) horasPorEmpleado[displayName] = 0;
         
         if (item.minutos_trabajados) {
-            horasPorEmpleado[nombre] += parseInt(item.minutos_trabajados) / 60;
+            horasPorEmpleado[displayName] += parseInt(item.minutos_trabajados) / 60;
         }
     });
 
-    // 1. Gráfico de Puntualidad (Donut)
+    // 1. Actualizar KPIs numéricos en el encabezado del dashboard
+    const totalRegs = puntual + tardanza + otras;
+    const pctPuntual = totalRegs > 0 ? Math.round((puntual / totalRegs) * 100) : 100;
+    
+    const elPct = document.getElementById('metric-pct-puntual');
+    if (elPct) elPct.innerText = totalRegs > 0 ? `${pctPuntual}%` : '--%';
+    
+    const elTard = document.getElementById('metric-total-tardanzas');
+    if (elTard) elTard.innerText = tardanza;
+
+    let sumTotalHoras = 0;
+    Object.values(horasPorEmpleado).forEach(v => sumTotalHoras += v);
+    const elHoras = document.getElementById('metric-total-horas');
+    if (elHoras) elHoras.innerText = `${sumTotalHoras.toFixed(1)} hrs`;
+
+    // Detectar tema actual
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.05)';
+
+    // 2. Gráfico de Puntualidad (Donut)
     const ctxPunt = document.getElementById('chartRRHHPuntualidad');
     if (ctxPunt) {
         if (window.chartPuntualidad) window.chartPuntualidad.destroy();
+
+        const hasData = totalRegs > 0;
         window.chartPuntualidad = new Chart(ctxPunt, {
             type: 'doughnut',
             data: {
-                labels: ['Puntual', 'Tardanza', 'Justificaciones/Otros'],
+                labels: hasData ? ['Puntual', 'Tardanzas', 'Justificaciones/Otros'] : ['Sin registros'],
                 datasets: [{
-                    data: [puntual, tardanza, otras],
-                    backgroundColor: ['#22c55e', '#ef4444', '#3b82f6'],
-                    borderWidth: 0
+                    data: hasData ? [puntual, tardanza, otras] : [1],
+                    backgroundColor: hasData ? ['#10b981', '#ef4444', '#3b82f6'] : ['#cbd5e1'],
+                    borderWidth: 2,
+                    borderColor: isDark ? '#141414' : '#ffffff',
+                    hoverOffset: 4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                cutout: '68%',
                 plugins: {
-                    title: { display: true, text: 'Estadística de Puntualidad' }
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: textColor,
+                            boxWidth: 12,
+                            padding: 14,
+                            font: { family: "'Inter', sans-serif", size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleFont: { family: "'Inter', sans-serif", size: 13 },
+                        bodyFont: { family: "'Inter', sans-serif", size: 12 },
+                        cornerRadius: 8,
+                        padding: 10,
+                        callbacks: {
+                            label: function(ctx) {
+                                if (!hasData) return ' No hay registros para este período';
+                                const val = ctx.parsed || 0;
+                                const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                const p = tot > 0 ? Math.round((val / tot) * 100) : 0;
+                                return ` ${ctx.label}: ${val} (${p}%)`;
+                            }
+                        }
+                    }
                 }
             }
         });
     }
 
-    // 2. Gráfico de Horas Trabajadas (Bar)
+    // 3. Gráfico de Horas Trabajadas (Bar)
     const ctxTiempo = document.getElementById('chartRRHHTiempo');
     if (ctxTiempo) {
         if (window.chartTiempo) window.chartTiempo.destroy();
         
         const labels = Object.keys(horasPorEmpleado);
-        const values = Object.values(horasPorEmpleado).map(v => v.toFixed(1));
+        const values = Object.values(horasPorEmpleado).map(v => parseFloat(v.toFixed(1)));
         
         window.chartTiempo = new Chart(ctxTiempo, {
             type: 'bar',
             data: {
-                labels: labels,
+                labels: labels.length > 0 ? labels : ['Sin datos'],
                 datasets: [{
-                    label: 'Horas Totales Trabajadas',
-                    data: values,
-                    backgroundColor: '#ef4444',
-                    borderRadius: 4
+                    label: 'Horas Trabajadas',
+                    data: values.length > 0 ? values : [0],
+                    backgroundColor: '#4f46e5',
+                    hoverBackgroundColor: '#4338ca',
+                    borderRadius: 6,
+                    borderSkipped: false,
+                    maxBarThickness: 36
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    title: { display: true, text: 'Horas Trabajadas por Empleado' }
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleFont: { family: "'Inter', sans-serif", size: 13 },
+                        bodyFont: { family: "'Inter', sans-serif", size: 12 },
+                        cornerRadius: 8,
+                        padding: 10,
+                        callbacks: {
+                            label: function(ctx) {
+                                return ` ${ctx.parsed.y} hrs acumuladas`;
+                            }
+                        }
+                    }
                 },
                 scales: {
-                    y: { beginAtZero: true }
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: textColor,
+                            font: { family: "'Inter', sans-serif", size: 11 },
+                            callback: function(v) { return v + 'h'; }
+                        },
+                        grid: {
+                            color: gridColor
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: textColor,
+                            maxRotation: 25,
+                            minRotation: 0,
+                            font: { family: "'Inter', sans-serif", size: 11 }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
                 }
             }
         });
@@ -3586,8 +3790,13 @@ window.renderUsuariosTable = function() {
     tbody.innerHTML = window.usuariosData.map(u => `
         <tr>
             <td>
-                <div class="fw-500">${u.nombre}</div>
-                <div class="text-small text-sec">${u.dni ? 'DNI: '+u.dni : ''}</div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    ${window.renderEmpleadoAvatar(u.nombre, u.apellido || '', u.foto_perfil, 34)}
+                    <div>
+                        <div class="fw-500">${u.nombre} ${u.apellido || ''}</div>
+                        <div class="text-small text-sec">${u.dni ? 'DNI: '+u.dni : ''}</div>
+                    </div>
+                </div>
             </td>
             <td>
                 <div>${u.email}</div>

@@ -674,7 +674,7 @@ else if ($method === 'GET' && $accion === 'historial') {
     $inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : null;
     $fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : null;
 
-    $query = "SELECT a.*, u.nombre, u.apellido, u.dni, 
+    $query = "SELECT a.*, u.nombre, u.apellido, u.dni, u.foto_perfil,
               IFNULL(u.hora_entrada_asignada, r.hora_entrada) as hora_entrada_asignada, 
               IFNULL(u.hora_salida_asignada, r.hora_salida) as hora_salida_asignada,
               TIMESTAMPDIFF(MINUTE, a.fecha_hora_entrada, a.fecha_hora_salida) as minutos_trabajados,

@@ -204,14 +204,30 @@
     <script src="js/app.js?v=2.7.0"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.0';
-            navigator.serviceWorker.register(swPath)
-                .then(function(reg) {
-                    // Forzar comprobación de actualización inmediata del Service Worker
-                    reg.update();
-                    console.log('SW Registrado y Verificado');
-                })
-                .catch(function(err) { console.error('Error SW', err); });
+            // Comprobación segura de Cache API (Safari en Modo Hermético / Lockdown Mode deshabilita caches)
+            var hasCachesApi = false;
+            try {
+                hasCachesApi = ('caches' in window) && (typeof window.caches !== 'undefined') && (window.caches !== null);
+            } catch (e) {
+                hasCachesApi = false;
+            }
+
+            if (!hasCachesApi) {
+                // En Modo Hermético, desregistrar cualquier SW residual para garantizar navegación nativa limpia
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    for (var i = 0; i < regs.length; i++) {
+                        regs[i].unregister();
+                    }
+                }).catch(function() {});
+            } else {
+                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.1';
+                navigator.serviceWorker.register(swPath)
+                    .then(function(reg) {
+                        reg.update();
+                        console.log('SW Registrado y Verificado');
+                    })
+                    .catch(function(err) { console.warn('Aviso SW:', err); });
+            }
         }
     </script>
 </body>

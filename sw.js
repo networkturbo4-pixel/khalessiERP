@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khalessi-v9';
+const CACHE_NAME = 'khalessi-v10';
 const ASSETS = [
     './',
     './index.html',
@@ -8,45 +8,81 @@ const ASSETS = [
     'https://unpkg.com/@phosphor-icons/web'
 ];
 
+// Detección segura de soporte de Cache API (evita ReferenceError en Safari Modo Hermético / Lockdown Mode)
+function hasCaches() {
+    try {
+        return typeof caches !== 'undefined' && caches !== null;
+    } catch (e) {
+        return false;
+    }
+}
+
 self.addEventListener('install', event => {
-    // Forzar al nuevo service worker a tomar el control inmediatamente
     self.skipWaiting();
     
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => {
-            return cache.addAll(ASSETS);
-        })
-    );
+    if (hasCaches()) {
+        event.waitUntil(
+            caches.open(CACHE_NAME).then(cache => {
+                return cache.addAll(ASSETS);
+            }).catch(err => {
+                console.warn('SW cache addAll omitido o fallido:', err);
+            })
+        );
+    }
 });
 
 self.addEventListener('activate', event => {
-    // Limpiar cachés antiguas
     event.waitUntil(
-        caches.keys().then(keys => {
-            return Promise.all(
-                keys.map(key => {
-                    if (key !== CACHE_NAME) {
-                        return caches.delete(key);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim())
+        (async () => {
+            if (hasCaches()) {
+                try {
+                    const keys = await caches.keys();
+                    await Promise.all(
+                        keys.map(key => {
+                            if (key !== CACHE_NAME) {
+                                return caches.delete(key);
+                            }
+                        })
+                    );
+                } catch (err) {
+                    console.warn('SW cache cleanup omitido o fallido:', err);
+                }
+            }
+            await self.clients.claim();
+        })()
     );
 });
 
 self.addEventListener('fetch', event => {
-    // Ignorar POST o peticiones a la API
+    // Ignorar peticiones que no sean GET o que sean llamadas a la API
     if (event.request.method !== 'GET' || event.request.url.includes('/api/')) return;
     
-    // Estrategia Network First para desarrollo
+    // Si la Cache Storage API no está disponible (ej. Safari en Modo Hermético),
+    // NO llamamos a event.respondWith. De este modo el navegador realiza la petición por red de forma nativa sin errores.
+    if (!hasCaches()) return;
+
+    // Estrategia Network First protegida
     event.respondWith(
-        fetch(event.request).then(networkResponse => {
-            return caches.open(CACHE_NAME).then(cache => {
-                cache.put(event.request, networkResponse.clone());
+        fetch(event.request)
+            .then(networkResponse => {
+                if (hasCaches() && networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
+                    const responseClone = networkResponse.clone();
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(event.request, responseClone);
+                    }).catch(() => {});
+                }
                 return networkResponse;
-            });
-        }).catch(() => {
-            return caches.match(event.request);
-        })
+            })
+            .catch(async (fetchError) => {
+                if (hasCaches()) {
+                    try {
+                        const cached = await caches.match(event.request);
+                        if (cached) return cached;
+                    } catch (cacheErr) {
+                        console.warn('SW cache match omitido:', cacheErr);
+                    }
+                }
+                throw fetchError;
+            })
     );
 });

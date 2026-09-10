@@ -1667,8 +1667,19 @@ async function renderRRHH(container) {
     if (mesInput) mesInput.value = new Date().toISOString().substring(0, 7);
     
     window.currentRRHHTab = 'historial';
-    await loadHistorialAsistencia();
-    actualizarBadgeJustificaciones();
+    window.rrhhTabLoaded = {
+        historial: false,
+        justificaciones: false,
+        personal: false,
+        metricas: false,
+        ajustes: false
+    };
+
+    // Carga inicial ultra-rápida y no bloqueante en paralelo
+    Promise.all([
+        loadHistorialAsistencia(),
+        actualizarBadgeJustificaciones()
+    ]).catch(console.error);
 }
 
 // ==========================================
@@ -1717,18 +1728,13 @@ window.renderEmpleadoAvatar = function(nombre, apellido, fotoUrl, size = 36) {
 };
 
 window.refrescarRRHHActual = async function() {
-    if (window.currentRRHHTab === 'justificaciones') loadJustificaciones();
-    else if (window.currentRRHHTab === 'personal') loadFichasPersonal();
-    else if (window.currentRRHHTab === 'ajustes') { loadRolesHorarios(); loadAjustesRRHHYTotp(); }
-    else if (window.currentRRHHTab === 'metricas') {
-        await loadHistorialAsistencia();
-        if (window.renderMetricasRRHH) window.renderMetricasRRHH(window.historialAsistenciaData || []);
-    }
-    else loadHistorialAsistencia();
+    triggerHaptic(20);
+    const tab = window.currentRRHHTab || 'historial';
+    await window.switchRRHHTab(tab, true);
     actualizarBadgeJustificaciones();
 };
 
-window.switchRRHHTab = async function(tabName) {
+window.switchRRHHTab = async function(tabName, force = false) {
     triggerHaptic(15);
     window.currentRRHHTab = tabName;
     document.querySelectorAll('.rrhh-nav-tab').forEach(el => el.classList.remove('active'));
@@ -1738,6 +1744,7 @@ window.switchRRHHTab = async function(tabName) {
         targetTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
     
+    // Conmutación visual instantánea (0ms)
     ['historial', 'justificaciones', 'personal', 'metricas', 'ajustes'].forEach(t => {
         const el = document.getElementById('rrhh-view-' + t);
         if (el) el.classList.add('hidden');
@@ -1745,12 +1752,20 @@ window.switchRRHHTab = async function(tabName) {
     
     document.getElementById('rrhh-view-' + tabName)?.classList.remove('hidden');
     
+    // Si la pestaña ya fue cargada y no se solicita refresco forzado, mostrar al instante sin petición de red
+    if (!force && window.rrhhTabLoaded && window.rrhhTabLoaded[tabName]) {
+        if (tabName === 'metricas' && window.renderMetricasRRHH) {
+            window.renderMetricasRRHH(window.historialAsistenciaData || []);
+        }
+        return;
+    }
+    
     if (tabName === 'historial') {
-        loadHistorialAsistencia();
+        await loadHistorialAsistencia();
     } else if (tabName === 'justificaciones') {
-        loadJustificaciones();
+        await loadJustificaciones();
     } else if (tabName === 'personal') {
-        loadFichasPersonal();
+        await loadFichasPersonal();
     } else if (tabName === 'metricas') {
         if (!window.historialAsistenciaData || window.historialAsistenciaData.length === 0) {
             await loadHistorialAsistencia();
@@ -1758,9 +1773,10 @@ window.switchRRHHTab = async function(tabName) {
         if (window.renderMetricasRRHH) {
             window.renderMetricasRRHH(window.historialAsistenciaData || []);
         }
+        if (window.rrhhTabLoaded) window.rrhhTabLoaded.metricas = true;
     } else if (tabName === 'ajustes') {
-        loadRolesHorarios();
-        loadAjustesRRHHYTotp();
+        await Promise.all([loadRolesHorarios(), loadAjustesRRHHYTotp()]);
+        if (window.rrhhTabLoaded) window.rrhhTabLoaded.ajustes = true;
     }
 };
 
@@ -1914,6 +1930,7 @@ window.loadHistorialAsistencia = async function() {
 
         if (res.ok && data.status === 'success') {
             window.historialAsistenciaData = data.data || [];
+            if (window.rrhhTabLoaded) window.rrhhTabLoaded.historial = true;
             
             if (window.historialAsistenciaData.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-sec);"><i class="ph ph-calendar-blank" style="font-size:32px; display:block; margin-bottom:8px; opacity:0.5;"></i>No se encontraron registros de asistencia para las fechas seleccionadas.</td></tr>';
@@ -2274,7 +2291,28 @@ window.loadJustificaciones = async function(filtro = null) {
     const tbody = document.getElementById('tbody-justificaciones');
     if (!tbody) return;
     
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;"><i class="ph ph-circle-notch ph-spin" style="font-size:24px;"></i><br>Cargando justificaciones...</td></tr>';
+    tbody.innerHTML = `
+        <tr>
+            <td><div class="skeleton skeleton-text" style="width:130px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:75px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-badge" style="width:90px; height:20px; border-radius:10px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:160px; height:16px;"></div></td>
+            <td style="text-align:center;"><div class="skeleton skeleton-button" style="width:30px; height:24px; border-radius:6px; margin:auto;"></div></td>
+            <td><div class="skeleton skeleton-badge" style="width:80px; height:20px; border-radius:10px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-button" style="width:65px; height:26px; border-radius:6px;"></div></td>
+        </tr>
+        <tr>
+            <td><div class="skeleton skeleton-text" style="width:110px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:75px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-badge" style="width:80px; height:20px; border-radius:10px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:140px; height:16px;"></div></td>
+            <td style="text-align:center;"><div class="skeleton skeleton-button" style="width:30px; height:24px; border-radius:6px; margin:auto;"></div></td>
+            <td><div class="skeleton skeleton-badge" style="width:80px; height:20px; border-radius:10px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-button" style="width:65px; height:26px; border-radius:6px;"></div></td>
+        </tr>
+    `;
     
     try {
         let url = '/khalessierp/api/index.php?request=rrhh/justificaciones';
@@ -2287,6 +2325,7 @@ window.loadJustificaciones = async function(filtro = null) {
         
         if (res.ok && data.status === 'success') {
             window.justificacionesData = data.data || [];
+            if (window.rrhhTabLoaded) window.rrhhTabLoaded.justificaciones = true;
             
             const pendientes = window.justificacionesData.filter(x => x.estado === 'pendiente').length;
             const badge = document.getElementById('badge-just-pendientes');
@@ -2307,8 +2346,7 @@ window.loadJustificaciones = async function(filtro = null) {
                 return;
             }
 
-            tbody.innerHTML = '';
-            window.justificacionesData.forEach(item => {
+            tbody.innerHTML = window.justificacionesData.map(item => {
                 let badgeEstado = '';
                 if (item.estado === 'pendiente') {
                     badgeEstado = '<span class="badge badge-warning"><i class="ph ph-hourglass-high"></i> Pendiente</span>';
@@ -2331,7 +2369,7 @@ window.loadJustificaciones = async function(filtro = null) {
 
                 let avatarHtml = window.renderEmpleadoAvatar(item.nombre, item.apellido, item.foto_perfil, 34);
 
-                tbody.innerHTML += `
+                return `
                     <tr>
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
@@ -2357,7 +2395,7 @@ window.loadJustificaciones = async function(filtro = null) {
                         </td>
                     </tr>
                 `;
-            });
+            }).join('');
         } else {
             tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--danger);">Error cargando justificaciones</td></tr>';
         }
@@ -2534,6 +2572,7 @@ window.loadFichasPersonal = async function() {
         
         if (res.ok && data.status === 'success') {
             window.fichasPersonalData = data.data || [];
+            if (window.rrhhTabLoaded) window.rrhhTabLoaded.personal = true;
             const moneda = AppConfig.get('moneda') || 'S/';
 
             let totalColaboradores = window.fichasPersonalData.length;
@@ -2557,8 +2596,7 @@ window.loadFichasPersonal = async function() {
                 return;
             }
 
-            tbody.innerHTML = '';
-            window.fichasPersonalData.forEach(item => {
+            tbody.innerHTML = window.fichasPersonalData.map(item => {
                 const u = item.usuario;
                 const c = item.contrato;
                 const m = item.metricas;
@@ -2586,7 +2624,7 @@ window.loadFichasPersonal = async function() {
                     <div><span class="text-success">+${m.horas_extra}h extra</span></div>
                 `;
 
-                tbody.innerHTML += `
+                return `
                     <tr>
                         <td class="table-sticky-col">
                             <div style="display:flex; align-items:center; gap:10px;">
@@ -2626,7 +2664,7 @@ window.loadFichasPersonal = async function() {
                         </td>
                     </tr>
                 `;
-            });
+            }).join('');
         } else {
             tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--danger);">Error cargando planilla</td></tr>';
         }

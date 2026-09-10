@@ -425,6 +425,20 @@ try {
                 ];
 
                 if ($foto_perfil !== null) {
+                    // Si se envía en base64, guardar archivo en disco para optimizar velocidad y ancho de banda
+                    if (!empty($foto_perfil) && strpos($foto_perfil, ';base64,') !== false) {
+                        $uploadDir = __DIR__ . '/../uploads/perfiles/';
+                        if (!file_exists($uploadDir)) mkdir($uploadDir, 0777, true);
+                        
+                        $parts = explode(";base64,", $foto_perfil);
+                        $type_aux = explode("image/", $parts[0]);
+                        $ext = isset($type_aux[1]) ? $type_aux[1] : 'jpeg';
+                        if ($ext === 'jpeg') $ext = 'jpg';
+                        $data = base64_decode(str_replace(' ', '+', $parts[1]));
+                        $filename = 'avatar_' . $id . '_' . time() . '.' . $ext;
+                        file_put_contents($uploadDir . $filename, $data);
+                        $foto_perfil = 'uploads/perfiles/' . $filename;
+                    }
                     $query .= ", foto_perfil = :foto_perfil";
                     $params[':foto_perfil'] = $foto_perfil;
                 }

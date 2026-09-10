@@ -3,17 +3,22 @@
 
 require_once __DIR__ . '/totp.php';
 
-// Auto-checkout: Cierra asistencias abiertas donde la hora de salida + 30 min ya pasó
-$qAutoClose = "UPDATE rrhh_asistencias a 
-               JOIN usuarios u ON a.id_usuario = u.id 
-               JOIN roles r ON u.id_rol = r.id
-               SET a.estado = 'cerrado', 
-                   a.metodo_salida = 'automatico', 
-                   a.fecha_hora_salida = DATE_ADD(DATE(a.fecha_hora_entrada), INTERVAL TIME_TO_SEC(IFNULL(u.hora_salida_asignada, r.hora_salida)) + 1800 SECOND)
-               WHERE a.estado = 'abierto' 
-                 AND IFNULL(u.hora_salida_asignada, r.hora_salida) IS NOT NULL 
-                 AND NOW() > DATE_ADD(DATE(a.fecha_hora_entrada), INTERVAL TIME_TO_SEC(IFNULL(u.hora_salida_asignada, r.hora_salida)) + 1800 SECOND)";
-$db->exec($qAutoClose);
+// Auto-checkout: Solo se evalúa en acciones relevantes para evitar bloqueos y lentitud en lecturas
+if (in_array($accion, ['estado', 'turnos_activos', 'marcar_entrada', 'marcar_salida', 'historial'])) {
+    $hayAbiertos = $db->query("SELECT 1 FROM rrhh_asistencias WHERE estado = 'abierto' LIMIT 1")->fetchColumn();
+    if ($hayAbiertos) {
+        $qAutoClose = "UPDATE rrhh_asistencias a 
+                       JOIN usuarios u ON a.id_usuario = u.id 
+                       JOIN roles r ON u.id_rol = r.id
+                       SET a.estado = 'cerrado', 
+                           a.metodo_salida = 'automatico', 
+                           a.fecha_hora_salida = DATE_ADD(DATE(a.fecha_hora_entrada), INTERVAL TIME_TO_SEC(IFNULL(u.hora_salida_asignada, r.hora_salida)) + 1800 SECOND)
+                       WHERE a.estado = 'abierto' 
+                         AND IFNULL(u.hora_salida_asignada, r.hora_salida) IS NOT NULL 
+                         AND NOW() > DATE_ADD(DATE(a.fecha_hora_entrada), INTERVAL TIME_TO_SEC(IFNULL(u.hora_salida_asignada, r.hora_salida)) + 1800 SECOND)";
+        $db->exec($qAutoClose);
+    }
+}
 
 // ==========================================
 // 1. ESTADO DE ASISTENCIA Y EVALUACIÓN DE TARDANZA
@@ -563,61 +568,58 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
     
     $resultado = [];
     
+    // Optimización de Alto Rendimiento: 1 sola consulta agrupada para métricas mensuales de todos los empleados
+    $stmtHorasMes = $db->prepare("SELECT id_usuario,
+                                         IFNULL(SUM(TIMESTAMPDIFF(MINUTE, fecha_hora_entrada, fecha_hora_salida)), 0) as minutos_mes,
+                                         IFNULL(SUM(horas_extra), 0) as total_horas_extra,
+                                         IFNULL(SUM(horas_perdidas), 0) as total_horas_perdidas,
+                                         SUM(CASE WHEN condicion = 'tardanza' THEN 1 ELSE 0 END) as cant_tardanzas,
+                                         SUM(CASE WHEN condicion = 'tardanza' THEN IFNULL(minutos_tardanza, 0) ELSE 0 END) as sum_minutos_tardanza,
+                                         SUM(CASE WHEN condicion = 'falta_injustificada' THEN 1 ELSE 0 END) as faltas_injustificadas,
+                                         SUM(CASE WHEN condicion = 'falta_justificada' THEN 1 ELSE 0 END) as faltas_justificadas,
+                                         SUM(CASE WHEN condicion = 'permiso' THEN 1 ELSE 0 END) as permisos,
+                                         SUM(CASE WHEN condicion = 'sancion_disciplinaria' THEN 1 ELSE 0 END) as sanciones
+                                  FROM rrhh_asistencias 
+                                  WHERE fecha_hora_entrada >= :inicio AND fecha_hora_entrada <= :fin
+                                  GROUP BY id_usuario");
+    $stmtHorasMes->execute([':inicio' => $inicioMes . ' 00:00:00', ':fin' => $finMes . ' 23:59:59']);
+    $mesDataGrouped = [];
+    while ($row = $stmtHorasMes->fetch(PDO::FETCH_ASSOC)) {
+        $mesDataGrouped[$row['id_usuario']] = $row;
+    }
+
+    // 1 sola consulta agrupada para horas semanales
+    $stmtHorasSemana = $db->prepare("SELECT id_usuario,
+                                            IFNULL(SUM(TIMESTAMPDIFF(MINUTE, fecha_hora_entrada, fecha_hora_salida)), 0) as minutos_semana
+                                     FROM rrhh_asistencias 
+                                     WHERE fecha_hora_entrada >= :lunes AND fecha_hora_entrada <= :domingo 
+                                       AND fecha_hora_salida IS NOT NULL
+                                     GROUP BY id_usuario");
+    $stmtHorasSemana->execute([':lunes' => $lunesEstaSemana . ' 00:00:00', ':domingo' => $domingoEstaSemana . ' 23:59:59']);
+    $semanaDataGrouped = [];
+    while ($row = $stmtHorasSemana->fetch(PDO::FETCH_ASSOC)) {
+        $semanaDataGrouped[$row['id_usuario']] = (int)$row['minutos_semana'];
+    }
+
     foreach ($empleados as $emp) {
         $empId = $emp['id'];
+        $dataHoras = $mesDataGrouped[$empId] ?? null;
         
-        // 1. Minutos y horas trabajadas en el mes
-        $stmtHorasMes = $db->prepare("SELECT IFNULL(SUM(TIMESTAMPDIFF(MINUTE, fecha_hora_entrada, fecha_hora_salida)), 0) as minutos_mes,
-                                             IFNULL(SUM(horas_extra), 0) as total_horas_extra,
-                                             IFNULL(SUM(horas_perdidas), 0) as total_horas_perdidas
-                                      FROM rrhh_asistencias 
-                                      WHERE id_usuario = :id 
-                                        AND DATE(fecha_hora_entrada) BETWEEN :inicio AND :fin 
-                                        AND fecha_hora_salida IS NOT NULL");
-        $stmtHorasMes->execute([':id' => $empId, ':inicio' => $inicioMes, ':fin' => $finMes]);
-        $dataHoras = $stmtHorasMes->fetch(PDO::FETCH_ASSOC);
-        
-        $minutosMes = (int)$dataHoras['minutos_mes'];
+        $minutosMes = $dataHoras ? (int)$dataHoras['minutos_mes'] : 0;
         $horasMes = round($minutosMes / 60, 2);
-        $totalHorasExtra = (float)$dataHoras['total_horas_extra'];
-        $totalHorasPerdidas = (float)$dataHoras['total_horas_perdidas'];
+        $totalHorasExtra = $dataHoras ? (float)$dataHoras['total_horas_extra'] : 0.00;
+        $totalHorasPerdidas = $dataHoras ? (float)$dataHoras['total_horas_perdidas'] : 0.00;
         
-        // 2. Horas trabajadas en la semana actual
-        $stmtHorasSemana = $db->prepare("SELECT IFNULL(SUM(TIMESTAMPDIFF(MINUTE, fecha_hora_entrada, fecha_hora_salida)), 0) as minutos_semana
-                                         FROM rrhh_asistencias 
-                                         WHERE id_usuario = :id 
-                                           AND DATE(fecha_hora_entrada) BETWEEN :lunes AND :domingo 
-                                           AND fecha_hora_salida IS NOT NULL");
-        $stmtHorasSemana->execute([':id' => $empId, ':lunes' => $lunesEstaSemana, ':domingo' => $domingoEstaSemana]);
-        $minutosSemana = (int)$stmtHorasSemana->fetchColumn();
+        $minutosSemana = $semanaDataGrouped[$empId] ?? 0;
         $horasSemana = round($minutosSemana / 60, 2);
         
-        // 3. Conteo de tardanzas y minutos acumulados en el mes
-        $stmtTardanzas = $db->prepare("SELECT COUNT(*) as cant_tardanzas, IFNULL(SUM(minutos_tardanza), 0) as sum_minutos
-                                       FROM rrhh_asistencias 
-                                       WHERE id_usuario = :id 
-                                         AND DATE(fecha_hora_entrada) BETWEEN :inicio AND :fin 
-                                         AND condicion = 'tardanza'");
-        $stmtTardanzas->execute([':id' => $empId, ':inicio' => $inicioMes, ':fin' => $finMes]);
-        $dataTardanzas = $stmtTardanzas->fetch(PDO::FETCH_ASSOC);
-        $cantTardanzas = (int)$dataTardanzas['cant_tardanzas'];
-        $minutosTardanzas = (int)$dataTardanzas['sum_minutos'];
+        $cantTardanzas = $dataHoras ? (int)$dataHoras['cant_tardanzas'] : 0;
+        $minutosTardanzas = $dataHoras ? (int)$dataHoras['sum_minutos_tardanza'] : 0;
         
-        // 4. Conteo de faltas (justificadas e injustificadas) y sanciones
-        $stmtFaltas = $db->prepare("SELECT 
-                                      SUM(CASE WHEN condicion = 'falta_injustificada' THEN 1 ELSE 0 END) as faltas_injustificadas,
-                                      SUM(CASE WHEN condicion = 'falta_justificada' THEN 1 ELSE 0 END) as faltas_justificadas,
-                                      SUM(CASE WHEN condicion = 'permiso' THEN 1 ELSE 0 END) as permisos,
-                                      SUM(CASE WHEN condicion = 'sancion_disciplinaria' THEN 1 ELSE 0 END) as sanciones
-                                    FROM rrhh_asistencias 
-                                    WHERE id_usuario = :id 
-                                      AND DATE(fecha_hora_entrada) BETWEEN :inicio AND :fin");
-        $stmtFaltas->execute([':id' => $empId, ':inicio' => $inicioMes, ':fin' => $finMes]);
-        $dataFaltas = $stmtFaltas->fetch(PDO::FETCH_ASSOC);
-        $faltasInjustificadas = (int)$dataFaltas['faltas_injustificadas'];
-        $faltasJustificadas = (int)$dataFaltas['faltas_justificadas'];
-        $permisos = (int)$dataFaltas['permisos'];
-        $sanciones = (int)$dataFaltas['sanciones'];
+        $faltasInjustificadas = $dataHoras ? (int)$dataHoras['faltas_injustificadas'] : 0;
+        $faltasJustificadas = $dataHoras ? (int)$dataHoras['faltas_justificadas'] : 0;
+        $permisos = $dataHoras ? (int)$dataHoras['permisos'] : 0;
+        $sanciones = $dataHoras ? (int)$dataHoras['sanciones'] : 0;
         
         // 5. CÁLCULO DE REMUNERACIÓN
         $sueldoBase = (float)$emp['sueldo_base'];
@@ -793,9 +795,9 @@ else if ($method === 'GET' && $accion === 'historial') {
     
     $params = [];
     if ($inicio && $fin) {
-        $query .= " AND DATE(a.fecha_hora_entrada) BETWEEN :inicio AND :fin";
-        $params[':inicio'] = $inicio;
-        $params[':fin'] = $fin;
+        $query .= " AND a.fecha_hora_entrada >= :inicio AND a.fecha_hora_entrada <= :fin";
+        $params[':inicio'] = $inicio . ' 00:00:00';
+        $params[':fin'] = $fin . ' 23:59:59';
     }
     
     $query .= " ORDER BY a.fecha_hora_entrada DESC";

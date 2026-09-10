@@ -42,6 +42,11 @@
     box-sizing: border-box;
 }
 
+html {
+    overscroll-behavior-y: none;
+    overscroll-behavior: none;
+}
+
 body {
     font-family: var(--font-family);
     font-size: 13px;
@@ -50,6 +55,9 @@ body {
     line-height: 1.5;
     transition: background-color 0.3s, color 0.3s;
     overflow-x: hidden;
+    overscroll-behavior-y: none;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -2202,45 +2210,6 @@ input:checked + .slider:before {
 
 .skeleton-circle {
     border-radius: 50% !important;
-}
-
-/* ===================================================
-   PULL TO REFRESH INDICATOR
-   =================================================== */
-.ptr-indicator {
-    position: fixed;
-    top: 68px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-100px);
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    border-radius: 30px;
-    padding: 8px 18px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-main);
-    z-index: 1020;
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.ptr-indicator.visible {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-}
-
-.ptr-indicator i.spinning {
-    animation: spinPtr 0.8s linear infinite;
-}
-
-@keyframes spinPtr {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
 }
 
 /* ===================================================

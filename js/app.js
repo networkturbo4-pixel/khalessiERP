@@ -447,11 +447,6 @@ function renderAppLayout(container) {
 
             <!-- Main Content Wrapper -->
             <div class="main-wrapper">
-                <!-- Pull to Refresh Indicator -->
-                <div class="ptr-indicator" id="ptr-indicator">
-                    <i class="ph ph-arrows-clockwise"></i>
-                </div>
-
                 <!-- Header (Solo visible en Móvil) -->
                 <header class="topbar">
                     <div class="topbar-left">
@@ -519,7 +514,6 @@ function renderAppLayout(container) {
     `;
 
     setTimeout(() => {
-        initPullToRefresh();
         initModalTouchDismiss();
         if (typeof window.verificarActualizacionSilenciosa === 'function') {
             window.verificarActualizacionSilenciosa();
@@ -624,69 +618,8 @@ window.handleFabClick = function() {
     }
 };
 
-// Pull to Refresh para móviles
-window.initPullToRefresh = function() {
-    const ptr = document.getElementById('ptr-indicator');
-    if (!ptr || window._ptrInitialized) return;
-    window._ptrInitialized = true;
-
-    let touchStartY = 0;
-    let touchDistance = 0;
-    let isPulling = false;
-
-    window.addEventListener('touchstart', (e) => {
-        if (window.scrollY <= 5 && e.touches.length === 1) {
-            touchStartY = e.touches[0].clientY;
-            isPulling = true;
-        }
-    }, { passive: true });
-
-    window.addEventListener('touchmove', (e) => {
-        if (!isPulling) return;
-        const currentY = e.touches[0].clientY;
-        touchDistance = currentY - touchStartY;
-        if (touchDistance > 10 && window.scrollY <= 5) {
-            const pullHeight = Math.min(touchDistance * 0.45, 65);
-            ptr.style.top = `${pullHeight}px`;
-            ptr.classList.add('visible');
-            if (touchDistance > 80) {
-                ptr.classList.add('refreshing');
-            } else {
-                ptr.classList.remove('refreshing');
-            }
-        }
-    }, { passive: true });
-
-    window.addEventListener('touchend', async () => {
-        if (!isPulling) return;
-        isPulling = false;
-        if (touchDistance > 80 && window.scrollY <= 5) {
-            triggerHaptic([30, 50, 30]);
-            ptr.classList.add('refreshing');
-            const base = window.getAppBase();
-            const path = base ? window.location.pathname.replace(base, '') : window.location.pathname;
-            try {
-                if (path === '/rrhh' && typeof refrescarRRHHActual === 'function') {
-                    await refrescarRRHHActual();
-                } else if (path === '/inventario' && typeof loadInventario === 'function') {
-                    await loadInventario();
-                } else {
-                    router();
-                }
-            } catch (e) {
-                console.error(e);
-            }
-            setTimeout(() => {
-                ptr.classList.remove('visible', 'refreshing');
-                ptr.style.top = '-60px';
-            }, 600);
-        } else {
-            ptr.classList.remove('visible', 'refreshing');
-            ptr.style.top = '-60px';
-        }
-        touchDistance = 0;
-    });
-};
+// Pull to Refresh deshabilitado
+window.initPullToRefresh = function() {};
 
 // Cierre táctil de modales tipo Bottom Sheet deslizando hacia abajo
 window.initModalTouchDismiss = function() {

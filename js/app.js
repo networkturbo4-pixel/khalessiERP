@@ -387,7 +387,7 @@ function renderAppLayout(container) {
                 <div class="sidebar-footer">
                     <!-- Aviso dinámico de actualización en Sidebar -->
                     <div id="sidebar-update-notice" class="sidebar-update-notice" style="display: none;">
-                        <button type="button" class="btn-update-topbar" onclick="window.irAActualizaciones()" title="Nueva versión disponible en GitHub">
+                        <button type="button" class="btn-update-topbar btn-update-sidebar" onclick="window.irAActualizaciones()" title="Nueva versión disponible en GitHub">
                             <span class="pulse-indicator"></span>
                             <i class="ph ph-sparkle" style="color: #f59e0b; font-size: 15px;"></i>
                             <span class="update-label">Actualización disponible</span>
@@ -6303,6 +6303,9 @@ window.comprobarActualizacionGitHub = async function() {
 
         if (res.ok && data.status === 'success') {
             const info = data.data;
+            if (typeof window.actualizarAvisosVersion === 'function') {
+                window.actualizarAvisosVersion(info);
+            }
             if (alertEl) {
                 alertEl.style.display = 'block';
                 if (info.requiere_vinculacion || !info.is_git_repo) {
@@ -6407,6 +6410,9 @@ window.ejecutarActualizacion1Click = async function() {
 
         if (res.ok && data.status === 'success') {
             showToast('¡Sistema actualizado con éxito!', 'success');
+            if (typeof window.actualizarAvisosVersion === 'function') {
+                window.actualizarAvisosVersion({ hay_actualizacion: false, requiere_vinculacion: false });
+            }
             if (consoleEl) {
                 consoleEl.innerText += `[2/2] Migraciones seguras procesadas.\n\n${data.data.logs || 'Actualización completada.'}`;
             }
@@ -6472,38 +6478,54 @@ window.ejecutarMigracionesSeguras = async function() {
 };
 
 // ========================================================
-// AVISO DINÁMICO DE ACTUALIZACIONES EN LA CABECERA (TOPBAR)
+// AVISO DINÁMICO DE ACTUALIZACIONES (TOPBAR Y SIDEBAR)
 // ========================================================
 
-window.verificarActualizacionSilenciosa = async function() {
+window.actualizarAvisosVersion = function(info) {
+    const noticeEl = document.getElementById('topbar-update-notice');
+    const sidebarNoticeEl = document.getElementById('sidebar-update-notice');
+    const tieneNovedad = Boolean(info && (info.hay_actualizacion === true || info.requiere_vinculacion === true));
+
+    if (noticeEl) {
+        noticeEl.style.display = tieneNovedad ? 'inline-flex' : 'none';
+    }
+    if (sidebarNoticeEl) {
+        sidebarNoticeEl.style.display = tieneNovedad ? 'block' : 'none';
+    }
+
+    try {
+        localStorage.setItem('khalessi_update_check', JSON.stringify({
+            timestamp: Date.now(),
+            hay_actualizacion: Boolean(info && info.hay_actualizacion),
+            requiere_vinculacion: Boolean(info && info.requiere_vinculacion)
+        }));
+    } catch(e) {}
+};
+
+window.verificarActualizacionSilenciosa = async function(forzar = false) {
     try {
         const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
         const isAdministrador = user.rol_nombre && user.rol_nombre.toLowerCase() === 'administrador';
         if (!isAdministrador) return; // Solo administradores deben ver aviso de actualización del sistema
 
-        const setNoticeDisplay = (display) => {
-            const noticeEl = document.getElementById('topbar-update-notice');
-            const sidebarNoticeEl = document.getElementById('sidebar-update-notice');
-            if (noticeEl) noticeEl.style.display = display;
-            if (sidebarNoticeEl) sidebarNoticeEl.style.display = display;
-        };
-
-        // Comprobar cache local para no saturar la red (ej. cada 15 minutos)
         const cacheKey = 'khalessi_update_check';
-        const cached = localStorage.getItem(cacheKey);
         const now = Date.now();
-        if (cached) {
-            try {
-                const parsed = JSON.parse(cached);
-                if (now - parsed.timestamp < 15 * 60 * 1000) {
-                    if (parsed.hay_actualizacion || parsed.requiere_vinculacion) {
-                        setNoticeDisplay('inline-flex');
-                    } else {
-                        setNoticeDisplay('none');
+
+        if (!forzar) {
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (now - parsed.timestamp < 15 * 60 * 1000) {
+                        const noticeEl = document.getElementById('topbar-update-notice');
+                        const sidebarNoticeEl = document.getElementById('sidebar-update-notice');
+                        const tieneNovedad = Boolean(parsed.hay_actualizacion || parsed.requiere_vinculacion);
+                        if (noticeEl) noticeEl.style.display = tieneNovedad ? 'inline-flex' : 'none';
+                        if (sidebarNoticeEl) sidebarNoticeEl.style.display = tieneNovedad ? 'block' : 'none';
+                        return;
                     }
-                    return;
-                }
-            } catch(e) {}
+                } catch(e) {}
+            }
         }
 
         const res = await fetch('/khalessierp/api/index.php?request=sistema/check_update', {
@@ -6511,19 +6533,7 @@ window.verificarActualizacionSilenciosa = async function() {
         });
         const data = await res.json();
         if (res.ok && data.status === 'success') {
-            const info = data.data;
-            const tieneNovedad = (info.hay_actualizacion === true || info.requiere_vinculacion === true);
-            localStorage.setItem(cacheKey, JSON.stringify({
-                timestamp: now,
-                hay_actualizacion: info.hay_actualizacion,
-                requiere_vinculacion: info.requiere_vinculacion
-            }));
-
-            if (tieneNovedad) {
-                setNoticeDisplay('inline-flex');
-            } else {
-                setNoticeDisplay('none');
-            }
+            window.actualizarAvisosVersion(data.data);
         }
     } catch(e) {
         // Silencioso, no interrumpe al usuario

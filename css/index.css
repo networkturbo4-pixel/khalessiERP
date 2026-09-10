@@ -1305,6 +1305,38 @@ a:hover {
     border-radius: var(--radius);
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
+    margin-bottom: 20px;
+}
+
+.card:last-child {
+    margin-bottom: 0;
+}
+
+/* ==========================================================
+   Utilitarios de Margen y Espaciado
+   ========================================================= */
+.mb-0 { margin-bottom: 0 !important; }
+.mb-1 { margin-bottom: 4px !important; }
+.mb-2 { margin-bottom: 8px !important; }
+.mb-3 { margin-bottom: 16px !important; }
+.mb-4 { margin-bottom: 24px !important; }
+.mb-5 { margin-bottom: 32px !important; }
+.mt-0 { margin-top: 0 !important; }
+.mt-1 { margin-top: 4px !important; }
+.mt-2 { margin-top: 8px !important; }
+.mt-3 { margin-top: 16px !important; }
+.mt-4 { margin-top: 24px !important; }
+.mt-5 { margin-top: 32px !important; }
+
+/* Contenedores de pestañas de configuración */
+.config-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.config-content.hidden {
+    display: none !important;
 }
 
 .card-header {
@@ -2801,10 +2833,11 @@ body.kiosk-mode .content-area {
     .attendance-action-btn-group .btn-app-action {
         flex: 1;
         justify-content: center;
+    }
 }
 
 /* ==========================================================
-   Aviso de Actualización del Sistema en Cabecera (Topbar)
+   Aviso de Actualización del Sistema (Topbar y Sidebar)
    ========================================================== */
 .btn-update-topbar {
     display: inline-flex;
@@ -2815,11 +2848,14 @@ body.kiosk-mode .content-area {
     border: 1px solid rgba(245, 158, 11, 0.35);
     padding: 6px 14px;
     border-radius: 20px;
+    font-family: inherit;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
+    text-decoration: none;
+    box-sizing: border-box;
 }
 
 [data-theme="dark"] .btn-update-topbar {
@@ -2834,6 +2870,49 @@ body.kiosk-mode .content-area {
     box-shadow: 0 3px 10px rgba(245, 158, 11, 0.25);
 }
 
+/* Botón de Actualización dentro del Sidebar (Ancho completo y diseño moderno) */
+.sidebar-update-notice {
+    width: 100%;
+    margin-bottom: 6px;
+}
+
+.sidebar-update-notice .btn-update-topbar,
+.btn-update-sidebar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.18) 100%);
+    color: #b45309;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.1);
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .sidebar-update-notice .btn-update-topbar,
+[data-theme="dark"] .btn-update-sidebar {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(180, 83, 9, 0.26) 100%);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.45);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.sidebar-update-notice .btn-update-topbar:hover,
+.btn-update-sidebar:hover {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(217, 119, 6, 0.3) 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.22);
+    border-color: rgba(245, 158, 11, 0.6);
+}
+
 .pulse-indicator {
     width: 8px;
     height: 8px;
@@ -2842,6 +2921,7 @@ body.kiosk-mode .content-area {
     display: inline-block;
     box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
     animation: pulse-orange 2s infinite;
+    flex-shrink: 0;
 }
 
 @keyframes pulse-orange {
@@ -2851,10 +2931,10 @@ body.kiosk-mode .content-area {
 }
 
 @media (max-width: 768px) {
-    .btn-update-topbar .update-label {
+    .topbar .btn-update-topbar .update-label {
         display: none;
     }
-    .btn-update-topbar {
+    .topbar .btn-update-topbar {
         padding: 6px 10px;
     }
 }

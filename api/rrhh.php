@@ -239,6 +239,104 @@ else if ($method === 'POST' && $accion === 'marcar_salida') {
 }
 
 // ==========================================
+// 4.1 TURNOS ACTIVOS Y RETIRO DISCIPLINARIO
+// ==========================================
+else if ($method === 'GET' && $accion === 'turnos_activos') {
+    $q = "SELECT a.id as id_asistencia, a.id_usuario, a.fecha_hora_entrada, a.condicion, a.minutos_tardanza,
+                 u.nombre, u.apellido, u.dni, u.foto_perfil, u.cargo,
+                 r.nombre as rol_nombre,
+                 IFNULL(u.hora_salida_asignada, r.hora_salida) as hora_salida_esperada,
+                 TIMESTAMPDIFF(MINUTE, a.fecha_hora_entrada, NOW()) as minutos_activos
+          FROM rrhh_asistencias a
+          JOIN usuarios u ON a.id_usuario = u.id
+          JOIN roles r ON u.id_rol = r.id
+          WHERE a.estado = 'abierto'
+          ORDER BY a.fecha_hora_entrada DESC";
+    $stmt = $db->query($q);
+    $turnos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    respondSuccess($turnos);
+}
+
+else if ($method === 'POST' && $accion === 'retiro_disciplinario') {
+    $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
+    
+    $id_asistencia = isset($input['id_asistencia']) ? (int)$input['id_asistencia'] : 0;
+    $id_usuario = isset($input['id_usuario']) ? (int)$input['id_usuario'] : 0;
+    $motivo = isset($input['motivo']) && trim($input['motivo']) !== '' ? trim($input['motivo']) : 'Pérdida de tiempo en horario laboral';
+    $detalle = isset($input['detalle']) ? trim($input['detalle']) : '';
+    $horas_descontar = isset($input['horas_descontar']) && $input['horas_descontar'] !== '' ? (float)$input['horas_descontar'] : null;
+    $id_admin = isset($input['id_admin']) ? (int)$input['id_admin'] : null;
+    
+    if (!$id_asistencia && $id_usuario > 0) {
+        $stmtA = $db->prepare("SELECT id FROM rrhh_asistencias WHERE id_usuario = :u AND estado = 'abierto' ORDER BY id DESC LIMIT 1");
+        $stmtA->execute([':u' => $id_usuario]);
+        $id_asistencia = (int)$stmtA->fetchColumn();
+    }
+    
+    if (!$id_asistencia) {
+        respondError("No se encontró un turno abierto para este colaborador");
+    }
+    
+    $stmtData = $db->prepare("SELECT a.id, a.id_usuario, a.fecha_hora_entrada, a.observaciones,
+                                     u.nombre, u.apellido, u.dni,
+                                     IFNULL(u.hora_salida_asignada, r.hora_salida) as hora_salida_esperada
+                              FROM rrhh_asistencias a
+                              JOIN usuarios u ON a.id_usuario = u.id
+                              JOIN roles r ON u.id_rol = r.id
+                              WHERE a.id = :id");
+    $stmtData->execute([':id' => $id_asistencia]);
+    $asist = $stmtData->fetch(PDO::FETCH_ASSOC);
+    if (!$asist) respondError("Registro de asistencia no encontrado");
+    
+    $entradaTs = strtotime($asist['fecha_hora_entrada']);
+    $ahoraTs = time();
+    $minutosTrabajados = max(1, round(($ahoraTs - $entradaTs) / 60));
+    $horasTrabajadas = round($minutosTrabajados / 60, 2);
+    
+    if ($horas_descontar === null || $horas_descontar < 0) {
+        $horas_descontar = max(0.5, round(8.0 - $horasTrabajadas, 2));
+    }
+    
+    $horaCorteStr = date('H:i');
+    $fechaHoy = date('Y-m-d');
+    $obsSancion = "[RETIRO DISCIPLINARIO {$fechaHoy} {$horaCorteStr}] Motivo: {$motivo}. ";
+    if (!empty($detalle)) $obsSancion .= "Detalle: {$detalle}. ";
+    $obsSancion .= "Laboró: {$horasTrabajadas}h. Descuento aplicado: {$horas_descontar}h perdidas.";
+    
+    if ($id_admin) {
+        $stmtAdm = $db->prepare("SELECT nombre, apellido FROM usuarios WHERE id = :id");
+        $stmtAdm->execute([':id' => $id_admin]);
+        $adm = $stmtAdm->fetch(PDO::FETCH_ASSOC);
+        if ($adm) $obsSancion .= " Aplicado por: " . $adm['nombre'] . " " . ($adm['apellido'] ?: '') . ".";
+    }
+    
+    $obsFinal = trim(($asist['observaciones'] ? $asist['observaciones'] . " | " : "") . $obsSancion);
+    
+    $stmtUpd = $db->prepare("UPDATE rrhh_asistencias 
+                             SET fecha_hora_salida = NOW(),
+                                 estado = 'cerrado',
+                                 metodo_salida = 'sancion_disciplinaria',
+                                 condicion = 'sancion_disciplinaria',
+                                 horas_perdidas = :hp,
+                                 observaciones = :obs
+                             WHERE id = :id");
+    $stmtUpd->execute([
+        ':hp' => $horas_descontar,
+        ':obs' => $obsFinal,
+        ':id' => $id_asistencia
+    ]);
+    
+    respondSuccess([
+        'id_asistencia' => $id_asistencia,
+        'empleado' => $asist['nombre'] . ' ' . ($asist['apellido'] ?: ''),
+        'horas_trabajadas' => $horasTrabajadas,
+        'horas_descontadas' => $horas_descontar,
+        'hora_salida' => $horaCorteStr,
+        'motivo' => $motivo
+    ], "Se aplicó el retiro disciplinario a {$asist['nombre']}. Turno cerrado a las {$horaCorteStr} y {$horas_descontar} hrs descontadas.");
+}
+
+// ==========================================
 // 5. JUSTIFICACIONES DE INASISTENCIA / PERMISOS
 // ==========================================
 else if ($method === 'POST' && $accion === 'enviar_justificacion') {
@@ -504,11 +602,12 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
         $cantTardanzas = (int)$dataTardanzas['cant_tardanzas'];
         $minutosTardanzas = (int)$dataTardanzas['sum_minutos'];
         
-        // 4. Conteo de faltas (justificadas e injustificadas)
+        // 4. Conteo de faltas (justificadas e injustificadas) y sanciones
         $stmtFaltas = $db->prepare("SELECT 
                                       SUM(CASE WHEN condicion = 'falta_injustificada' THEN 1 ELSE 0 END) as faltas_injustificadas,
                                       SUM(CASE WHEN condicion = 'falta_justificada' THEN 1 ELSE 0 END) as faltas_justificadas,
-                                      SUM(CASE WHEN condicion = 'permiso' THEN 1 ELSE 0 END) as permisos
+                                      SUM(CASE WHEN condicion = 'permiso' THEN 1 ELSE 0 END) as permisos,
+                                      SUM(CASE WHEN condicion = 'sancion_disciplinaria' THEN 1 ELSE 0 END) as sanciones
                                     FROM rrhh_asistencias 
                                     WHERE id_usuario = :id 
                                       AND DATE(fecha_hora_entrada) BETWEEN :inicio AND :fin");
@@ -517,6 +616,7 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
         $faltasInjustificadas = (int)$dataFaltas['faltas_injustificadas'];
         $faltasJustificadas = (int)$dataFaltas['faltas_justificadas'];
         $permisos = (int)$dataFaltas['permisos'];
+        $sanciones = (int)$dataFaltas['sanciones'];
         
         // 5. CÁLCULO DE REMUNERACIÓN
         $sueldoBase = (float)$emp['sueldo_base'];
@@ -569,6 +669,7 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
                 'faltas_injustificadas' => $faltasInjustificadas,
                 'faltas_justificadas' => $faltasJustificadas,
                 'permisos' => $permisos,
+                'sanciones' => $sanciones,
                 'horas_extra' => $totalHorasExtra,
                 'horas_perdidas' => $totalHorasPerdidas
             ],

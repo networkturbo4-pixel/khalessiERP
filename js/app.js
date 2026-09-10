@@ -949,6 +949,7 @@ async function renderRRHH(container) {
             </div>
             <div style="display:flex; gap:12px; flex-wrap:wrap;">
                 <button class="btn btn-secondary" onclick="refrescarRRHHActual()"><i class="ph ph-arrows-clockwise"></i> Refrescar</button>
+                <button class="btn btn-danger" onclick="abrirModalRetiroDisciplinario()" title="Cerrar turno y descontar horas por indisciplina o pérdida de tiempo"><i class="ph ph-hand-palm"></i> Retiro Disciplinario</button>
                 <button class="btn btn-primary" onclick="abrirModalAusencia()"><i class="ph ph-plus"></i> Registrar Falta/Permiso</button>
             </div>
         </div>
@@ -1023,10 +1024,11 @@ async function renderRRHH(container) {
                                     <th>Salida y Total Horas</th>
                                     <th>Condición / Estado</th>
                                     <th>Evidencia (Foto y GPS)</th>
+                                    <th>Acción</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr><td colspan="6" style="text-align:center;">Cargando historial...</td></tr>
+                                <tr><td colspan="7" style="text-align:center;">Cargando historial...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1507,6 +1509,81 @@ async function renderRRHH(container) {
                 </div>
             </div>
         </div>
+
+        <!-- Modal Retiro Disciplinario / Sanción Inmediata -->
+        <div class="modal-backdrop" id="modal-retiro-disciplinario">
+            <div class="modal" style="max-width: 540px; max-height: 92vh; display: flex; flex-direction: column;">
+                <div class="modal-header" style="border-bottom: 2px solid var(--danger);">
+                    <div style="display: flex; align-items: center; gap: 8px; color: var(--danger);">
+                        <i class="ph ph-hand-palm" style="font-size: 22px;"></i>
+                        <h3 style="font-size: 16px; margin: 0; color: var(--danger);">Retiro Disciplinario y Corte de Turno</h3>
+                    </div>
+                    <button class="btn-icon" onclick="cerrarModalRetiroDisciplinario()"><i class="ph ph-x"></i></button>
+                </div>
+                <div class="modal-body" style="overflow-y: auto; padding: 20px;">
+                    <input type="hidden" id="retiro-asistencia-id">
+                    
+                    <div class="form-group">
+                        <label class="form-label font-bold">Colaborador en Turno Activo <span class="text-danger">*</span></label>
+                        <select id="retiro-select-empleado" class="form-control" onchange="onSelectEmpleadoRetiro()">
+                            <option value="">Cargando colaboradores en turno...</option>
+                        </select>
+                    </div>
+
+                    <!-- Cuadro resumen de tiempo en vivo -->
+                    <div id="retiro-info-box" class="card mb-3" style="background: var(--bg-main); border: 1px solid var(--border); padding: 14px; border-radius: 10px; display: none;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span class="text-sec">Hora de Entrada:</span>
+                            <strong id="retiro-info-entrada">--:--</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span class="text-sec">Hora actual de Corte:</span>
+                            <strong id="retiro-info-corte" class="text-danger">--:--</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <span class="text-sec">Tiempo trabajado hoy:</span>
+                            <strong id="retiro-info-trabajado" class="text-primary">-- hrs</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px dashed var(--border);">
+                            <span class="text-sec">Horas restantes de jornada:</span>
+                            <strong id="retiro-info-restantes" style="color: var(--danger);">-- hrs</strong>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label font-bold">Motivo del Retiro / Sanción <span class="text-danger">*</span></label>
+                        <select id="retiro-motivo" class="form-control">
+                            <option value="Pérdida de tiempo y ocio reiterado en horario laboral">Pérdida de tiempo y ocio en horario laboral</option>
+                            <option value="Uso no autorizado de celular y distracción continua">Uso no autorizado de celular / distracción continua</option>
+                            <option value="Incumplimiento de funciones y negligencia en el puesto">Incumplimiento de funciones y negligencia</option>
+                            <option value="Falta de respeto o indisciplina con el equipo">Falta de respeto o indisciplina</option>
+                            <option value="Abandono injustificado de área de trabajo">Abandono injustificado de puesto de trabajo</option>
+                            <option value="Otro">Otro motivo disciplinario</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label font-bold">Horas de Tiempo Perdido a Descontar (Fin de Mes)</label>
+                        <input type="number" id="retiro-horas-descontar" class="form-control" step="0.5" min="0.5" max="24" value="4.0">
+                        <small class="text-sec" style="font-size: 11px;">Calculado según la jornada pactada. Estas horas se descontarán automáticamente del sueldo neto en su Ficha/Boleta.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label font-bold">Detalles / Explicación del Incidente <span class="text-danger">*</span></label>
+                        <textarea id="retiro-detalle" class="form-control" rows="3" placeholder="Describe lo ocurrido (ej: Se le llamó la atención en 2 ocasiones por no avanzar pedidos y usar el celular. Se procede a retirarlo a su casa)..."></textarea>
+                    </div>
+
+                    <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid var(--danger); padding: 10px 12px; border-radius: 6px; font-size: 12px; color: var(--text-main);">
+                        <i class="ph ph-warning-circle" style="color: var(--danger); vertical-align: middle;"></i>
+                        <strong>Atención:</strong> Al confirmar, el turno se cerrará de inmediato a esta hora exacta, se guardará el registro de la sanción y se aplicará el descuento salarial en su boleta de pago.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="cerrarModalRetiroDisciplinario()">Cancelar</button>
+                    <button class="btn btn-danger" onclick="ejecutarRetiroDisciplinario()"><i class="ph ph-hand-palm"></i> Confirmar Retiro y Descuento</button>
+                </div>
+            </div>
+        </div>
     `;
     
     // Configurar fechas por defecto
@@ -1770,13 +1847,15 @@ window.loadHistorialAsistencia = async function() {
             window.historialAsistenciaData = data.data || [];
             
             if (window.historialAsistenciaData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-sec);"><i class="ph ph-calendar-blank" style="font-size:32px; display:block; margin-bottom:8px; opacity:0.5;"></i>No se encontraron registros de asistencia para las fechas seleccionadas.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-sec);"><i class="ph ph-calendar-blank" style="font-size:32px; display:block; margin-bottom:8px; opacity:0.5;"></i>No se encontraron registros de asistencia para las fechas seleccionadas.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = window.historialAsistenciaData.map(item => {
                 let condicionBadge = '<span class="badge badge-success">Puntual</span>';
-                if (item.condicion === 'tardanza') {
+                if (item.condicion === 'sancion_disciplinaria' || (item.observaciones && item.observaciones.includes('RETIRO DISCIPLINARIO'))) {
+                    condicionBadge = `<span class="badge badge-danger" title="${item.observaciones || ''}"><i class="ph ph-hand-palm"></i> Sanción (${item.horas_perdidas || 0}h)</span>`;
+                } else if (item.condicion === 'tardanza') {
                     const auth2FA = item.autorizado_por_totp == 1 ? '<i class="ph ph-shield-check" title="Autorizado por 2FA"></i> 2FA ' : '';
                     condicionBadge = `<span class="badge badge-danger">${auth2FA}+${item.minutos_tardanza || 0}m tarde</span>`;
                 } else if (item.condicion === 'falta_justificada') {
@@ -1803,6 +1882,15 @@ window.loadHistorialAsistencia = async function() {
                 const salidaTxt = item.fecha_hora_salida || '<span class="text-warning font-bold">En turno</span>';
                 const horasTxt = item.minutos_trabajados ? `${(item.minutos_trabajados / 60).toFixed(1)} hrs` : '--';
 
+                let accionHtml = '<span class="text-sec" style="font-size:11px;">--</span>';
+                if (item.estado === 'abierto' || !item.fecha_hora_salida) {
+                    const safeName = encodeURIComponent((item.nombre || '') + ' ' + (item.apellido || ''));
+                    accionHtml = `<button class="btn btn-danger btn-sm" onclick="abrirModalRetiroDisciplinario(${item.id}, ${item.id_usuario}, '${safeName}', '${item.fecha_hora_entrada}')" title="Cerrar turno por sanción o pérdida de tiempo"><i class="ph ph-hand-palm"></i> Retirar</button>`;
+                } else if (item.condicion === 'sancion_disciplinaria' || (item.observaciones && item.observaciones.includes('RETIRO DISCIPLINARIO'))) {
+                    const safeObs = encodeURIComponent(item.observaciones || '');
+                    accionHtml = `<button class="btn btn-secondary btn-sm" onclick="verDetalleSancion('${safeObs}')" title="Ver detalle de la sanción"><i class="ph ph-info"></i> Sanción</button>`;
+                }
+
                 return `
                     <tr>
                         <td class="table-sticky-col">
@@ -1822,14 +1910,15 @@ window.loadHistorialAsistencia = async function() {
                         </td>
                         <td>${condicionBadge}</td>
                         <td>${evidenciaHtml}</td>
+                        <td>${accionHtml}</td>
                     </tr>
                 `;
             }).join('');
         } else {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger); padding:20px;">${data.message || 'Error cargando historial'}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:20px;">${data.message || 'Error cargando historial'}</td></tr>`;
         }
     } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--danger); padding:20px;">Error de conexión con el servidor</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:20px;">Error de conexión con el servidor</td></tr>';
     }
 };
 
@@ -1877,6 +1966,156 @@ window.abrirModalAusencia = function() {
 
 window.cerrarModalAusencia = function() {
     document.getElementById('modal-ausencia').classList.remove('show');
+};
+
+// ==========================================
+// RETIRO DISCIPLINARIO Y CORTE DE TURNO
+// ==========================================
+
+window.abrirModalRetiroDisciplinario = async function(idAsistencia = null, idUsuario = null, nombre = null, entrada = null) {
+    const modal = document.getElementById('modal-retiro-disciplinario');
+    const select = document.getElementById('retiro-select-empleado');
+    const infoBox = document.getElementById('retiro-info-box');
+    const inputHoras = document.getElementById('retiro-horas-descontar');
+    const txtDetalle = document.getElementById('retiro-detalle');
+    
+    if (txtDetalle) txtDetalle.value = '';
+    document.getElementById('retiro-asistencia-id').value = idAsistencia || '';
+    
+    select.innerHTML = '<option value="">Cargando colaboradores en turno activo...</option>';
+    select.disabled = true;
+    infoBox.style.display = 'none';
+
+    modal.classList.add('show');
+
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/turnos_activos');
+        const data = await res.json();
+        const turnos = (data.status === 'success' && data.data) ? data.data : [];
+        window.turnosActivosData = turnos;
+
+        if (turnos.length === 0) {
+            select.innerHTML = '<option value="">⚠️ No hay colaboradores con turno abierto hoy</option>';
+            select.disabled = true;
+            inputHoras.value = '4.0';
+            return;
+        }
+
+        select.disabled = false;
+        select.innerHTML = '<option value="">-- Selecciona el colaborador a sancionar/retirar --</option>';
+        turnos.forEach(t => {
+            const horasActivo = (t.minutos_activos / 60).toFixed(1);
+            const entradaH = t.fecha_hora_entrada ? t.fecha_hora_entrada.substring(11,16) : '--';
+            select.innerHTML += `<option value="${t.id_asistencia}" data-user="${t.id_usuario}" data-entrada="${t.fecha_hora_entrada}" data-mins="${t.minutos_activos}">${t.nombre} ${t.apellido || ''} (${t.cargo || t.rol_nombre || 'Personal'}) - Entrada: ${entradaH} (${horasActivo}h en turno)</option>`;
+        });
+
+        if (idAsistencia) {
+            select.value = idAsistencia;
+        } else if (idUsuario) {
+            const found = turnos.find(t => t.id_usuario == idUsuario);
+            if (found) select.value = found.id_asistencia;
+        }
+        
+        onSelectEmpleadoRetiro();
+    } catch(e) {
+        select.innerHTML = '<option value="">Error al cargar turnos activos</option>';
+    }
+};
+
+window.cerrarModalRetiroDisciplinario = function() {
+    document.getElementById('modal-retiro-disciplinario').classList.remove('show');
+};
+
+window.onSelectEmpleadoRetiro = function() {
+    const select = document.getElementById('retiro-select-empleado');
+    const infoBox = document.getElementById('retiro-info-box');
+    const inputHoras = document.getElementById('retiro-horas-descontar');
+    const hiddenId = document.getElementById('retiro-asistencia-id');
+    
+    const selectedOpt = select.options[select.selectedIndex];
+    if (!selectedOpt || !selectedOpt.value) {
+        infoBox.style.display = 'none';
+        hiddenId.value = '';
+        return;
+    }
+
+    const idAsist = selectedOpt.value;
+    hiddenId.value = idAsist;
+
+    const entradaStr = selectedOpt.getAttribute('data-entrada');
+    const minsActivos = parseInt(selectedOpt.getAttribute('data-mins') || 0);
+    const horasTrabajadas = (minsActivos / 60).toFixed(1);
+    
+    // Asumiendo jornada pactada de 8 horas:
+    const horasRestantes = Math.max(0.5, (8.0 - parseFloat(horasTrabajadas)).toFixed(1));
+
+    document.getElementById('retiro-info-entrada').innerText = entradaStr ? entradaStr.substring(11, 16) : '--:--';
+    document.getElementById('retiro-info-corte').innerText = new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
+    document.getElementById('retiro-info-trabajado').innerText = `${horasTrabajadas} hrs`;
+    document.getElementById('retiro-info-restantes').innerText = `${horasRestantes} hrs`;
+    inputHoras.value = horasRestantes;
+
+    infoBox.style.display = 'block';
+};
+
+window.ejecutarRetiroDisciplinario = async function() {
+    const idAsistencia = document.getElementById('retiro-asistencia-id').value;
+    const motivo = document.getElementById('retiro-motivo').value;
+    const detalle = document.getElementById('retiro-detalle').value.trim();
+    const horasDescontar = parseFloat(document.getElementById('retiro-horas-descontar').value) || 0;
+
+    if (!idAsistencia) {
+        showToast('Selecciona un colaborador en turno activo', 'warning');
+        return;
+    }
+
+    if (!detalle) {
+        showToast('Ingresa una breve explicación o detalle del motivo del retiro', 'warning');
+        return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+    const idAdmin = user.id || null;
+
+    try {
+        showToast('Aplicando retiro disciplinario y cerrando turno...', 'info');
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/retiro_disciplinario', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id_asistencia: idAsistencia,
+                motivo: motivo,
+                detalle: detalle,
+                horas_descontar: horasDescontar,
+                id_admin: idAdmin
+            })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast(data.message || 'Retiro disciplinario aplicado exitosamente', 'success');
+            cerrarModalRetiroDisciplinario();
+            loadHistorialAsistencia();
+            if (typeof loadFichasPersonal === 'function') loadFichasPersonal();
+        } else {
+            showToast(data.message || 'Error al aplicar retiro disciplinario', 'error');
+        }
+    } catch(e) {
+        showToast('Error de conexión con el servidor', 'error');
+    }
+};
+
+window.verDetalleSancion = function(obsEncoded) {
+    const obs = decodeURIComponent(obsEncoded || '');
+    showModal(
+        'Detalle de Sanción Disciplinaria',
+        `<div style="padding:10px; font-size:14px; line-height:1.6; background:var(--bg-main); border-radius:10px; border:1px solid var(--border);">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; color:var(--danger); font-weight:700;">
+                <i class="ph ph-hand-palm" style="font-size:20px;"></i> Corte de Turno por Sanción
+            </div>
+            <p style="margin:0; white-space:pre-wrap;">${obs || 'Sin observaciones registradas.'}</p>
+        </div>`
+    );
 };
 
 window.guardarAusencia = async function() {

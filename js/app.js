@@ -939,6 +939,47 @@ function renderLogin(container) {
                     <p style="color:var(--text-sec); margin-top:10px;">Que tengas un buen descanso.</p>
                     <button class="btn btn-primary" style="margin-top:20px; width:100%;" onclick="reiniciarAuth()">Volver al Inicio</button>
                 </div>
+
+                <!-- Paso: Colaborador Sancionado -->
+                <div id="auth-step-sancionado" class="hidden auth-sancionado-step" style="text-align:center; padding: 10px 0;">
+                    <div id="sancionado-avatar-container" style="background: rgba(239, 68, 68, 0.12); border-radius: 50%; width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; overflow: hidden; border: 2.5px solid var(--danger);">
+                        <i class="ph-fill ph-prohibit" style="font-size: 38px; color: var(--danger);"></i>
+                    </div>
+                    <h3 id="sancionado-nombre" style="margin-bottom:4px; font-size: 19px; font-weight: 700;">Colaborador</h3>
+                    <div style="margin-bottom: 14px;">
+                        <span class="badge badge-danger" style="font-size: 12px; padding: 5px 12px; font-weight: 600; border-radius: 20px;">
+                            <i class="ph ph-shield-slash"></i> Acceso Bloqueado por Sanción
+                        </span>
+                    </div>
+
+                    <div class="card mb-3" style="background: var(--bg-main); border: 1px solid rgba(239, 68, 68, 0.3); padding: 14px; text-align: left; font-size: 13px; border-radius: 12px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.06);">
+                        <div style="margin-bottom: 8px;">
+                            <span style="color: var(--text-sec); font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Motivo de la Sanción:</span>
+                            <div id="sancionado-motivo" style="font-weight: 600; color: var(--danger); margin-top: 2px;"></div>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <span style="color: var(--text-sec); font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Detalle / Observación:</span>
+                            <div id="sancionado-detalle" style="color: var(--text-main); margin-top: 2px; line-height: 1.4; font-size: 12.5px;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px dashed var(--border); margin-bottom: 6px;">
+                            <span style="color: var(--text-sec);">Bloqueado hasta:</span>
+                            <strong id="sancionado-hasta" style="color: var(--text-main);">--</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: var(--text-sec);">Tiempo restante:</span>
+                            <span id="sancionado-tiempo-restante" class="badge badge-warning" style="font-size: 11.5px; font-weight: 600;">--</span>
+                        </div>
+                    </div>
+
+                    <div style="background: rgba(239, 68, 68, 0.07); border-left: 3px solid var(--danger); padding: 10px 12px; border-radius: 8px; font-size: 12px; color: var(--text-sec); text-align: left; margin-bottom: 18px; line-height: 1.45;">
+                        <i class="ph ph-info" style="color: var(--danger); vertical-align: middle; margin-right: 4px;"></i>
+                        No puedes marcar asistencia ni ingresar al ERP mientras dure la sanción disciplinaria. Por favor, comunícate con la administración para regularizar tu situación.
+                    </div>
+
+                    <button class="btn btn-secondary" style="width: 100%; padding: 13px; border-radius: 12px; font-weight: 600; font-size: 14px;" onclick="reiniciarAuth()">
+                        <i class="ph ph-arrow-counter-clockwise"></i> Volver al Inicio
+                    </button>
+                </div>
             </div>
         </div>
     `;
@@ -2290,21 +2331,35 @@ async function renderRRHH(container) {
 
         <!-- Modal Retiro Disciplinario / Sanción Inmediata -->
         <div class="modal-backdrop" id="modal-retiro-disciplinario">
-            <div class="modal" style="max-width: 540px; max-height: 92vh; display: flex; flex-direction: column;">
+            <div class="modal" style="max-width: 550px; max-height: 92vh; display: flex; flex-direction: column;">
                 <div class="modal-header" style="border-bottom: 2px solid var(--danger);">
                     <div style="display: flex; align-items: center; gap: 8px; color: var(--danger);">
                         <i class="ph ph-hand-palm" style="font-size: 22px;"></i>
-                        <h3 style="font-size: 16px; margin: 0; color: var(--danger);">Retiro Disciplinario y Corte de Turno</h3>
+                        <h3 style="font-size: 16px; margin: 0; color: var(--danger);">Sanción Disciplinaria y Suspensión de Acceso</h3>
                     </div>
                     <button class="btn-icon" onclick="cerrarModalRetiroDisciplinario()"><i class="ph ph-x"></i></button>
                 </div>
                 <div class="modal-body" style="overflow-y: auto; padding: 20px;">
                     <input type="hidden" id="retiro-asistencia-id">
+                    <input type="hidden" id="retiro-usuario-id">
+
+                    <!-- Banner si el usuario ya tiene una sanción activa -->
+                    <div id="retiro-sancion-activa-aviso" style="display:none; background: rgba(245, 158, 11, 0.12); border: 1px solid var(--warning); border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:200px;">
+                                <strong style="color:var(--warning); font-size:13px;"><i class="ph ph-warning"></i> Sanción Vigente Detectada</strong>
+                                <p id="retiro-sancion-activa-txt" style="margin:3px 0 0 0; font-size:12px; color:var(--text-sec); line-height:1.4;"></p>
+                            </div>
+                            <button type="button" class="btn btn-warning btn-sm" onclick="levantarSancionDesdeModal()" style="white-space:nowrap; padding:5px 10px; font-size:12px;">
+                                <i class="ph ph-lock-key-open"></i> Quitar Sanción
+                            </button>
+                        </div>
+                    </div>
                     
                     <div class="form-group">
-                        <label class="form-label font-bold">Colaborador en Turno Activo <span class="text-danger">*</span></label>
+                        <label class="form-label font-bold">Colaborador a Sancionar <span class="text-danger">*</span></label>
                         <select id="retiro-select-empleado" class="form-control" onchange="onSelectEmpleadoRetiro()">
-                            <option value="">Cargando colaboradores en turno...</option>
+                            <option value="">Cargando colaboradores...</option>
                         </select>
                     </div>
 
@@ -2329,7 +2384,27 @@ async function renderRRHH(container) {
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label font-bold">Motivo del Retiro / Sanción <span class="text-danger">*</span></label>
+                        <label class="form-label font-bold">Tiempo de Suspensión / Bloqueo en el Sistema <span class="text-danger">*</span></label>
+                        <select id="retiro-duracion" class="form-control" onchange="onCambioDuracionSancion()">
+                            <option value="0">Solo corte de turno hoy (Sin días adicionales de suspensión)</option>
+                            <option value="1">1 Día (Bloqueado hasta mañana al final del día)</option>
+                            <option value="2">2 Días completos</option>
+                            <option value="3" selected>3 Días completos (72 horas de bloqueo)</option>
+                            <option value="5">5 Días laborables</option>
+                            <option value="7">1 Semana (7 días de bloqueo)</option>
+                            <option value="15">15 Días de suspensión</option>
+                            <option value="30">30 Días (1 mes)</option>
+                            <option value="custom">Fecha y hora personalizada...</option>
+                        </select>
+                        <div id="retiro-custom-fecha-container" style="display: none; margin-top: 8px;">
+                            <label class="text-sec text-small" style="display:block; margin-bottom:4px;">Selecciona la fecha y hora exacta de fin del bloqueo:</label>
+                            <input type="datetime-local" id="retiro-fecha-fin-custom" class="form-control">
+                        </div>
+                        <small class="text-sec" style="font-size: 11px;">Durante este tiempo, el usuario tendrá acceso bloqueado y no podrá registrar asistencias ni ingresar al sistema.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label font-bold">Motivo de la Sanción <span class="text-danger">*</span></label>
                         <select id="retiro-motivo" class="form-control">
                             <option value="Pérdida de tiempo y ocio reiterado en horario laboral">Pérdida de tiempo y ocio en horario laboral</option>
                             <option value="Uso no autorizado de celular y distracción continua">Uso no autorizado de celular / distracción continua</option>
@@ -2340,9 +2415,9 @@ async function renderRRHH(container) {
                         </select>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" id="retiro-group-horas-descontar">
                         <label class="form-label font-bold">Horas de Tiempo Perdido a Descontar (Fin de Mes)</label>
-                        <input type="number" id="retiro-horas-descontar" class="form-control" step="0.5" min="0.5" max="24" value="4.0">
+                        <input type="number" id="retiro-horas-descontar" class="form-control" step="0.5" min="0" max="24" value="4.0">
                         <small class="text-sec" style="font-size: 11px;">Calculado según la jornada pactada. Estas horas se descontarán automáticamente del sueldo neto en su Ficha/Boleta.</small>
                     </div>
 
@@ -2353,12 +2428,12 @@ async function renderRRHH(container) {
 
                     <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid var(--danger); padding: 10px 12px; border-radius: 6px; font-size: 12px; color: var(--text-main);">
                         <i class="ph ph-warning-circle" style="color: var(--danger); vertical-align: middle;"></i>
-                        <strong>Atención:</strong> Al confirmar, el turno se cerrará de inmediato a esta hora exacta, se guardará el registro de la sanción y se aplicará el descuento salarial en su boleta de pago.
+                        <strong>Atención:</strong> Al confirmar, si tiene turno abierto se cerrará de inmediato, se bloqueará su acceso por el tiempo indicado y se guardará el registro disciplinario.
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" onclick="cerrarModalRetiroDisciplinario()">Cancelar</button>
-                    <button class="btn btn-danger" onclick="ejecutarRetiroDisciplinario()"><i class="ph ph-hand-palm"></i> Confirmar Retiro y Descuento</button>
+                    <button class="btn btn-danger" onclick="ejecutarRetiroDisciplinario()"><i class="ph ph-hand-palm"></i> Confirmar Sanción y Bloqueo</button>
                 </div>
             </div>
         </div>
@@ -2685,7 +2760,8 @@ window.loadHistorialAsistencia = async function() {
                     accionHtml = `<button class="btn btn-danger btn-sm" onclick="abrirModalRetiroDisciplinario(${item.id}, ${item.id_usuario}, '${safeName}', '${item.fecha_hora_entrada}')" title="Cerrar turno por sanción o pérdida de tiempo"><i class="ph ph-hand-palm"></i> Retirar</button>`;
                 } else if (item.condicion === 'sancion_disciplinaria' || (item.observaciones && item.observaciones.includes('RETIRO DISCIPLINARIO'))) {
                     const safeObs = encodeURIComponent(item.observaciones || '');
-                    accionHtml = `<button class="btn btn-secondary btn-sm" onclick="verDetalleSancion('${safeObs}')" title="Ver detalle de la sanción"><i class="ph ph-info"></i> Sanción</button>`;
+                    const safeName = encodeURIComponent((item.nombre || '') + ' ' + (item.apellido || ''));
+                    accionHtml = `<button class="btn btn-secondary btn-sm" onclick="verDetalleSancion('${safeObs}', ${item.id_usuario}, '${safeName}')" title="Ver detalle de la sanción"><i class="ph ph-info"></i> Sanción</button>`;
                 }
 
                 return `
@@ -2766,8 +2842,27 @@ window.cerrarModalAusencia = function() {
 };
 
 // ==========================================
-// RETIRO DISCIPLINARIO Y CORTE DE TURNO
+// RETIRO DISCIPLINARIO, SUSPENSIÓN Y BLOQUEO TEMPORAL
 // ==========================================
+
+window.onCambioDuracionSancion = function() {
+    const durSelect = document.getElementById('retiro-duracion');
+    const customContainer = document.getElementById('retiro-custom-fecha-container');
+    if (!durSelect || !customContainer) return;
+    
+    if (durSelect.value === 'custom') {
+        customContainer.style.display = 'block';
+        const inputCustom = document.getElementById('retiro-fecha-fin-custom');
+        if (inputCustom && !inputCustom.value) {
+            const d = new Date();
+            d.setDate(d.getDate() + 3);
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            inputCustom.value = d.toISOString().slice(0, 16);
+        }
+    } else {
+        customContainer.style.display = 'none';
+    }
+};
 
 window.abrirModalRetiroDisciplinario = async function(idAsistencia = null, idUsuario = null, nombre = null, entrada = null) {
     const modal = document.getElementById('modal-retiro-disciplinario');
@@ -2775,47 +2870,90 @@ window.abrirModalRetiroDisciplinario = async function(idAsistencia = null, idUsu
     const infoBox = document.getElementById('retiro-info-box');
     const inputHoras = document.getElementById('retiro-horas-descontar');
     const txtDetalle = document.getElementById('retiro-detalle');
+    const avisoActivo = document.getElementById('retiro-sancion-activa-aviso');
+    const durSelect = document.getElementById('retiro-duracion');
     
     if (txtDetalle) txtDetalle.value = '';
-    document.getElementById('retiro-asistencia-id').value = idAsistencia || '';
+    if (durSelect) durSelect.value = '3';
+    window.onCambioDuracionSancion();
     
-    select.innerHTML = '<option value="">Cargando colaboradores en turno activo...</option>';
+    document.getElementById('retiro-asistencia-id').value = idAsistencia || '';
+    document.getElementById('retiro-usuario-id').value = idUsuario || '';
+    
+    select.innerHTML = '<option value="">Cargando colaboradores...</option>';
     select.disabled = true;
     infoBox.style.display = 'none';
+    if (avisoActivo) avisoActivo.style.display = 'none';
 
     modal.classList.add('show');
 
     try {
-        const res = await fetch('/khalessierp/api/index.php?request=rrhh/turnos_activos');
-        const data = await res.json();
-        const turnos = (data.status === 'success' && data.data) ? data.data : [];
-        window.turnosActivosData = turnos;
+        const [resTurnos, resPersonal] = await Promise.all([
+            fetch('/khalessierp/api/index.php?request=rrhh/turnos_activos').then(r => r.json()).catch(() => ({ data: [] })),
+            fetch('/khalessierp/api/index.php?request=rrhh/fichas_personal').then(r => r.json()).catch(() => ({ data: [] }))
+        ]);
 
-        if (turnos.length === 0) {
-            select.innerHTML = '<option value="">⚠️ No hay colaboradores con turno abierto hoy</option>';
-            select.disabled = true;
-            inputHoras.value = '4.0';
-            return;
-        }
+        const turnos = (resTurnos.status === 'success' && resTurnos.data) ? resTurnos.data : [];
+        const personal = (resPersonal.status === 'success' && resPersonal.data) ? resPersonal.data : [];
+        window.turnosActivosData = turnos;
+        window.personalSancionesData = personal;
 
         select.disabled = false;
-        select.innerHTML = '<option value="">-- Selecciona el colaborador a sancionar/retirar --</option>';
-        turnos.forEach(t => {
-            const horasActivo = (t.minutos_activos / 60).toFixed(1);
-            const entradaH = t.fecha_hora_entrada ? t.fecha_hora_entrada.substring(11,16) : '--';
-            select.innerHTML += `<option value="${t.id_asistencia}" data-user="${t.id_usuario}" data-entrada="${t.fecha_hora_entrada}" data-mins="${t.minutos_activos}">${t.nombre} ${t.apellido || ''} (${t.cargo || t.rol_nombre || 'Personal'}) - Entrada: ${entradaH} (${horasActivo}h en turno)</option>`;
-        });
+        select.innerHTML = '<option value="">-- Selecciona el colaborador a sancionar --</option>';
 
+        // 1. Colaboradores con turno activo
+        if (turnos.length > 0) {
+            const optGroupTurno = document.createElement('optgroup');
+            optGroupTurno.label = "Colaboradores en Turno Activo (Cierre y Sanción Inmediata)";
+            turnos.forEach(t => {
+                const horasActivo = (t.minutos_activos / 60).toFixed(1);
+                const entradaH = t.fecha_hora_entrada ? t.fecha_hora_entrada.substring(11,16) : '--';
+                const opt = document.createElement('option');
+                opt.value = `asist_${t.id_asistencia}`;
+                opt.setAttribute('data-asistencia', t.id_asistencia);
+                opt.setAttribute('data-user', t.id_usuario);
+                opt.setAttribute('data-nombre', `${t.nombre} ${t.apellido || ''}`);
+                opt.setAttribute('data-entrada', t.fecha_hora_entrada || '');
+                opt.setAttribute('data-mins', t.minutos_activos || 0);
+                opt.setAttribute('data-sancionado', '0');
+                opt.innerText = `🔴 ${t.nombre} ${t.apellido || ''} - En Turno (${entradaH} - ${horasActivo}h trab.)`;
+                optGroupTurno.appendChild(opt);
+            });
+            select.appendChild(optGroupTurno);
+        }
+
+        // 2. Todos los colaboradores
+        const optGroupTodos = document.createElement('optgroup');
+        optGroupTodos.label = "Lista General de Colaboradores (Suspensión / Bloqueo)";
+        personal.forEach(p => {
+            const u = p.usuario;
+            const estaEnTurno = turnos.some(t => t.id_usuario == u.id);
+            if (!estaEnTurno) {
+                const opt = document.createElement('option');
+                opt.value = `user_${u.id}`;
+                opt.setAttribute('data-asistencia', '0');
+                opt.setAttribute('data-user', u.id);
+                opt.setAttribute('data-nombre', `${u.nombre} ${u.apellido || ''}`);
+                opt.setAttribute('data-sancionado', u.es_sancionado ? '1' : '0');
+                opt.setAttribute('data-sancionado-hasta', u.sancionado_hasta || '');
+                opt.setAttribute('data-sancionado-motivo', u.sancion_motivo || '');
+                opt.innerText = `${u.es_sancionado ? '⚠️ (Sancionado) ' : ''}${u.nombre} ${u.apellido || ''} (${u.rol || 'Personal'})`;
+                optGroupTodos.appendChild(opt);
+            }
+        });
+        select.appendChild(optGroupTodos);
+
+        // Preselección
         if (idAsistencia) {
-            select.value = idAsistencia;
+            select.value = `asist_${idAsistencia}`;
         } else if (idUsuario) {
-            const found = turnos.find(t => t.id_usuario == idUsuario);
-            if (found) select.value = found.id_asistencia;
+            const optFound = Array.from(select.options).find(o => o.getAttribute('data-user') == idUsuario);
+            if (optFound) select.value = optFound.value;
         }
         
         onSelectEmpleadoRetiro();
     } catch(e) {
-        select.innerHTML = '<option value="">Error al cargar turnos activos</option>';
+        select.innerHTML = '<option value="">Error al cargar colaboradores</option>';
     }
 };
 
@@ -2827,47 +2965,140 @@ window.onSelectEmpleadoRetiro = function() {
     const select = document.getElementById('retiro-select-empleado');
     const infoBox = document.getElementById('retiro-info-box');
     const inputHoras = document.getElementById('retiro-horas-descontar');
-    const hiddenId = document.getElementById('retiro-asistencia-id');
+    const hiddenAsist = document.getElementById('retiro-asistencia-id');
+    const hiddenUser = document.getElementById('retiro-usuario-id');
+    const avisoActivo = document.getElementById('retiro-sancion-activa-aviso');
+    const avisoTxt = document.getElementById('retiro-sancion-activa-txt');
+    const groupHoras = document.getElementById('retiro-group-horas-descontar');
     
     const selectedOpt = select.options[select.selectedIndex];
     if (!selectedOpt || !selectedOpt.value) {
         infoBox.style.display = 'none';
-        hiddenId.value = '';
+        if (avisoActivo) avisoActivo.style.display = 'none';
+        hiddenAsist.value = '';
+        hiddenUser.value = '';
         return;
     }
 
-    const idAsist = selectedOpt.value;
-    hiddenId.value = idAsist;
+    const idAsist = parseInt(selectedOpt.getAttribute('data-asistencia') || 0);
+    const idUser = parseInt(selectedOpt.getAttribute('data-user') || 0);
+    hiddenAsist.value = idAsist || '';
+    hiddenUser.value = idUser || '';
 
-    const entradaStr = selectedOpt.getAttribute('data-entrada');
-    const minsActivos = parseInt(selectedOpt.getAttribute('data-mins') || 0);
-    const horasTrabajadas = (minsActivos / 60).toFixed(1);
+    // Comprobar si ya tiene una sanción activa
+    const esSancionado = selectedOpt.getAttribute('data-sancionado') === '1';
+    const sancHasta = selectedOpt.getAttribute('data-sancionado-hasta');
+    const sancMotivo = selectedOpt.getAttribute('data-sancionado-motivo');
+
+    if (esSancionado && avisoActivo && avisoTxt) {
+        avisoTxt.innerHTML = `Este colaborador ya cuenta con una sanción activa hasta <strong>${sancHasta ? sancHasta.substring(0, 16) : ''}</strong>. Motivo: <em>${sancMotivo || 'Sanción disciplinaria'}</em>. Puedes actualizar su sanción o levantarla.`;
+        avisoActivo.style.display = 'block';
+    } else if (avisoActivo) {
+        avisoActivo.style.display = 'none';
+    }
+
+    if (idAsist > 0) {
+        const entradaStr = selectedOpt.getAttribute('data-entrada');
+        const minsActivos = parseInt(selectedOpt.getAttribute('data-mins') || 0);
+        const horasTrabajadas = (minsActivos / 60).toFixed(1);
+        const horasRestantes = Math.max(0.5, (8.0 - parseFloat(horasTrabajadas)).toFixed(1));
+
+        document.getElementById('retiro-info-entrada').innerText = entradaStr ? entradaStr.substring(11, 16) : '--:--';
+        document.getElementById('retiro-info-corte').innerText = new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
+        document.getElementById('retiro-info-trabajado').innerText = `${horasTrabajadas} hrs`;
+        document.getElementById('retiro-info-restantes').innerText = `${horasRestantes} hrs`;
+        inputHoras.value = horasRestantes;
+
+        infoBox.style.display = 'block';
+        if (groupHoras) groupHoras.style.display = 'block';
+    } else {
+        infoBox.style.display = 'none';
+        inputHoras.value = '0';
+    }
+};
+
+window.levantarSancionDesdeModal = function() {
+    const idUser = document.getElementById('retiro-usuario-id').value;
+    const select = document.getElementById('retiro-select-empleado');
+    const selectedOpt = select.options[select.selectedIndex];
+    const nombre = selectedOpt ? selectedOpt.getAttribute('data-nombre') : 'este colaborador';
     
-    // Asumiendo jornada pactada de 8 horas:
-    const horasRestantes = Math.max(0.5, (8.0 - parseFloat(horasTrabajadas)).toFixed(1));
+    if (!idUser) {
+        showToast('Selecciona un colaborador primero', 'warning');
+        return;
+    }
+    window.levantarSancionColaborador(idUser, nombre);
+};
 
-    document.getElementById('retiro-info-entrada').innerText = entradaStr ? entradaStr.substring(11, 16) : '--:--';
-    document.getElementById('retiro-info-corte').innerText = new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
-    document.getElementById('retiro-info-trabajado').innerText = `${horasTrabajadas} hrs`;
-    document.getElementById('retiro-info-restantes').innerText = `${horasRestantes} hrs`;
-    inputHoras.value = horasRestantes;
+window.levantarSancionColaborador = function(idUsuario, nombre) {
+    if (!idUsuario) return;
+    nombre = nombre || 'el colaborador';
 
-    infoBox.style.display = 'block';
+    showModal(
+        'Levantar Sanción Disciplinaria',
+        `<div style="padding:10px; font-size:14px; line-height:1.5;">
+            <div style="display:flex; align-items:center; gap:10px; color:var(--warning); font-size:16px; font-weight:700; margin-bottom:8px;">
+                <i class="ph ph-lock-key-open" style="font-size:24px;"></i> Rehabilitación de Acceso
+            </div>
+            <p>¿Estás seguro de que deseas quitar la sanción a <strong>${nombre}</strong>?</p>
+            <div style="background:var(--bg-main); padding:10px 12px; border-radius:8px; border:1px solid var(--border); font-size:12.5px; color:var(--text-sec); margin-top:10px;">
+                <i class="ph ph-check-circle" style="color:var(--success);"></i>
+                Al confirmar, el usuario podrá ingresar inmediatamente al ERP y registrar asistencia de forma normal.
+            </div>
+        </div>`,
+        async () => {
+            try {
+                const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+                const idAdmin = user.id || null;
+
+                showToast('Levantando sanción y rehabilitando usuario...', 'info');
+                const res = await fetch('/khalessierp/api/index.php?request=rrhh/levantar_sancion', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id_usuario: idUsuario,
+                        id_admin: idAdmin,
+                        motivo: 'Levantamiento administrativo por RRHH'
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    showToast(data.message || 'Sanción levantada con éxito', 'success');
+                    cerrarModalRetiroDisciplinario();
+                    if (typeof loadFichasPersonal === 'function') loadFichasPersonal();
+                    if (typeof loadHistorialAsistencia === 'function') loadHistorialAsistencia();
+                } else {
+                    showToast(data.message || 'Error al levantar sanción', 'error');
+                }
+            } catch(e) {
+                showToast('Error de conexión con el servidor', 'error');
+            }
+        }
+    );
 };
 
 window.ejecutarRetiroDisciplinario = async function() {
     const idAsistencia = document.getElementById('retiro-asistencia-id').value;
+    const idUsuario = document.getElementById('retiro-usuario-id').value;
     const motivo = document.getElementById('retiro-motivo').value;
     const detalle = document.getElementById('retiro-detalle').value.trim();
     const horasDescontar = parseFloat(document.getElementById('retiro-horas-descontar').value) || 0;
+    const duracion = document.getElementById('retiro-duracion')?.value || '3';
+    const fechaFinCustom = document.getElementById('retiro-fecha-fin-custom')?.value || '';
 
-    if (!idAsistencia) {
-        showToast('Selecciona un colaborador en turno activo', 'warning');
+    if (!idAsistencia && !idUsuario) {
+        showToast('Selecciona un colaborador para aplicar la sanción', 'warning');
         return;
     }
 
     if (!detalle) {
-        showToast('Ingresa una breve explicación o detalle del motivo del retiro', 'warning');
+        showToast('Ingresa una breve explicación o detalle del motivo de la sanción', 'warning');
+        return;
+    }
+
+    if (duracion === 'custom' && !fechaFinCustom) {
+        showToast('Selecciona la fecha y hora exacta de fin del bloqueo', 'warning');
         return;
     }
 
@@ -2875,42 +3106,60 @@ window.ejecutarRetiroDisciplinario = async function() {
     const idAdmin = user.id || null;
 
     try {
-        showToast('Aplicando retiro disciplinario y cerrando turno...', 'info');
+        showToast('Aplicando sanción y configurando bloqueo...', 'info');
         const res = await fetch('/khalessierp/api/index.php?request=rrhh/retiro_disciplinario', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                id_asistencia: idAsistencia,
+                id_asistencia: idAsistencia ? parseInt(idAsistencia) : 0,
+                id_usuario: idUsuario ? parseInt(idUsuario) : 0,
                 motivo: motivo,
                 detalle: detalle,
                 horas_descontar: horasDescontar,
-                id_admin: idAdmin
+                id_admin: idAdmin,
+                duracion: duracion,
+                fecha_fin_personalizada: fechaFinCustom
             })
         });
 
         const data = await res.json();
         if (res.ok && data.status === 'success') {
-            showToast(data.message || 'Retiro disciplinario aplicado exitosamente', 'success');
+            showToast(data.message || 'Sanción y bloqueo aplicados exitosamente', 'success');
             cerrarModalRetiroDisciplinario();
-            loadHistorialAsistencia();
+            if (typeof loadHistorialAsistencia === 'function') loadHistorialAsistencia();
             if (typeof loadFichasPersonal === 'function') loadFichasPersonal();
         } else {
-            showToast(data.message || 'Error al aplicar retiro disciplinario', 'error');
+            showToast(data.message || 'Error al aplicar sanción', 'error');
         }
     } catch(e) {
         showToast('Error de conexión con el servidor', 'error');
     }
 };
 
-window.verDetalleSancion = function(obsEncoded) {
+window.verDetalleSancion = function(obsEncoded, idUsuario = null, nombreEncoded = null) {
     const obs = decodeURIComponent(obsEncoded || '');
+    const nombre = nombreEncoded ? decodeURIComponent(nombreEncoded) : 'el colaborador';
+    
+    let btnLevantar = '';
+    if (idUsuario) {
+        const safeNombre = nombre.replace(/'/g, "\\'");
+        btnLevantar = `
+            <div style="margin-top:14px; padding-top:10px; border-top:1px dashed var(--border); display:flex; justify-content:flex-end;">
+                <button class="btn btn-warning btn-sm" onclick="levantarSancionColaborador(${idUsuario}, '${safeNombre}')">
+                    <i class="ph ph-lock-key-open"></i> Quitar Sanción a ${nombre}
+                </button>
+            </div>
+        `;
+    }
+
     showModal(
         'Detalle de Sanción Disciplinaria',
         `<div style="padding:10px; font-size:14px; line-height:1.6; background:var(--bg-main); border-radius:10px; border:1px solid var(--border);">
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; color:var(--danger); font-weight:700;">
-                <i class="ph ph-hand-palm" style="font-size:20px;"></i> Corte de Turno por Sanción
+                <i class="ph ph-hand-palm" style="font-size:20px;"></i> Sanción Disciplinaria y Bloqueo
             </div>
             <p style="margin:0; white-space:pre-wrap;">${obs || 'Sin observaciones registradas.'}</p>
+            ${btnLevantar}
         </div>`
     );
 };
@@ -3342,6 +3591,13 @@ window.loadFichasPersonal = async function() {
                                 <div>
                                     <div class="fw-500">${u.nombre} ${u.apellido || ''}</div>
                                     <div class="text-sec text-small">DNI: ${u.dni} | <span class="badge badge-secondary" style="font-size:10px;">${u.rol}</span></div>
+                                    ${u.es_sancionado ? `
+                                        <div style="margin-top:4px;">
+                                            <span class="badge badge-danger" style="font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:12px;" title="Motivo: ${u.sancion_motivo || 'Disciplinario'}">
+                                                <i class="ph ph-shield-slash"></i> Sancionado hasta ${u.sancionado_hasta ? u.sancionado_hasta.substring(0, 16) : ''}
+                                            </span>
+                                        </div>
+                                    ` : ''}
                                 </div>
                             </div>
                         </td>
@@ -3368,9 +3624,20 @@ window.loadFichasPersonal = async function() {
                             ${l.descuento_tardanzas > 0 ? `<div class="text-danger" style="font-size:10px;">Desc. tardanza: -${moneda} ${l.descuento_tardanzas}</div>` : ''}
                         </td>
                         <td>
-                            <button class="btn btn-secondary btn-sm" onclick="verFichaIndividualPersonal(${u.id})" title="Ver Liquidación Detallada">
-                                <i class="ph ph-file-text"></i> Ver Ficha
-                            </button>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <button class="btn btn-secondary btn-sm" onclick="verFichaIndividualPersonal(${u.id})" title="Ver Liquidación Detallada">
+                                    <i class="ph ph-file-text"></i> Ficha
+                                </button>
+                                ${u.es_sancionado ? `
+                                    <button class="btn btn-warning btn-sm" onclick="levantarSancionColaborador(${u.id}, '${(u.nombre || '').replace(/'/g, "\\'")}')" title="Quitar Sanción y Rehabilitar Usuario" style="white-space:nowrap; padding:5px 9px; font-size:11.5px; font-weight:600;">
+                                        <i class="ph ph-lock-key-open"></i> Quitar Sanción
+                                    </button>
+                                ` : `
+                                    <button class="btn-icon btn-sm" onclick="abrirModalRetiroDisciplinario(0, ${u.id}, '${(u.nombre || '').replace(/'/g, "\\'")} ${(u.apellido || '').replace(/'/g, "\\'")}')" title="Aplicar Sanción / Suspensión de Acceso" style="color:var(--danger);">
+                                        <i class="ph ph-hand-palm" style="font-size:16px;"></i>
+                                    </button>
+                                `}
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -4614,7 +4881,29 @@ window.procesarDNI = async function() {
             if (document.getElementById('auth-subtitle-text')) document.getElementById('auth-subtitle-text').classList.add('hidden');
             if (document.getElementById('auth-logo-container')) document.getElementById('auth-logo-container').classList.add('hidden');
             if (document.getElementById('auth-title-text')) document.getElementById('auth-title-text').classList.add('hidden');
-            
+            if (data.data.estado === 'sancionado') {
+                // ESCENARIO SANCIONADO: Mostrar tarjeta de usuario sancionado con detalles
+                const sancion = data.data.sancion || {};
+                document.getElementById('sancionado-nombre').innerText = `Hola, ${user.nombre} ${user.apellido || ''}`;
+                
+                const avContainer = document.getElementById('sancionado-avatar-container');
+                if (avContainer) {
+                    if (user.foto_perfil) {
+                        avContainer.innerHTML = `<img src="${user.foto_perfil}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                    } else {
+                        avContainer.innerHTML = `<i class="ph-fill ph-prohibit" style="font-size: 38px; color: var(--danger);"></i>`;
+                    }
+                }
+                
+                document.getElementById('sancionado-motivo').innerText = sancion.motivo || 'Sanción disciplinaria administrativa';
+                document.getElementById('sancionado-detalle').innerText = sancion.detalle || 'Medida disciplinaria aplicada por la administración.';
+                document.getElementById('sancionado-hasta').innerText = sancion.hasta_formateada || sancion.hasta || '--';
+                document.getElementById('sancionado-tiempo-restante').innerText = sancion.tiempo_restante ? `Quedan ${sancion.tiempo_restante}` : 'Bloqueado';
+
+                document.getElementById('auth-step-sancionado').classList.remove('hidden');
+                return;
+            }
+
             if (data.data.estado === 'cerrado') {
                 if (data.data.es_tardanza) {
                     // ESCENARIO TARDANZA: Notificar y solicitar Google Authenticator
@@ -5134,6 +5423,7 @@ window.reiniciarAuth = function() {
     document.getElementById('auth-step-cam')?.classList.add('hidden');
     document.getElementById('auth-step-opciones')?.classList.add('hidden');
     document.getElementById('auth-step-despedida')?.classList.add('hidden');
+    document.getElementById('auth-step-sancionado')?.classList.add('hidden');
 
     // Resetear banner y botones de refrigerio
     const refContainer = document.getElementById('auth-refrigerio-container');

@@ -28,7 +28,7 @@ if ($method === 'GET' && $accion === 'estado') {
     $dni = isset($_GET['dni']) ? trim($_GET['dni']) : '';
     if (empty($dni)) respondError("DNI es requerido");
     
-    $stmt = $db->prepare("SELECT u.id, u.nombre, u.apellido, u.dni, u.foto_perfil, u.hora_entrada_asignada, u.hora_salida_asignada, u.totp_secret, r.nombre as rol_nombre, r.hora_entrada as rol_hora_entrada, r.hora_salida as rol_hora_salida 
+    $stmt = $db->prepare("SELECT u.id, u.nombre, u.apellido, u.dni, u.foto_perfil, u.hora_entrada_asignada, u.hora_salida_asignada, u.totp_secret, u.sancionado_hasta, u.sancion_motivo, u.sancion_detalle, u.sancion_fecha, r.nombre as rol_nombre, r.hora_entrada as rol_hora_entrada, r.hora_salida as rol_hora_salida 
                           FROM usuarios u 
                           JOIN roles r ON u.id_rol = r.id 
                           WHERE u.dni = :dni AND u.estado = 'activo'");
@@ -36,6 +36,45 @@ if ($method === 'GET' && $accion === 'estado') {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$user) respondError("Usuario no encontrado o inactivo", 404);
+    
+    // Verificar si el usuario se encuentra con sanción disciplinaria activa
+    if (!empty($user['sancionado_hasta']) && strtotime($user['sancionado_hasta']) > time()) {
+        unset($user['totp_secret']);
+        $hastaTs = strtotime($user['sancionado_hasta']);
+        $segundosRestantes = max(0, $hastaTs - time());
+        $diasRestantes = floor($segundosRestantes / 86400);
+        $horasRestantes = floor(($segundosRestantes % 86400) / 3600);
+        $minutosRestantes = floor(($segundosRestantes % 3600) / 60);
+        
+        $tiempoTxt = "";
+        if ($diasRestantes > 0) {
+            $tiempoTxt = "{$diasRestantes} día" . ($diasRestantes > 1 ? "s" : "") . ($horasRestantes > 0 ? " y {$horasRestantes} h" : "");
+        } else if ($horasRestantes > 0) {
+            $tiempoTxt = "{$horasRestantes} hora" . ($horasRestantes > 1 ? "s" : "") . ($minutosRestantes > 0 ? " y {$minutosRestantes} min" : "");
+        } else {
+            $tiempoTxt = "{$minutosRestantes} minuto" . ($minutosRestantes > 1 ? "s" : "");
+        }
+
+        $meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        $diaNum = date('j', $hastaTs);
+        $mesNom = $meses[(int)date('n', $hastaTs)];
+        $horaFormateada = date('h:i A', $hastaTs);
+        $hastaFmt = "{$diaNum} de {$mesNom}, {$horaFormateada}";
+
+        respondSuccess([
+            "user" => $user,
+            "estado" => "sancionado",
+            "sancion" => [
+                "activa" => true,
+                "motivo" => $user['sancion_motivo'] ?: 'Sanción disciplinaria administrativa',
+                "detalle" => $user['sancion_detalle'] ?: '',
+                "hasta" => $user['sancionado_hasta'],
+                "hasta_formateada" => $hastaFmt,
+                "tiempo_restante" => $tiempoTxt,
+                "segundos_restantes" => $segundosRestantes
+            ]
+        ], "Usuario con sanción disciplinaria activa");
+    }
     
     // Verificar si ya tiene un turno abierto hoy
     $stmt = $db->prepare("SELECT id, fecha_hora_entrada, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto' LIMIT 1");
@@ -279,13 +318,20 @@ else if ($method === 'POST' && $accion === 'marcar_entrada') {
     
     if (empty($dni) || empty($foto_base64)) respondError("DNI y Foto son obligatorios");
     
-    $stmt = $db->prepare("SELECT u.id, u.totp_secret, u.hora_entrada_asignada, r.hora_entrada as rol_hora_entrada 
+    $stmt = $db->prepare("SELECT u.id, u.totp_secret, u.hora_entrada_asignada, u.sancionado_hasta, u.sancion_motivo, r.hora_entrada as rol_hora_entrada 
                           FROM usuarios u 
                           JOIN roles r ON u.id_rol = r.id 
                           WHERE u.dni = :dni AND u.estado = 'activo'");
     $stmt->execute([':dni' => $dni]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$user) respondError("Usuario no encontrado");
+
+    // Verificar si el usuario se encuentra con sanción disciplinaria activa
+    if (!empty($user['sancionado_hasta']) && strtotime($user['sancionado_hasta']) > time()) {
+        $hastaFmt = date('d/m/Y h:i A', strtotime($user['sancionado_hasta']));
+        $motivo = !empty($user['sancion_motivo']) ? $user['sancion_motivo'] : 'Sanción disciplinaria';
+        respondError("Acceso bloqueado: Te encuentras sancionado disciplinariamente hasta el {$hastaFmt}. Motivo: {$motivo}", 403);
+    }
     
     // Verificar si ya tiene un turno abierto
     $stmt = $db->prepare("SELECT id FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto'");
@@ -470,12 +516,19 @@ else if ($method === 'POST' && $accion === 'marcar_ingreso_rapido') {
 
     if (empty($id_usuario) && empty($dni)) respondError("ID de usuario o DNI es requerido");
 
-    $userQuery = !empty($id_usuario) ? "SELECT u.id, u.dni, u.hora_entrada_asignada, r.hora_entrada as rol_hora_entrada FROM usuarios u JOIN roles r ON u.id_rol = r.id WHERE u.id = :id AND u.estado = 'activo'" : "SELECT u.id, u.dni, u.hora_entrada_asignada, r.hora_entrada as rol_hora_entrada FROM usuarios u JOIN roles r ON u.id_rol = r.id WHERE u.dni = :dni AND u.estado = 'activo'";
+    $userQuery = !empty($id_usuario) ? "SELECT u.id, u.dni, u.hora_entrada_asignada, u.sancionado_hasta, u.sancion_motivo, r.hora_entrada as rol_hora_entrada FROM usuarios u JOIN roles r ON u.id_rol = r.id WHERE u.id = :id AND u.estado = 'activo'" : "SELECT u.id, u.dni, u.hora_entrada_asignada, u.sancionado_hasta, u.sancion_motivo, r.hora_entrada as rol_hora_entrada FROM usuarios u JOIN roles r ON u.id_rol = r.id WHERE u.dni = :dni AND u.estado = 'activo'";
     $stmtU = $db->prepare($userQuery);
     if (!empty($id_usuario)) $stmtU->execute([':id' => $id_usuario]);
     else $stmtU->execute([':dni' => $dni]);
     $user = $stmtU->fetch(PDO::FETCH_ASSOC);
     if (!$user) respondError("Usuario no encontrado o inactivo");
+
+    // Verificar si el usuario se encuentra con sanción disciplinaria activa
+    if (!empty($user['sancionado_hasta']) && strtotime($user['sancionado_hasta']) > time()) {
+        $hastaFmt = date('d/m/Y h:i A', strtotime($user['sancionado_hasta']));
+        $motivo = !empty($user['sancion_motivo']) ? $user['sancion_motivo'] : 'Sanción disciplinaria';
+        respondError("Acceso bloqueado: Te encuentras sancionado disciplinariamente hasta el {$hastaFmt}. Motivo: {$motivo}", 403);
+    }
 
     // Verificar si ya tiene turno abierto
     $stmt = $db->prepare("SELECT id FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto'");
@@ -592,6 +645,8 @@ else if ($method === 'POST' && $accion === 'retiro_disciplinario') {
     $detalle = isset($input['detalle']) ? trim($input['detalle']) : '';
     $horas_descontar = isset($input['horas_descontar']) && $input['horas_descontar'] !== '' ? (float)$input['horas_descontar'] : null;
     $id_admin = isset($input['id_admin']) ? (int)$input['id_admin'] : null;
+    $duracion = isset($input['duracion']) ? trim($input['duracion']) : '0';
+    $fecha_fin_personalizada = isset($input['fecha_fin_personalizada']) ? trim($input['fecha_fin_personalizada']) : null;
     
     if (!$id_asistencia && $id_usuario > 0) {
         $stmtA = $db->prepare("SELECT id FROM rrhh_asistencias WHERE id_usuario = :u AND estado = 'abierto' ORDER BY id DESC LIMIT 1");
@@ -599,35 +654,72 @@ else if ($method === 'POST' && $accion === 'retiro_disciplinario') {
         $id_asistencia = (int)$stmtA->fetchColumn();
     }
     
-    if (!$id_asistencia) {
-        respondError("No se encontró un turno abierto para este colaborador");
+    if (!$id_asistencia && !$id_usuario) {
+        respondError("Debes seleccionar un colaborador para sancionar");
     }
-    
-    $stmtData = $db->prepare("SELECT a.id, a.id_usuario, a.fecha_hora_entrada, a.observaciones,
-                                     u.nombre, u.apellido, u.dni,
-                                     IFNULL(u.hora_salida_asignada, r.hora_salida) as hora_salida_esperada
-                              FROM rrhh_asistencias a
-                              JOIN usuarios u ON a.id_usuario = u.id
-                              JOIN roles r ON u.id_rol = r.id
-                              WHERE a.id = :id");
-    $stmtData->execute([':id' => $id_asistencia]);
-    $asist = $stmtData->fetch(PDO::FETCH_ASSOC);
-    if (!$asist) respondError("Registro de asistencia no encontrado");
-    
-    $entradaTs = strtotime($asist['fecha_hora_entrada']);
-    $ahoraTs = time();
-    $minutosTrabajados = max(1, round(($ahoraTs - $entradaTs) / 60));
-    $horasTrabajadas = round($minutosTrabajados / 60, 2);
-    
-    if ($horas_descontar === null || $horas_descontar < 0) {
-        $horas_descontar = max(0.5, round(8.0 - $horasTrabajadas, 2));
-    }
-    
+
+    $asist = null;
+    $horasTrabajadas = 0;
     $horaCorteStr = date('H:i');
     $fechaHoy = date('Y-m-d');
+    
+    if ($id_asistencia > 0) {
+        $stmtData = $db->prepare("SELECT a.id, a.id_usuario, a.fecha_hora_entrada, a.observaciones,
+                                         u.nombre, u.apellido, u.dni,
+                                         IFNULL(u.hora_salida_asignada, r.hora_salida) as hora_salida_esperada
+                                  FROM rrhh_asistencias a
+                                  JOIN usuarios u ON a.id_usuario = u.id
+                                  JOIN roles r ON u.id_rol = r.id
+                                  WHERE a.id = :id");
+        $stmtData->execute([':id' => $id_asistencia]);
+        $asist = $stmtData->fetch(PDO::FETCH_ASSOC);
+        if (!$asist) respondError("Registro de asistencia no encontrado");
+        $id_usuario = (int)$asist['id_usuario'];
+
+        $entradaTs = strtotime($asist['fecha_hora_entrada']);
+        $ahoraTs = time();
+        $minutosTrabajados = max(1, round(($ahoraTs - $entradaTs) / 60));
+        $horasTrabajadas = round($minutosTrabajados / 60, 2);
+        
+        if ($horas_descontar === null || $horas_descontar < 0) {
+            $horas_descontar = max(0.5, round(8.0 - $horasTrabajadas, 2));
+        }
+    } else {
+        $stmtU = $db->prepare("SELECT id, nombre, apellido, dni FROM usuarios WHERE id = :u AND estado = 'activo'");
+        $stmtU->execute([':u' => $id_usuario]);
+        $asist = $stmtU->fetch(PDO::FETCH_ASSOC);
+        if (!$asist) respondError("Colaborador no encontrado");
+        if ($horas_descontar === null) $horas_descontar = 0.00;
+    }
+    
+    // Calcular fecha y hora límite de la sanción (bloqueo)
+    $diasSancion = 0;
+    if ($duracion === 'custom' && !empty($fecha_fin_personalizada)) {
+        $sancionadoHasta = date('Y-m-d H:i:s', strtotime($fecha_fin_personalizada));
+    } else if ($duracion === '0') {
+        // Bloqueado hasta las 23:59:59 de hoy
+        $sancionadoHasta = date('Y-m-d 23:59:59');
+        $diasSancion = 0;
+    } else if (is_numeric($duracion) && (int)$duracion > 0) {
+        $diasSancion = (int)$duracion;
+        $sancionadoHasta = date('Y-m-d 23:59:59', strtotime("+{$diasSancion} days"));
+    } else {
+        $sancionadoHasta = date('Y-m-d 23:59:59');
+    }
+
+    $meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    $hastaTs = strtotime($sancionadoHasta);
+    $diaNum = date('j', $hastaTs);
+    $mesNom = $meses[(int)date('n', $hastaTs)];
+    $horaFormateada = date('h:i A', $hastaTs);
+    $hastaFmt = "{$diaNum} de {$mesNom}, {$horaFormateada}";
+    
     $obsSancion = "[RETIRO DISCIPLINARIO {$fechaHoy} {$horaCorteStr}] Motivo: {$motivo}. ";
     if (!empty($detalle)) $obsSancion .= "Detalle: {$detalle}. ";
-    $obsSancion .= "Laboró: {$horasTrabajadas}h. Descuento aplicado: {$horas_descontar}h perdidas.";
+    if ($id_asistencia > 0) {
+        $obsSancion .= "Laboró: {$horasTrabajadas}h. Descuento aplicado: {$horas_descontar}h perdidas. ";
+    }
+    $obsSancion .= "Bloqueo de acceso hasta: {$hastaFmt}.";
     
     if ($id_admin) {
         $stmtAdm = $db->prepare("SELECT nombre, apellido FROM usuarios WHERE id = :id");
@@ -636,30 +728,114 @@ else if ($method === 'POST' && $accion === 'retiro_disciplinario') {
         if ($adm) $obsSancion .= " Aplicado por: " . $adm['nombre'] . " " . ($adm['apellido'] ?: '') . ".";
     }
     
-    $obsFinal = trim(($asist['observaciones'] ? $asist['observaciones'] . " | " : "") . $obsSancion);
-    
-    $stmtUpd = $db->prepare("UPDATE rrhh_asistencias 
-                             SET fecha_hora_salida = NOW(),
-                                 estado = 'cerrado',
-                                 metodo_salida = 'sancion_disciplinaria',
-                                 condicion = 'sancion_disciplinaria',
-                                 horas_perdidas = :hp,
-                                 observaciones = :obs
-                             WHERE id = :id");
-    $stmtUpd->execute([
-        ':hp' => $horas_descontar,
-        ':obs' => $obsFinal,
-        ':id' => $id_asistencia
+    // Si tenía turno abierto, cerrarlo con sanción
+    if ($id_asistencia > 0) {
+        $obsFinal = trim(($asist['observaciones'] ? $asist['observaciones'] . " | " : "") . $obsSancion);
+        $stmtUpd = $db->prepare("UPDATE rrhh_asistencias 
+                                 SET fecha_hora_salida = NOW(),
+                                     estado = 'cerrado',
+                                     metodo_salida = 'sancion_disciplinaria',
+                                     condicion = 'sancion_disciplinaria',
+                                     horas_perdidas = :hp,
+                                     observaciones = :obs
+                                 WHERE id = :id");
+        $stmtUpd->execute([
+            ':hp' => $horas_descontar,
+            ':obs' => $obsFinal,
+            ':id' => $id_asistencia
+        ]);
+    }
+
+    // Actualizar datos de sanción activa en el usuario
+    $stmtUpdUser = $db->prepare("UPDATE usuarios 
+                                 SET sancionado_hasta = :hasta,
+                                     sancion_motivo = :motivo,
+                                     sancion_detalle = :detalle,
+                                     sancion_fecha = NOW(),
+                                     sancion_admin_id = :id_admin
+                                 WHERE id = :id_usuario");
+    $stmtUpdUser->execute([
+        ':hasta' => $sancionadoHasta,
+        ':motivo' => $motivo,
+        ':detalle' => $detalle,
+        ':id_admin' => $id_admin,
+        ':id_usuario' => $id_usuario
+    ]);
+
+    // Finalizar sanciones previas que estuviesen activas
+    $db->prepare("UPDATE rrhh_sanciones SET estado = 'cumplida' WHERE id_usuario = :u AND estado = 'activa'")->execute([':u' => $id_usuario]);
+
+    // Registrar en tabla histórica de sanciones
+    $stmtInsSanc = $db->prepare("INSERT INTO rrhh_sanciones 
+        (id_usuario, id_asistencia, id_admin, motivo, detalle, fecha_inicio, fecha_fin, dias_sancion, horas_descontadas, estado)
+        VALUES
+        (:u, :a, :adm, :mot, :det, NOW(), :fin, :dias, :hp, 'activa')");
+    $stmtInsSanc->execute([
+        ':u' => $id_usuario,
+        ':a' => $id_asistencia ?: null,
+        ':adm' => $id_admin ?: null,
+        ':mot' => $motivo,
+        ':det' => $detalle,
+        ':fin' => $sancionadoHasta,
+        ':dias' => $diasSancion,
+        ':hp' => $horas_descontar ?: 0.00
     ]);
     
     respondSuccess([
         'id_asistencia' => $id_asistencia,
+        'id_usuario' => $id_usuario,
         'empleado' => $asist['nombre'] . ' ' . ($asist['apellido'] ?: ''),
         'horas_trabajadas' => $horasTrabajadas,
         'horas_descontadas' => $horas_descontar,
-        'hora_salida' => $horaCorteStr,
+        'sancionado_hasta' => $sancionadoHasta,
+        'sancionado_hasta_formateada' => $hastaFmt,
         'motivo' => $motivo
-    ], "Se aplicó el retiro disciplinario a {$asist['nombre']}. Turno cerrado a las {$horaCorteStr} y {$horas_descontar} hrs descontadas.");
+    ], "Sanción aplicada exitosamente a {$asist['nombre']}. Acceso bloqueado hasta el {$hastaFmt}" . ($id_asistencia ? " y turno cerrado." : "."));
+}
+
+// ==========================================
+// 4.2 LEVANTAR / QUITAR SANCIÓN DISCIPLINARIA
+// ==========================================
+else if ($method === 'POST' && $accion === 'levantar_sancion') {
+    $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
+    $id_usuario = isset($input['id_usuario']) ? (int)$input['id_usuario'] : 0;
+    $motivo = isset($input['motivo']) && trim($input['motivo']) !== '' ? trim($input['motivo']) : 'Acuerdo de rehabilitación / Levantamiento administrativo';
+    $id_admin = isset($input['id_admin']) ? (int)$input['id_admin'] : null;
+
+    if (!$id_usuario) respondError("ID de colaborador es requerido");
+
+    $stmtU = $db->prepare("SELECT id, nombre, apellido, dni, sancionado_hasta FROM usuarios WHERE id = :id");
+    $stmtU->execute([':id' => $id_usuario]);
+    $user = $stmtU->fetch(PDO::FETCH_ASSOC);
+    if (!$user) respondError("Usuario no encontrado", 404);
+
+    // Limpiar sanción activa en el registro del usuario
+    $stmtUpd = $db->prepare("UPDATE usuarios 
+                             SET sancionado_hasta = NULL,
+                                 sancion_motivo = NULL,
+                                 sancion_detalle = NULL,
+                                 sancion_fecha = NULL,
+                                 sancion_admin_id = NULL
+                             WHERE id = :id");
+    $stmtUpd->execute([':id' => $id_usuario]);
+
+    // Marcar como levantada en el historial
+    $stmtSanc = $db->prepare("UPDATE rrhh_sanciones 
+                              SET estado = 'levantada',
+                                  levantado_por = :admin,
+                                  fecha_levantamiento = NOW(),
+                                  motivo_levantamiento = :motivo
+                              WHERE id_usuario = :id AND estado = 'activa'");
+    $stmtSanc->execute([
+        ':admin' => $id_admin,
+        ':motivo' => $motivo,
+        ':id' => $id_usuario
+    ]);
+
+    respondSuccess([
+        "id_usuario" => $id_usuario,
+        "nombre" => $user['nombre'] . ' ' . ($user['apellido'] ?: '')
+    ], "Sanción levantada con éxito para {$user['nombre']}. Su acceso al sistema y registro de turnos ha sido restablecido.");
 }
 
 // ==========================================
@@ -873,6 +1049,7 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
                       u.cargo, u.fecha_contratacion, u.estado,
                       u.sueldo_base, u.sueldo_por_hora, u.tipo_pago, u.horas_semanales_pactadas,
                       u.hora_entrada_asignada, u.hora_salida_asignada,
+                      u.sancionado_hasta, u.sancion_motivo, u.sancion_detalle, u.sancion_fecha,
                       r.nombre as rol_nombre, r.hora_entrada as rol_hora_entrada, r.hora_salida as rol_hora_salida
                FROM usuarios u 
                JOIN roles r ON u.id_rol = r.id 
@@ -974,7 +1151,11 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
                 'cargo' => $emp['cargo'] ?? null,
                 'fecha_contratacion' => $emp['fecha_contratacion'] ?? null,
                 'estado' => $emp['estado'] ?? 'activo',
-                'rol' => $emp['rol_nombre']
+                'rol' => $emp['rol_nombre'],
+                'sancionado_hasta' => $emp['sancionado_hasta'] ?? null,
+                'sancion_motivo' => $emp['sancion_motivo'] ?? null,
+                'sancion_detalle' => $emp['sancion_detalle'] ?? null,
+                'es_sancionado' => (!empty($emp['sancionado_hasta']) && strtotime($emp['sancionado_hasta']) > time())
             ],
             'contrato' => [
                 'sueldo_base' => $sueldoBase,

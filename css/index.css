@@ -3254,3 +3254,39 @@ body.kiosk-mode .content-area {
     to { transform: translateY(0); opacity: 1; }
 }
 
+/* ===================================================
+   VISTA Y TARJETAS DE USUARIO SANCIONADO
+   =================================================== */
+.auth-sancionado-step {
+    animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.sancion-info-card {
+    transition: all 0.2s ease;
+}
+
+.sancion-info-card:hover {
+    border-color: rgba(239, 68, 68, 0.5) !important;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.1) !important;
+}
+
+[data-theme="dark"] .sancion-info-card {
+    background: rgba(239, 68, 68, 0.04) !important;
+    border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+.badge-sancion-activa {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+

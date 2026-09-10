@@ -54,7 +54,7 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
     <!-- Global CSS -->
-    <link rel="stylesheet" href="css/index.css?v=2.7.0">
+    <link rel="stylesheet" href="css/index.css?v=2.7.3">
 </head>
 <body>
     
@@ -201,7 +201,7 @@
     <!-- Scripts -->
     <script src="js/modules/inventario.js?v=2.3.0"></script>
     <script src="js/modules/recetas.js?v=2.2.0"></script>
-    <script src="js/app.js?v=2.7.2"></script>
+    <script src="js/app.js?v=2.7.3"></script>
     <script>
         if ('serviceWorker' in navigator) {
             // Comprobación segura de Cache API (Safari en Modo Hermético / Lockdown Mode deshabilita caches)
@@ -220,7 +220,7 @@
                     }
                 }).catch(function() {});
             } else {
-                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.2';
+                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.3';
                 navigator.serviceWorker.register(swPath)
                     .then(function(reg) {
                         reg.update();

@@ -88,6 +88,13 @@ try {
                     }
 
                     if ($isValid) {
+                        // Verificar si el usuario se encuentra sancionado con acceso bloqueado
+                        if (!empty($row['sancionado_hasta']) && strtotime($row['sancionado_hasta']) > time()) {
+                            $hastaFmt = date('d/m/Y h:i A', strtotime($row['sancionado_hasta']));
+                            $motivo = !empty($row['sancion_motivo']) ? $row['sancion_motivo'] : 'Sanción disciplinaria';
+                            respondError("Acceso bloqueado: Tu cuenta se encuentra suspendida disciplinariamente hasta el {$hastaFmt}. Motivo: {$motivo}", 403);
+                        }
+
                         // Generar token simple (En prod usar JWT real)
                         $token = bin2hex(random_bytes(16)); 
                         

@@ -329,6 +329,36 @@ function renderAppLayout(container) {
     const iniciales = nombreUsuario.substring(0, 2).toUpperCase();
     const avatarHtml = user.foto_perfil ? `<img src="${user.foto_perfil}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">` : iniciales;
 
+    let sidebarUpdateNoticeHtml = '';
+    if (isAdministrador) {
+        let hayActualizacion = false;
+        try {
+            const cached = JSON.parse(localStorage.getItem('khalessi_update_check') || '{}');
+            hayActualizacion = Boolean(cached.hay_actualizacion || cached.requiere_vinculacion);
+        } catch(e) {}
+
+        if (hayActualizacion) {
+            sidebarUpdateNoticeHtml = `
+                <div id="sidebar-update-notice" class="sidebar-update-notice">
+                    <button type="button" class="btn-update-sidebar has-update" onclick="window.irAActualizaciones()" title="Nueva versión disponible en GitHub. Haz clic para actualizar">
+                        <span class="pulse-indicator"></span>
+                        <i class="ph ph-sparkle"></i>
+                        <span class="update-label">Actualización disponible</span>
+                    </button>
+                </div>
+            `;
+        } else {
+            sidebarUpdateNoticeHtml = `
+                <div id="sidebar-update-notice" class="sidebar-update-notice">
+                    <button type="button" class="btn-update-sidebar is-uptodate" onclick="window.irAActualizaciones()" title="El sistema se encuentra en la versión más reciente de GitHub">
+                        <i class="ph ph-check-circle"></i>
+                        <span class="update-label">Sistema actualizado</span>
+                    </button>
+                </div>
+            `;
+        }
+    }
+
     container.innerHTML = `
         <div class="app-layout" id="app-layout">
             <!-- Overlay para móviles -->
@@ -385,14 +415,8 @@ function renderAppLayout(container) {
                 </nav>
                 
                 <div class="sidebar-footer">
-                    <!-- Aviso dinámico de actualización en Sidebar -->
-                    <div id="sidebar-update-notice" class="sidebar-update-notice" style="display: none;">
-                        <button type="button" class="btn-update-topbar btn-update-sidebar" onclick="window.irAActualizaciones()" title="Nueva versión disponible en GitHub">
-                            <span class="pulse-indicator"></span>
-                            <i class="ph ph-sparkle" style="color: #f59e0b; font-size: 15px;"></i>
-                            <span class="update-label">Actualización disponible</span>
-                        </button>
-                    </div>
+                    <!-- Estado dinámico de actualización en Sidebar -->
+                    ${sidebarUpdateNoticeHtml}
 
                     <!-- Tarjeta de Perfil y Acciones Rápidas en Sidebar -->
                     <div class="sidebar-user-card">
@@ -6482,15 +6506,38 @@ window.ejecutarMigracionesSeguras = async function() {
 // ========================================================
 
 window.actualizarAvisosVersion = function(info) {
+    const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+    const isAdministrador = user.rol_nombre && user.rol_nombre.toLowerCase() === 'administrador';
+    if (!isAdministrador) return;
+
     const noticeEl = document.getElementById('topbar-update-notice');
     const sidebarNoticeEl = document.getElementById('sidebar-update-notice');
     const tieneNovedad = Boolean(info && (info.hay_actualizacion === true || info.requiere_vinculacion === true));
 
+    // Cabecera móvil: se muestra únicamente si hay actualización pendiente
     if (noticeEl) {
         noticeEl.style.display = tieneNovedad ? 'inline-flex' : 'none';
     }
+
+    // Sidebar: se actualiza el contenido y estado visual dinámicamente
     if (sidebarNoticeEl) {
-        sidebarNoticeEl.style.display = tieneNovedad ? 'block' : 'none';
+        sidebarNoticeEl.style.display = 'block';
+        if (tieneNovedad) {
+            sidebarNoticeEl.innerHTML = `
+                <button type="button" class="btn-update-sidebar has-update" onclick="window.irAActualizaciones()" title="Nueva versión disponible en GitHub. Haz clic para actualizar">
+                    <span class="pulse-indicator"></span>
+                    <i class="ph ph-sparkle"></i>
+                    <span class="update-label">Actualización disponible</span>
+                </button>
+            `;
+        } else {
+            sidebarNoticeEl.innerHTML = `
+                <button type="button" class="btn-update-sidebar is-uptodate" onclick="window.irAActualizaciones()" title="El sistema se encuentra en la versión más reciente de GitHub">
+                    <i class="ph ph-check-circle"></i>
+                    <span class="update-label">Sistema actualizado</span>
+                </button>
+            `;
+        }
     }
 
     try {
@@ -6516,12 +6563,8 @@ window.verificarActualizacionSilenciosa = async function(forzar = false) {
             if (cached) {
                 try {
                     const parsed = JSON.parse(cached);
-                    if (now - parsed.timestamp < 15 * 60 * 1000) {
-                        const noticeEl = document.getElementById('topbar-update-notice');
-                        const sidebarNoticeEl = document.getElementById('sidebar-update-notice');
-                        const tieneNovedad = Boolean(parsed.hay_actualizacion || parsed.requiere_vinculacion);
-                        if (noticeEl) noticeEl.style.display = tieneNovedad ? 'inline-flex' : 'none';
-                        if (sidebarNoticeEl) sidebarNoticeEl.style.display = tieneNovedad ? 'block' : 'none';
+                    // Si ya se consultó hace menos de 5 minutos, evitar peticiones de red repetitivas
+                    if (now - parsed.timestamp < 5 * 60 * 1000) {
                         return;
                     }
                 } catch(e) {}
@@ -6539,6 +6582,25 @@ window.verificarActualizacionSilenciosa = async function(forzar = false) {
         // Silencioso, no interrumpe al usuario
     }
 };
+
+// Monitoreo periódico en segundo plano (cada 10 minutos)
+if (!window._khalessiUpdateInterval) {
+    window._khalessiUpdateInterval = setInterval(() => {
+        if (typeof window.verificarActualizacionSilenciosa === 'function') {
+            window.verificarActualizacionSilenciosa(true);
+        }
+    }, 10 * 60 * 1000);
+}
+
+// Verificación inteligente al reactivar la pestaña
+if (!window._khalessiVisibilityBound) {
+    window._khalessiVisibilityBound = true;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && typeof window.verificarActualizacionSilenciosa === 'function') {
+            window.verificarActualizacionSilenciosa(false);
+        }
+    });
+}
 
 window.irAActualizaciones = function() {
     navigate('/configuracion');

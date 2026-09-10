@@ -6425,6 +6425,10 @@ window.ejecutarActualizacion1Click = async function() {
                 `;
             }
             loadInfoGitConexiones();
+            showToast('Recargando sistema para activar la nueva versión...', 'info');
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 2200);
         } else {
             showToast(data.message || 'Error en el proceso de actualización', 'error');
             if (consoleEl) {

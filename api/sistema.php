@@ -563,35 +563,49 @@ else if ($method === 'POST' && $accion === 'actualizar') {
 
     runGitCmd($baseDir, "git config --global --add safe.directory \"$baseDir\"");
 
-    // 1. Ejecutar Git Pull
+    // 1. Ejecutar Git Fetch
     runGitCmd($baseDir, "git fetch origin main");
-    $pullResult = runGitCmd($baseDir, "git pull origin main");
     
-    // Si pull tuvo conflicto con cambios locales no versionados, asegurar consistencia
-    if (empty($pullResult) || stripos($pullResult, 'error:') !== false || stripos($pullResult, 'conflict') !== false) {
-        $pullResult = runGitCmd($baseDir, "git reset origin/main && git checkout -- .");
+    // 2. Sincronizar de forma forzada e impecable a origin/main
+    $pullResult = runGitCmd($baseDir, "git reset --hard origin/main");
+    
+    // Si por alguna razón reset falló, intentar pull con force
+    if (empty($pullResult) || stripos($pullResult, 'fatal:') !== false || stripos($pullResult, 'error:') !== false) {
+        $pullResult = runGitCmd($baseDir, "git pull origin main --force");
     }
 
     // Blindaje posterior: garantizar que config.prod.php siga presente y activo
     asegurarRestauracionCredencialesBD($baseDir);
 
-    $logs[] = "--- GIT PULL ---\n" . ($pullResult ?: 'Pull completado sin salida.');
+    $logs[] = "--- GIT PULL / RESET ---\n" . ($pullResult ?: 'Sincronización completada.');
 
-    // 2. Ejecutar Migraciones de Base de Datos de manera segura (solo las nuevas)
+    // 3. Fallback automático: Si Git CLI no logró alcanzar el commit remoto oficial
+    $commitFinal = cleanGitOutput(runGitCmd($baseDir, "git rev-parse --short HEAD")) ?: 'main';
+    $remoteInfo = getRemoteLatestCommit($repoOwner, $repoName);
+    $remoteSha = $remoteInfo ? $remoteInfo['short_sha'] : null;
+
+    if ($remoteSha && $commitFinal !== $remoteSha) {
+        try {
+            $resZip = actualizarViaZip($baseDir, $db, $repoOwner, $repoName);
+            $logs[] = "--- FALLBACK DE RESCATE (ZIP GITHUB) ---\n" . $resZip['logs'];
+            $commitFinal = $resZip['nuevo_commit'];
+        } catch (Exception $e) {
+            $logs[] = "--- AVISO FALLBACK ---\n" . $e->getMessage();
+        }
+    }
+
+    // 4. Ejecutar Migraciones de Base de Datos de manera segura (solo las nuevas)
     $migrador = new Migrador($db);
     $resMigraciones = $migrador->ejecutarPendientes();
     
     $totalNuevas = count($resMigraciones['aplicadas_ahora']);
     $logs[] = "--- MIGRACIONES BD ---\nSe ejecutaron $totalNuevas migraciones nuevas. La data de producción se mantuvo intacta.";
 
-    // 3. Limpiar OPcache de PHP si está activo en el servidor
+    // 5. Limpiar OPcache de PHP si está activo en el servidor
     if (function_exists('opcache_reset')) {
         @opcache_reset();
         $logs[] = "--- CACHE PHP ---\nOPcache reiniciado con éxito.";
     }
-
-    // 4. Commit actual después del pull
-    $commitFinal = cleanGitOutput(runGitCmd($baseDir, "git rev-parse --short HEAD")) ?: 'main';
 
     respondSuccess([
         'nuevo_commit' => $commitFinal,

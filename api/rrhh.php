@@ -446,6 +446,7 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
     
     // Obtener usuarios activos
     $qUsers = "SELECT u.id, u.nombre, u.apellido, u.dni, u.email, u.celular, u.foto_perfil, 
+                      u.cargo, u.fecha_contratacion, u.estado,
                       u.sueldo_base, u.sueldo_por_hora, u.tipo_pago, u.horas_semanales_pactadas,
                       u.hora_entrada_asignada, u.hora_salida_asignada,
                       r.nombre as rol_nombre, r.hora_entrada as rol_hora_entrada, r.hora_salida as rol_hora_salida
@@ -547,6 +548,9 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
                 'email' => $emp['email'],
                 'celular' => $emp['celular'],
                 'foto_perfil' => $emp['foto_perfil'],
+                'cargo' => $emp['cargo'] ?? null,
+                'fecha_contratacion' => $emp['fecha_contratacion'] ?? null,
+                'estado' => $emp['estado'] ?? 'activo',
                 'rol' => $emp['rol_nombre']
             ],
             'contrato' => [

@@ -2019,5 +2019,119 @@ body.kiosk-mode .content-area {
     transform: scale(1.05);
 }
 
+/* ===================================================
+   SOPORTE DE IMPRESIÓN FIEL DE FICHA LABORAL Y BOLETA
+   =================================================== */
+@media print {
+    @page {
+        margin: 10mm;
+        size: A4 portrait;
+    }
 
+    *, *::before, *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
 
+    /* Ocultar elementos de navegación, modales y botones del sistema */
+    header,
+    nav,
+    .topbar,
+    .sidebar,
+    .sidebar-overlay,
+    .bottom-nav-bar,
+    .fab-btn,
+    .modal-header,
+    .modal-footer,
+    .no-print,
+    .btn,
+    .btn-icon,
+    #toast-container,
+    #modal-container,
+    #scanner-modal,
+    #modal-justificacion,
+    #modal-editar-sueldo,
+    .toast-container {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    body {
+        visibility: hidden !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Solo la ficha o boleta imprimible será visible y abarcará toda la hoja */
+    #ficha-individual-printable,
+    #ficha-individual-printable *,
+    .boleta-printable-card,
+    .boleta-printable-card * {
+        visibility: visible !important;
+    }
+
+    #ficha-individual-printable,
+    .boleta-printable-card {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        box-shadow: none !important;
+        border: none !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* Cuadrícula de estadísticas 4 columnas fijas en impresión */
+    .ficha-mini-stats-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 10px !important;
+        margin-bottom: 16px !important;
+    }
+
+    .ficha-stat-box {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 8px !important;
+        padding: 8px 10px !important;
+        text-align: center !important;
+    }
+
+    /* Total Neto a Cobrar */
+    .ficha-total-box {
+        background: rgba(16, 185, 129, 0.1) !important;
+        border-top: 2px solid #10b981 !important;
+    }
+
+    /* Firmas alineadas y con espacio prudente */
+    .ficha-firmas-wrap {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        margin-top: 40px !important;
+        padding-top: 16px !important;
+        border-top: 1px dashed #cbd5e1 !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .ficha-firmas-wrap > div {
+        flex: 1 !important;
+        max-width: 220px !important;
+    }
+
+    img {
+        max-width: 100% !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}

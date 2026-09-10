@@ -163,6 +163,8 @@ function showModal(title, content, onConfirm = null) {
 
 const routes = {
     '/login': { view: renderLogin, layout: false },
+    '/boleta': { view: (c) => window.renderBoletaPublica(c), layout: false },
+    '/boleta-publica': { view: (c) => window.renderBoletaPublica(c), layout: false },
     '/dashboard': { view: renderDashboard, layout: true },
     '/inventario': { view: renderInventario, layout: true },
     '/recetas': { view: window.renderRecetas || (() => '<h2>Cargando Módulo de Recetas...</h2>'), layout: true },
@@ -188,10 +190,11 @@ window.navigate = function(path) {
 
 function router() {
     let path = window.location.pathname.replace('/khalessierp', '');
+    if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
     if (path === '/' || path === '') path = '/login';
     
     const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
-    if (path !== '/login' && path !== '/perfil' && path !== '/logout') {
+    if (path !== '/login' && path !== '/perfil' && path !== '/logout' && !path.startsWith('/boleta')) {
         const modulo = path.substring(1); 
         const isAdministrador = user.rol_nombre && user.rol_nombre.toLowerCase() === 'administrador';
         let allowed = isAdministrador;
@@ -1477,6 +1480,9 @@ async function renderRRHH(container) {
                         <h3 style="font-size: 16px; margin: 0;">Ficha Laboral y Boleta de Pago</h3>
                     </div>
                     <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn btn-secondary btn-sm" onclick="copiarEnlaceBoletaPublica()" title="Copiar enlace para vista pública">
+                            <i class="ph ph-link" style="font-size:16px;"></i> <span class="mobile-hide">Copiar Enlace</span>
+                        </button>
                         <button class="btn btn-secondary btn-sm" style="color:#25D366; border-color:rgba(37,211,102,0.4);" onclick="enviarFichaPorWhatsAppActual()" title="Enviar resumen por WhatsApp">
                             <i class="ph ph-whatsapp-logo" style="font-size:16px;"></i> <span class="mobile-hide">WhatsApp</span>
                         </button>
@@ -1489,9 +1495,12 @@ async function renderRRHH(container) {
                 </div>
                 <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                     <button class="btn btn-secondary" onclick="cerrarModalFichaIndividual()">Cerrar</button>
-                    <div style="display:flex; gap:8px;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-secondary" onclick="copiarEnlaceBoletaPublica()" title="Copiar enlace público de esta boleta">
+                            <i class="ph ph-link" style="font-size:18px;"></i> Copiar Enlace Público
+                        </button>
                         <button class="btn btn-secondary" style="color:#25D366; border-color:rgba(37,211,102,0.4);" onclick="enviarFichaPorWhatsAppActual()">
-                            <i class="ph ph-whatsapp-logo" style="font-size:18px;"></i> Enviar WhatsApp
+                            <i class="ph ph-whatsapp-logo" style="font-size:18px;"></i> WhatsApp
                         </button>
                         <button class="btn btn-primary" onclick="imprimirFichaIndividual()"><i class="ph ph-printer"></i> Imprimir Ficha</button>
                     </div>
@@ -2375,15 +2384,29 @@ window.verFichaIndividualPersonal = function(id) {
     const moneda = AppConfig.get('moneda') || 'S/';
     const empresa = AppConfig.get('nombre_empresa') || 'Khalessi ERP';
 
+    const logoLight = AppConfig.get('logo_light');
+    const logoDark = AppConfig.get('logo_dark');
+    const logoSrc = logoLight || logoDark;
+
+    let logoHeaderHtml = '';
+    if (logoSrc) {
+        logoHeaderHtml = `<img src="${logoSrc}" alt="${empresa}" class="ficha-header-logo" style="max-height: 48px; max-width: 170px; object-fit: contain;">`;
+    } else {
+        logoHeaderHtml = `<div style="width:40px; height:40px; border-radius:8px; background:rgba(239,68,68,0.1); display:flex; align-items:center; justify-content:center; color:var(--primary); font-size:22px;"><i class="ph ph-buildings"></i></div>`;
+    }
+
     const container = document.getElementById('ficha-individual-printable');
     container.innerHTML = `
-        <div style="border-bottom: 2px solid var(--border); padding-bottom: 12px; margin-bottom: 16px; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
-            <div>
-                <h2 style="margin:0 0 2px 0; font-size:19px; color:var(--primary); font-weight:700;">${empresa}</h2>
-                <div class="text-sec" style="font-size:12px;">Ficha Individual y Liquidación de Sueldo</div>
+        <div style="border-bottom: 2px solid var(--border); padding-bottom: 14px; margin-bottom: 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+                ${logoHeaderHtml}
+                <div>
+                    <h2 style="margin:0 0 2px 0; font-size:18px; color:var(--primary); font-weight:700;">${empresa}</h2>
+                    <div class="text-sec" style="font-size:12px;">Ficha Individual y Liquidación de Sueldo</div>
+                </div>
             </div>
             <div style="text-align:right; font-size:12px;">
-                <div style="font-weight:700; color:var(--text-main);">Período: ${m.mes}</div>
+                <div style="font-weight:700; color:var(--text-main); font-size:13px;">Período: ${m.mes}</div>
                 <div class="text-sec text-small">Generado: ${new Date().toLocaleDateString('es-PE')}</div>
             </div>
         </div>
@@ -2393,7 +2416,10 @@ window.verFichaIndividualPersonal = function(id) {
             ${window.renderEmpleadoAvatar(u.nombre, u.apellido, u.foto_perfil, 46)}
             <div style="flex:1; min-width:0;">
                 <div style="font-weight:700; font-size:15px; color:var(--text-main); word-break:break-word;">${u.nombre} ${u.apellido || ''}</div>
-                <div class="text-sec text-small" style="margin-top:2px;">DNI: ${u.dni} &bull; <span class="badge badge-secondary" style="font-size:11px;">${u.rol}</span></div>
+                <div class="text-sec text-small" style="margin-top:2px;">
+                    DNI: <strong>${u.dni}</strong> &bull; <span class="badge badge-secondary" style="font-size:11px;">${u.cargo || u.rol}</span>
+                    ${u.fecha_contratacion ? ` &bull; Ingreso: ${u.fecha_contratacion}` : ''}
+                </div>
                 <div class="text-sec text-small" style="margin-top:4px;">Modalidad: <strong style="text-transform:capitalize;">${c.tipo_pago} (${moneda} ${parseFloat(c.sueldo_base).toFixed(2)})</strong></div>
             </div>
         </div>
@@ -2442,7 +2468,7 @@ window.verFichaIndividualPersonal = function(id) {
                 <span>Bonificación Horas Extra (+${m.horas_extra}h x 1.25)</span>
                 <span style="font-weight:600;">+ ${moneda} ${l.bonificacion_horas_extra.toFixed(2)}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(16, 185, 129, 0.08); border-top:2px solid var(--success);">
+            <div class="ficha-total-box" style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(16, 185, 129, 0.08); border-top:2px solid var(--success);">
                 <strong style="color:var(--text-main); font-size:13px;">TOTAL NETO A COBRAR</strong>
                 <strong style="color:var(--success); font-size:18px;">${moneda} ${l.monto_total_cobrar.toFixed(2)}</strong>
             </div>
@@ -2470,6 +2496,56 @@ window.cerrarModalFichaIndividual = function() {
 
 window.imprimirFichaIndividual = function() {
     window.print();
+};
+
+window.copiarTextoAlPortapapeles = function(text, mensajeExito = '¡Enlace copiado al portapapeles!') {
+    triggerHaptic(20);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast(mensajeExito, 'success');
+        }).catch(() => {
+            fallbackCopy(text, mensajeExito);
+        });
+    } else {
+        fallbackCopy(text, mensajeExito);
+    }
+};
+
+function fallbackCopy(text, mensajeExito) {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.position = 'fixed';
+    el.style.left = '-99999px';
+    el.style.top = '-99999px';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    try {
+        document.execCommand('copy');
+        showToast(mensajeExito, 'success');
+    } catch(err) {
+        showToast('Error al copiar enlace', 'error');
+    }
+    document.body.removeChild(el);
+}
+
+window.copiarEnlaceBoletaPublica = function() {
+    triggerHaptic(25);
+    if (!window.currentFichaUsuarioId || !window.fichasPersonalData) {
+        showToast('No hay ficha de colaborador seleccionada', 'error');
+        return;
+    }
+    const item = window.fichasPersonalData.find(x => x.usuario.id == window.currentFichaUsuarioId);
+    if (!item) {
+        showToast('No se encontró información del colaborador', 'error');
+        return;
+    }
+
+    const mesInput = document.getElementById('filtro-personal-mes');
+    const mes = (item.metricas && item.metricas.mes) ? item.metricas.mes : (mesInput ? mesInput.value : '');
+    const url = `${window.location.origin}/khalessierp/boleta?u=${item.usuario.id}&mes=${encodeURIComponent(mes)}`;
+    
+    window.copiarTextoAlPortapapeles(url, '¡Enlace de boleta pública copiado al portapapeles!');
 };
 
 window.enviarFichaPorWhatsAppActual = function() {
@@ -2509,6 +2585,210 @@ window.enviarFichaPorWhatsAppActual = function() {
         : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
 
     window.open(waUrl, '_blank');
+};
+
+// ==========================================
+// VISTA PÚBLICA DE FICHA LABORAL Y BOLETA DE PAGO
+// ==========================================
+
+window.renderBoletaPublica = async function(container) {
+    const params = new URLSearchParams(window.location.search);
+    const userId = params.get('u') || params.get('id');
+    const mes = params.get('mes') || new Date().toISOString().substring(0, 7);
+    const empresa = AppConfig.get('nombre_empresa') || 'Khalessi ERP';
+    const logoLight = AppConfig.get('logo_light');
+    const logoDark = AppConfig.get('logo_dark');
+    const logoSrc = logoLight || logoDark;
+    const moneda = AppConfig.get('moneda') || 'S/';
+
+    if (!userId) {
+        container.innerHTML = `
+            <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg-main); padding:20px;">
+                <div class="card" style="max-width:440px; text-align:center; padding:32px 24px; border-radius:14px; box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+                    <div style="width:60px; height:60px; border-radius:50%; background:rgba(239,68,68,0.1); color:var(--danger); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:32px;">
+                        <i class="ph ph-warning-circle"></i>
+                    </div>
+                    <h3 style="margin-bottom:8px;">Parámetro no especificado</h3>
+                    <p class="text-sec" style="font-size:13px; margin-bottom:20px;">No se especificó el identificador del colaborador para mostrar su boleta de pago.</p>
+                    <a href="/khalessierp/login" class="btn btn-primary" style="text-decoration:none;"><i class="ph ph-sign-in"></i> Ir al Acceso del Sistema</a>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <div style="min-height:100vh; background:var(--bg-main); padding:20px 14px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div style="display:flex; align-items:center; gap:10px;" class="no-print">
+                <i class="ph ph-spinner ph-spin" style="font-size:28px; color:var(--primary);"></i>
+                <span style="font-size:15px; font-weight:500;">Cargando Ficha Laboral...</span>
+            </div>
+        </div>
+    `;
+
+    try {
+        const res = await fetch(`/khalessierp/api/index.php?request=rrhh/fichas_personal&id_usuario=${userId}&mes=${mes}`);
+        const data = await res.json();
+
+        if (!res.ok || data.status !== 'success' || !data.data || data.data.length === 0) {
+            container.innerHTML = `
+                <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg-main); padding:20px;">
+                    <div class="card" style="max-width:460px; text-align:center; padding:32px 24px; border-radius:14px; box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+                        <div style="width:60px; height:60px; border-radius:50%; background:rgba(239,68,68,0.1); color:var(--danger); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:32px;">
+                            <i class="ph ph-user-circle-gear"></i>
+                        </div>
+                        <h3 style="margin-bottom:8px;">Boleta no disponible</h3>
+                        <p class="text-sec" style="font-size:13px; margin-bottom:20px;">No se encontró información salarial registrada para el colaborador en el período ${mes}.</p>
+                        <a href="/khalessierp/login" class="btn btn-secondary" style="text-decoration:none;"><i class="ph ph-sign-in"></i> Acceso al Sistema</a>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const item = data.data[0];
+        const u = item.usuario;
+        const c = item.contrato;
+        const m = item.metricas;
+        const l = item.liquidacion;
+
+        let logoHeaderHtml = '';
+        if (logoSrc) {
+            logoHeaderHtml = `<img src="${logoSrc}" alt="${empresa}" class="ficha-header-logo" style="max-height: 48px; max-width: 170px; object-fit: contain;">`;
+        } else {
+            logoHeaderHtml = `<div style="width:40px; height:40px; border-radius:8px; background:rgba(239,68,68,0.1); display:flex; align-items:center; justify-content:center; color:var(--primary); font-size:22px;"><i class="ph ph-buildings"></i></div>`;
+        }
+
+        container.innerHTML = `
+            <div style="min-height:100vh; background:var(--bg-main); padding:24px 14px 60px; display:flex; flex-direction:column; align-items:center;">
+                <!-- Barra superior de acciones (no imprimible) -->
+                <div class="no-print" style="width:100%; max-width:720px; display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="badge badge-primary" style="font-size:12px; padding:6px 12px;">
+                            <i class="ph ph-globe"></i> Vista Pública Oficial
+                        </span>
+                        <span class="text-sec text-small">Período: <strong>${m.mes}</strong></span>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn btn-secondary btn-sm" onclick="copiarTextoAlPortapapeles(window.location.href, '¡Enlace público copiado!')">
+                            <i class="ph ph-link"></i> <span class="mobile-hide">Copiar</span> Enlace
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="window.print()">
+                            <i class="ph ph-printer"></i> Imprimir Boleta
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tarjeta Principal de la Ficha / Boleta (Imprimible) -->
+                <div class="card boleta-printable-card" id="ficha-individual-printable" style="width:100%; max-width:720px; background:var(--bg-card, #fff); border-radius:14px; padding:28px 24px; box-shadow:0 4px 20px rgba(0,0,0,0.06); border:1px solid var(--border);">
+                    <!-- Cabecera con Logo y Empresa -->
+                    <div style="border-bottom: 2px solid var(--border); padding-bottom: 14px; margin-bottom: 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            ${logoHeaderHtml}
+                            <div>
+                                <h2 style="margin:0 0 2px 0; font-size:18px; color:var(--primary); font-weight:700;">${empresa}</h2>
+                                <div class="text-sec" style="font-size:12px;">Ficha Individual y Liquidación de Sueldo</div>
+                            </div>
+                        </div>
+                        <div style="text-align:right; font-size:12px;">
+                            <div style="font-weight:700; color:var(--text-main); font-size:13px;">Período: ${m.mes}</div>
+                            <div class="text-sec text-small">Generado: ${new Date().toLocaleDateString('es-PE')}</div>
+                        </div>
+                    </div>
+
+                    <!-- Datos del Colaborador -->
+                    <div style="display:flex; align-items:center; gap:14px; background:var(--bg-main); padding:14px; border-radius:12px; margin-bottom:16px; border:1px solid var(--border);">
+                        ${window.renderEmpleadoAvatar(u.nombre, u.apellido, u.foto_perfil, 46)}
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:700; font-size:15px; color:var(--text-main); word-break:break-word;">${u.nombre} ${u.apellido || ''}</div>
+                            <div class="text-sec text-small" style="margin-top:2px;">
+                                DNI: <strong>${u.dni}</strong> &bull; <span class="badge badge-secondary" style="font-size:11px;">${u.cargo || u.rol}</span>
+                                ${u.fecha_contratacion ? ` &bull; Ingreso: ${u.fecha_contratacion}` : ''}
+                            </div>
+                            <div class="text-sec text-small" style="margin-top:4px;">Modalidad: <strong style="text-transform:capitalize;">${c.tipo_pago} (${moneda} ${parseFloat(c.sueldo_base).toFixed(2)})</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Resumen de Registro y Cumplimiento -->
+                    <h4 style="margin-bottom:10px; font-size:14px; display:flex; align-items:center; gap:6px;"><i class="ph ph-chart-bar" style="color:var(--primary);"></i> Resumen de Registro y Cumplimiento</h4>
+                    <div class="ficha-mini-stats-grid">
+                        <div class="ficha-stat-box">
+                            <span class="text-sec text-small">Horas Mes</span>
+                            <div style="font-size:16px; font-weight:700; color:var(--primary); margin-top:2px;">${m.horas_mes} hrs</div>
+                        </div>
+                        <div class="ficha-stat-box">
+                            <span class="text-sec text-small">Horas Semana</span>
+                            <div style="font-size:16px; font-weight:700; margin-top:2px;">${m.horas_semana} hrs</div>
+                        </div>
+                        <div class="ficha-stat-box">
+                            <span class="text-sec text-small">Tardanzas</span>
+                            <div style="font-size:16px; font-weight:700; color:var(--danger); margin-top:2px;">${m.tardanzas_conteo} (${m.tardanzas_minutos}m)</div>
+                        </div>
+                        <div class="ficha-stat-box">
+                            <span class="text-sec text-small">Inasistencias</span>
+                            <div style="font-size:16px; font-weight:700; margin-top:2px;">${m.faltas_injustificadas + m.faltas_justificadas} días</div>
+                        </div>
+                    </div>
+
+                    <!-- Desglose y Liquidación Salarial -->
+                    <h4 style="margin-bottom:10px; font-size:14px; display:flex; align-items:center; gap:6px;"><i class="ph ph-receipt" style="color:var(--primary);"></i> Desglose y Liquidación Salarial</h4>
+                    <div style="border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:20px; font-size:13px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); background:var(--bg-main);">
+                            <span style="font-weight:600;">Sueldo Base Asignado (${c.tipo_pago})</span>
+                            <span style="font-weight:700;">${moneda} ${parseFloat(c.sueldo_base).toFixed(2)}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border);">
+                            <span class="text-sec">Tarifa Efectiva por Hora (Ref. 240 hrs)</span>
+                            <span>${moneda} ${parseFloat(c.tarifa_hora_efectiva).toFixed(2)} / hora</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); color:var(--danger);">
+                            <span>Descuento por Tardanzas (${m.tardanzas_minutos} min)</span>
+                            <span style="font-weight:600;">- ${moneda} ${l.descuento_tardanzas.toFixed(2)}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); color:var(--danger);">
+                            <span>Descuento Inasistencias / Horas Perdidas (${m.horas_perdidas}h)</span>
+                            <span style="font-weight:600;">- ${moneda} ${l.descuento_horas_perdidas.toFixed(2)}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); color:var(--success);">
+                            <span>Bonificación Horas Extra (+${m.horas_extra}h x 1.25)</span>
+                            <span style="font-weight:600;">+ ${moneda} ${l.bonificacion_horas_extra.toFixed(2)}</span>
+                        </div>
+                        <div class="ficha-total-box" style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(16, 185, 129, 0.08); border-top:2px solid var(--success);">
+                            <strong style="color:var(--text-main); font-size:13px;">TOTAL NETO A COBRAR</strong>
+                            <strong style="color:var(--success); font-size:18px;">${moneda} ${l.monto_total_cobrar.toFixed(2)}</strong>
+                        </div>
+                    </div>
+
+                    <!-- Firmas Responsivas -->
+                    <div class="ficha-firmas-wrap">
+                        <div style="text-align:center; flex:1; max-width:220px; margin:0 auto;">
+                            <div style="border-bottom:1px solid var(--border); margin-bottom:6px; height:36px;"></div>
+                            <div class="text-sec text-small" style="font-size:11px;">Firma del Colaborador</div>
+                        </div>
+                        <div style="text-align:center; flex:1; max-width:220px; margin:0 auto;">
+                            <div style="border-bottom:1px solid var(--border); margin-bottom:6px; height:36px;"></div>
+                            <div class="text-sec text-small" style="font-size:11px;">Recursos Humanos / Administración</div>
+                        </div>
+                    </div>
+
+                    <!-- Pie de Boleta Informativo -->
+                    <div style="margin-top:24px; text-align:center; font-size:11px; color:var(--text-sec); border-top:1px solid var(--border); padding-top:12px;">
+                        Documento emitido por el sistema ${empresa}. Constancia informativa de remuneraciones y liquidación mensual.
+                    </div>
+                </div>
+            </div>
+        `;
+    } catch(e) {
+        container.innerHTML = `
+            <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg-main); padding:20px;">
+                <div class="card" style="max-width:440px; text-align:center; padding:32px 24px; border-radius:14px; box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+                    <h3 style="color:var(--danger); margin-bottom:8px;">Error al cargar boleta</h3>
+                    <p class="text-sec" style="font-size:13px; margin-bottom:20px;">No se pudo conectar con el servidor.</p>
+                    <button class="btn btn-secondary" onclick="window.location.reload()"><i class="ph ph-arrows-clockwise"></i> Reintentar</button>
+                </div>
+            </div>
+        `;
+    }
 };
 
 // ==========================================

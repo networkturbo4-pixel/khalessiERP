@@ -884,7 +884,7 @@ function renderLogin(container) {
                             </div>
                         </div>
 
-                        <video id="asistencia-video" autoplay playsinline muted></video>
+                        <video id="asistencia-video" autoplay playsinline webkit-playsinline muted></video>
                         <canvas id="asistencia-canvas" style="display:none;"></canvas>
 
                         <!-- HUD Biométrico con visor facial -->
@@ -5247,6 +5247,7 @@ window.iniciarCamara = async function() {
         video.srcObject = stream;
         video.muted = true;
         video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
 
         const hideLoader = () => {
             clearInterval(window.camAnimationInterval);
@@ -5531,6 +5532,7 @@ window.activarCamaraJustificacion = async function() {
             video.srcObject = stream;
             video.muted = true;
             video.setAttribute('playsinline', '');
+            video.setAttribute('webkit-playsinline', '');
             video.onloadedmetadata = () => video.play().catch(() => {});
         }
         document.getElementById('just-cam-container')?.classList.remove('hidden');

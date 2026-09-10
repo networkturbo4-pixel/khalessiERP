@@ -2183,3 +2183,408 @@ body.kiosk-mode .content-area {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* ===================================================
+   WIDGET MODERNO TIPO APP - ASISTENCIA Y RELOJ EN VIVO
+   =================================================== */
+.attendance-app-widget {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    box-shadow: var(--shadow-sm);
+    padding: 22px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: var(--transition);
+}
+
+.attendance-app-widget::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary), #f59e0b, var(--success), #3b82f6);
+}
+
+.attendance-widget-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.attendance-user-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.attendance-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    object-fit: cover;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: 700;
+    border: 2px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.attendance-user-details h3 {
+    font-size: 17px;
+    margin: 0 0 4px 0;
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.attendance-user-details p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-sec);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Digital Live Clock */
+.attendance-clock-card {
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.attendance-clock-time {
+    font-family: 'Inter', -apple-system, monospace;
+    font-size: 32px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
+    color: var(--text-main);
+    display: flex;
+    align-items: baseline;
+}
+
+.attendance-clock-time .clock-seconds {
+    font-size: 20px;
+    color: var(--primary);
+    margin-left: 2px;
+    font-weight: 700;
+}
+
+.attendance-clock-time .clock-ampm {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-sec);
+    margin-left: 6px;
+    text-transform: uppercase;
+}
+
+.attendance-clock-date {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border-color);
+    padding-left: 14px;
+}
+
+.attendance-clock-date .date-day {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-main);
+    text-transform: capitalize;
+}
+
+.attendance-clock-date .date-full {
+    font-size: 11px;
+    color: var(--text-sec);
+}
+
+/* 4 Attendance Marks Grid */
+.attendance-marks-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.mark-tile {
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.25s ease;
+    position: relative;
+    min-height: 110px;
+}
+
+.mark-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.mark-tile-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.mark-tile-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background: rgba(100, 116, 139, 0.1);
+    color: var(--text-sec);
+    transition: var(--transition);
+}
+
+.mark-tile-badge {
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(100, 116, 139, 0.12);
+    color: var(--text-sec);
+}
+
+.mark-tile-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-sec);
+    margin-bottom: 4px;
+}
+
+.mark-tile-time {
+    font-size: 18px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+    letter-spacing: -0.3px;
+}
+
+/* Estados de las tarjetas de marca */
+.mark-tile.is-marked {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, var(--bg-main) 100%);
+}
+
+.mark-tile.is-marked .mark-tile-icon {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.mark-tile.is-marked .mark-tile-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.mark-tile.is-tardanza {
+    border-color: rgba(244, 63, 94, 0.4);
+    background: linear-gradient(180deg, rgba(244, 63, 94, 0.05) 0%, var(--bg-main) 100%);
+}
+
+.mark-tile.is-tardanza .mark-tile-icon {
+    background: rgba(244, 63, 94, 0.15);
+    color: var(--danger);
+}
+
+.mark-tile.is-tardanza .mark-tile-badge {
+    background: rgba(244, 63, 94, 0.15);
+    color: var(--danger);
+}
+
+.mark-tile.is-active {
+    border-color: rgba(245, 158, 11, 0.6);
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--bg-main) 100%);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+    animation: markPulse 2s infinite ease-in-out;
+}
+
+.mark-tile.is-active .mark-tile-icon {
+    background: rgba(245, 158, 11, 0.2);
+    color: #d97706;
+}
+
+.mark-tile.is-active .mark-tile-badge {
+    background: #f59e0b;
+    color: #fff;
+}
+
+@keyframes markPulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3); }
+    50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15); }
+}
+
+/* Actions footer */
+.attendance-widget-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border-color);
+}
+
+.attendance-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-sec);
+}
+
+.attendance-pulse-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+    animation: dotPulse 1.5s infinite;
+}
+
+.attendance-pulse-dot.dot-warning {
+    background: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+}
+
+.attendance-pulse-dot.dot-muted {
+    background: var(--text-sec);
+    box-shadow: none;
+    animation: none;
+}
+
+@keyframes dotPulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.attendance-action-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-app-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.btn-app-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.btn-app-action:active {
+    transform: scale(0.97);
+}
+
+.btn-app-success {
+    background: var(--success);
+    color: #fff;
+}
+
+.btn-app-warning {
+    background: #f59e0b;
+    color: #fff;
+}
+
+.btn-app-primary {
+    background: var(--primary);
+    color: #fff;
+}
+
+.btn-app-secondary {
+    background: var(--bg-main);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
+/* Responsividad */
+@media (max-width: 992px) {
+    .attendance-marks-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+}
+
+@media (max-width: 600px) {
+    .attendance-app-widget {
+        padding: 16px;
+        border-radius: 16px;
+    }
+    .attendance-widget-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+    }
+    .attendance-clock-card {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .attendance-clock-time {
+        font-size: 26px;
+    }
+    .attendance-marks-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    .mark-tile {
+        padding: 12px 10px;
+        min-height: 98px;
+    }
+    .mark-tile-time {
+        font-size: 15px;
+    }
+    .attendance-widget-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .attendance-action-btn-group {
+        width: 100%;
+    }
+    .attendance-action-btn-group .btn-app-action {
+        flex: 1;
+        justify-content: center;
+    }
+}

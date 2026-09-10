@@ -252,6 +252,11 @@ function router() {
     if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
     if (path === '/' || path === '') path = '/login';
     
+    if (path !== '/dashboard' && window.dashboardClockInterval) {
+        clearInterval(window.dashboardClockInterval);
+        window.dashboardClockInterval = null;
+    }
+    
     const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
     if (path !== '/login' && path !== '/perfil' && path !== '/logout' && !path.startsWith('/boleta')) {
         const modulo = path.substring(1); 
@@ -847,14 +852,467 @@ function renderLogin(container) {
     `;
 }
 
-function renderDashboard(container) {
-    container.innerHTML = `
-        <div class="page-header">
-            <div>
-                <h2 class="page-title">Dashboard</h2>
-                <p class="page-subtitle">Resumen de ventas y actividad de hoy</p>
+// ==========================================
+// WIDGET DASHBOARD: RELOJ DIGITAL Y ASISTENCIA DEL PERSONAL
+// ==========================================
+function formatHoraConSegundos(timestampStr) {
+    if (!timestampStr || typeof timestampStr !== 'string') return '--:--:--';
+    const parts = timestampStr.trim().split(' ');
+    const timePart = parts.length > 1 ? parts[1] : parts[0];
+    const timeChunks = timePart.split(':');
+    if (timeChunks.length >= 2) {
+        let h = parseInt(timeChunks[0], 10);
+        let m = timeChunks[1];
+        let s = timeChunks[2] ? timeChunks[2].split('.')[0].padStart(2, '0') : '00';
+        let ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12;
+        h = h ? h : 12;
+        let hStr = String(h).padStart(2, '0');
+        return `${hStr}:${m}:${s} ${ampm}`;
+    }
+    return timestampStr;
+}
+
+function updateDashboardClock() {
+    const elHms = document.getElementById('dash-clock-hours-mins');
+    const elSec = document.getElementById('dash-clock-seconds');
+    const elAmpm = document.getElementById('dash-clock-ampm');
+    const elDay = document.getElementById('dash-clock-day');
+    const elDate = document.getElementById('dash-clock-date');
+    if (!elHms) return;
+
+    const now = new Date();
+    let h = now.getHours();
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    h = h ? h : 12;
+    const hStr = String(h).padStart(2, '0');
+
+    elHms.textContent = `${hStr}:${m}`;
+    if (elSec) elSec.textContent = `:${s}`;
+    if (elAmpm) elAmpm.textContent = ampm;
+
+    const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    if (elDay) elDay.textContent = dias[now.getDay()];
+    if (elDate) elDate.textContent = `${now.getDate()} de ${meses[now.getMonth()]}, ${now.getFullYear()}`;
+
+    // Si está en refrigerio actualmente, actualizar cronómetro dinámico en vivo
+    if (window.dashboardAttendanceState && window.dashboardAttendanceState.en_refrigerio && window.dashboardAttendanceState.marcas && window.dashboardAttendanceState.marcas.inicio_refrigerio && window.dashboardAttendanceState.marcas.inicio_refrigerio.hora) {
+        const iniStr = window.dashboardAttendanceState.marcas.inicio_refrigerio.hora.replace(/-/g, '/');
+        const iniTs = new Date(iniStr).getTime();
+        const diffSecs = Math.max(0, Math.floor((now.getTime() - iniTs) / 1000));
+        const mins = Math.floor(diffSecs / 60);
+        const secs = diffSecs % 60;
+        const elRefrigTime = document.getElementById('time-mark-refrig-fin');
+        if (elRefrigTime) {
+            elRefrigTime.innerHTML = `<span style="color: #d97706; font-size:16px; font-weight:800;">⏳ ${mins}m ${String(secs).padStart(2, '0')}s</span>`;
+        }
+    }
+}
+
+window.refreshDashboardAttendance = async function(manual = false) {
+    const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+    if (!user.id && !user.dni) return;
+
+    const iconRefresh = document.getElementById('icon-refresh-attendance');
+    if (iconRefresh && manual) iconRefresh.classList.add('ph-spin');
+
+    try {
+        const res = await fetch(`/khalessierp/api/index.php?request=rrhh/mi_asistencia_hoy&id_usuario=${user.id || ''}&dni=${user.dni || ''}`);
+        const json = await res.json();
+        if (res.ok && json.status === 'success') {
+            window.dashboardAttendanceState = json.data;
+            renderDashboardAttendanceMarks(json.data);
+            if (manual && typeof showToast === 'function') {
+                showToast('Estado de jornada sincronizado', 'success');
+            }
+        }
+    } catch (e) {
+        console.error('Error cargando asistencia en dashboard:', e);
+    } finally {
+        if (iconRefresh) iconRefresh.classList.remove('ph-spin');
+    }
+};
+
+function renderDashboardAttendanceMarks(data) {
+    if (!data || !data.marcas) return;
+    const marcas = data.marcas;
+
+    // 1. Ingreso
+    const tileIngreso = document.getElementById('tile-mark-ingreso');
+    const badgeIngreso = document.getElementById('badge-mark-ingreso');
+    const timeIngreso = document.getElementById('time-mark-ingreso');
+    if (tileIngreso && badgeIngreso && timeIngreso) {
+        tileIngreso.classList.remove('is-marked', 'is-tardanza', 'is-active');
+        if (marcas.ingreso.marcado) {
+            timeIngreso.textContent = formatHoraConSegundos(marcas.ingreso.hora);
+            if (marcas.ingreso.condicion === 'tardanza') {
+                tileIngreso.classList.add('is-tardanza');
+                badgeIngreso.className = 'mark-tile-badge';
+                badgeIngreso.innerHTML = `<i class="ph ph-warning-circle"></i> +${marcas.ingreso.tardanza_minutos}m tarde`;
+            } else {
+                tileIngreso.classList.add('is-marked');
+                badgeIngreso.className = 'mark-tile-badge';
+                badgeIngreso.innerHTML = `<i class="ph ph-check-circle"></i> Registrado`;
+            }
+        } else {
+            timeIngreso.textContent = '--:--:--';
+            badgeIngreso.className = 'mark-tile-badge';
+            badgeIngreso.innerHTML = `<i class="ph ph-clock"></i> Pendiente`;
+        }
+    }
+
+    // 2. Inicio Refrigerio
+    const tileRefrigIni = document.getElementById('tile-mark-refrig-ini');
+    const badgeRefrigIni = document.getElementById('badge-mark-refrig-ini');
+    const timeRefrigIni = document.getElementById('time-mark-refrig-ini');
+    if (tileRefrigIni && badgeRefrigIni && timeRefrigIni) {
+        tileRefrigIni.classList.remove('is-marked', 'is-active');
+        if (marcas.inicio_refrigerio.marcado) {
+            tileRefrigIni.classList.add('is-marked');
+            timeRefrigIni.textContent = formatHoraConSegundos(marcas.inicio_refrigerio.hora);
+            badgeRefrigIni.className = 'mark-tile-badge';
+            badgeRefrigIni.innerHTML = `<i class="ph ph-check-circle"></i> Iniciado`;
+        } else {
+            timeRefrigIni.textContent = '--:--:--';
+            badgeRefrigIni.className = 'mark-tile-badge';
+            badgeRefrigIni.innerHTML = `<i class="ph ph-clock"></i> Pendiente`;
+        }
+    }
+
+    // 3. Fin Refrigerio
+    const tileRefrigFin = document.getElementById('tile-mark-refrig-fin');
+    const badgeRefrigFin = document.getElementById('badge-mark-refrig-fin');
+    const timeRefrigFin = document.getElementById('time-mark-refrig-fin');
+    if (tileRefrigFin && badgeRefrigFin && timeRefrigFin) {
+        tileRefrigFin.classList.remove('is-marked', 'is-active');
+        if (data.en_refrigerio) {
+            tileRefrigFin.classList.add('is-active');
+            badgeRefrigFin.className = 'mark-tile-badge';
+            badgeRefrigFin.innerHTML = `<i class="ph ph-hourglass-high"></i> En Refrigerio`;
+            timeRefrigFin.innerHTML = `<span style="color: #d97706; font-size:16px; font-weight:700;">⏳ En curso...</span>`;
+        } else if (marcas.fin_refrigerio.marcado) {
+            tileRefrigFin.classList.add('is-marked');
+            timeRefrigFin.textContent = formatHoraConSegundos(marcas.fin_refrigerio.hora);
+            badgeRefrigFin.className = 'mark-tile-badge';
+            badgeRefrigFin.innerHTML = `<i class="ph ph-check-circle"></i> Finalizado (${marcas.fin_refrigerio.minutos_transcurridos || 0}m)`;
+        } else {
+            timeRefrigFin.textContent = '--:--:--';
+            badgeRefrigFin.className = 'mark-tile-badge';
+            badgeRefrigFin.innerHTML = `<i class="ph ph-clock"></i> Pendiente`;
+        }
+    }
+
+    // 4. Salida
+    const tileSalida = document.getElementById('tile-mark-salida');
+    const badgeSalida = document.getElementById('badge-mark-salida');
+    const timeSalida = document.getElementById('time-mark-salida');
+    if (tileSalida && badgeSalida && timeSalida) {
+        tileSalida.classList.remove('is-marked', 'is-active');
+        if (marcas.salida.marcado) {
+            tileSalida.classList.add('is-marked');
+            timeSalida.textContent = formatHoraConSegundos(marcas.salida.hora);
+            badgeSalida.className = 'mark-tile-badge';
+            badgeSalida.innerHTML = `<i class="ph ph-check-circle"></i> Finalizado`;
+        } else {
+            timeSalida.textContent = '--:--:--';
+            badgeSalida.className = 'mark-tile-badge';
+            badgeSalida.innerHTML = `<i class="ph ph-clock"></i> Pendiente`;
+        }
+    }
+
+    // Status Pill & Action Buttons
+    const dotEl = document.getElementById('dash-attendance-dot');
+    const statusTextEl = document.getElementById('dash-attendance-status-text');
+    const actionGroupEl = document.getElementById('dash-attendance-action-group');
+
+    let actionsHtml = `<button class="btn-app-action btn-app-secondary" onclick="window.refreshDashboardAttendance(true)" title="Recargar estado"><i class="ph ph-arrows-clockwise" id="icon-refresh-attendance"></i></button>`;
+
+    if (!marcas.ingreso.marcado) {
+        if (dotEl) dotEl.className = 'attendance-pulse-dot dot-muted';
+        if (statusTextEl) statusTextEl.textContent = 'Ingreso pendiente hoy • Inicia tu turno laboral';
+        actionsHtml = `
+            <button class="btn-app-action btn-app-primary" onclick="window.marcarIngresoDashboard()">
+                <i class="ph ph-door-open"></i> Marcar Ingreso
+            </button>
+            ${actionsHtml}
+        `;
+    } else if (data.en_refrigerio) {
+        if (dotEl) dotEl.className = 'attendance-pulse-dot dot-warning';
+        if (statusTextEl) statusTextEl.textContent = 'En tiempo de refrigerio / almuerzo';
+        actionsHtml = `
+            <button class="btn-app-action btn-app-warning" onclick="window.marcarRefrigerioFin()">
+                <i class="ph ph-check-fat"></i> Finalizar Refrigerio
+            </button>
+            ${actionsHtml}
+        `;
+    } else if (marcas.salida.marcado) {
+        if (dotEl) dotEl.className = 'attendance-pulse-dot';
+        if (statusTextEl) statusTextEl.textContent = 'Jornada de hoy completada • ¡Excelente trabajo!';
+        actionsHtml = `
+            <span class="badge badge-success" style="padding: 10px 16px; font-size:13px; border-radius:12px; display:inline-flex; align-items:center; gap:6px;">
+                <i class="ph ph-sparkle"></i> Turno Finalizado
+            </span>
+            ${actionsHtml}
+        `;
+    } else if (marcas.fin_refrigerio.marcado) {
+        if (dotEl) dotEl.className = 'attendance-pulse-dot';
+        if (statusTextEl) statusTextEl.textContent = 'Refrigerio concluido • Turno laboral en curso';
+        actionsHtml = `
+            <button class="btn-app-action btn-app-primary" onclick="window.marcarSalidaDashboard()">
+                <i class="ph ph-sign-out"></i> Marcar Salida
+            </button>
+            ${actionsHtml}
+        `;
+    } else {
+        // Ingreso marcado, refrigerio aún no iniciado
+        if (dotEl) dotEl.className = 'attendance-pulse-dot';
+        if (statusTextEl) statusTextEl.textContent = 'Turno laboral en curso';
+        actionsHtml = `
+            <button class="btn-app-action btn-app-warning" onclick="window.marcarRefrigerioInicio()">
+                <i class="ph ph-coffee"></i> Iniciar Refrigerio
+            </button>
+            <button class="btn-app-action btn-app-primary" onclick="window.marcarSalidaDashboard()">
+                <i class="ph ph-sign-out"></i> Marcar Salida
+            </button>
+            ${actionsHtml}
+        `;
+    }
+
+    if (actionGroupEl) actionGroupEl.innerHTML = actionsHtml;
+}
+
+window.marcarRefrigerioInicio = async function() {
+    const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+    if (!user.id && !user.dni) return;
+
+    if (typeof triggerHaptic === 'function') triggerHaptic(40);
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/marcar_refrigerio_inicio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_usuario: user.id, dni: user.dni })
+        });
+        const json = await res.json();
+        if (res.ok && json.status === 'success') {
+            showToast(json.message || 'Inicio de refrigerio registrado', 'success');
+            window.refreshDashboardAttendance();
+        } else {
+            showToast(json.message || 'Error al iniciar refrigerio', 'error');
+        }
+    } catch(e) {
+        showToast('Error de conexión al marcar refrigerio', 'error');
+    }
+};
+
+window.marcarRefrigerioFin = async function() {
+    const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+    if (!user.id && !user.dni) return;
+
+    if (typeof triggerHaptic === 'function') triggerHaptic(40);
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/marcar_refrigerio_fin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_usuario: user.id, dni: user.dni })
+        });
+        const json = await res.json();
+        if (res.ok && json.status === 'success') {
+            showToast(json.message || 'Fin de refrigerio registrado', 'success');
+            window.refreshDashboardAttendance();
+        } else {
+            showToast(json.message || 'Error al finalizar refrigerio', 'error');
+        }
+    } catch(e) {
+        showToast('Error de conexión al finalizar refrigerio', 'error');
+    }
+};
+
+window.marcarSalidaDashboard = function() {
+    const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+    if (!user.id && !user.dni) return;
+
+    showModal(
+        'Confirmar Registro de Salida',
+        `<div style="text-align:center; padding:10px 0;">
+            <div style="width:60px; height:60px; border-radius:50%; background:rgba(239, 68, 68, 0.12); color:var(--primary); display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+                <i class="ph ph-sign-out" style="font-size:32px;"></i>
             </div>
-            <button class="btn btn-primary"><i class="ph ph-plus"></i> Nueva Venta</button>
+            <p style="font-size:14px; margin-bottom:8px;"><strong>¿Deseas marcar tu salida ahora?</strong></p>
+            <p style="color:var(--text-sec); font-size:12.5px;">Se registrará el cierre de tu turno laboral de hoy.</p>
+         </div>`,
+        async () => {
+            if (typeof triggerHaptic === 'function') triggerHaptic(50);
+            try {
+                const res = await fetch('/khalessierp/api/index.php?request=rrhh/marcar_salida', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_usuario: user.id, dni: user.dni })
+                });
+                const json = await res.json();
+                if (res.ok && json.status === 'success') {
+                    showToast('Salida registrada con éxito. ¡Buen descanso!', 'success');
+                    window.refreshDashboardAttendance();
+                } else {
+                    showToast(json.message || 'Error al marcar salida', 'error');
+                }
+            } catch(e) {
+                showToast('Error de conexión al marcar salida', 'error');
+            }
+        }
+    );
+};
+
+window.marcarIngresoDashboard = function() {
+    const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+    if (!user.id && !user.dni) return;
+
+    showModal(
+        'Registrar Ingreso Laboral',
+        `<div style="text-align:center; padding:10px 0;">
+            <div style="width:60px; height:60px; border-radius:50%; background:rgba(16, 185, 129, 0.12); color:var(--success); display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+                <i class="ph ph-door-open" style="font-size:32px;"></i>
+            </div>
+            <p style="font-size:14px; margin-bottom:8px;"><strong>¿Deseas registrar tu ingreso ahora?</strong></p>
+            <p style="color:var(--text-sec); font-size:12.5px;">Se iniciará tu turno oficial de trabajo en el sistema.</p>
+         </div>`,
+        async () => {
+            if (typeof triggerHaptic === 'function') triggerHaptic(50);
+            
+            let latitud = '';
+            let longitud = '';
+            if (window.cachedPosition && window.cachedPosition.coords) {
+                latitud = window.cachedPosition.coords.latitude;
+                longitud = window.cachedPosition.coords.longitude;
+            }
+            
+            try {
+                const res = await fetch('/khalessierp/api/index.php?request=rrhh/marcar_ingreso_rapido', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_usuario: user.id, dni: user.dni, latitud, longitud })
+                });
+                const json = await res.json();
+                if (res.ok && json.status === 'success') {
+                    showToast(json.message || 'Ingreso registrado con éxito', 'success');
+                    window.refreshDashboardAttendance();
+                } else {
+                    showToast(json.message || 'Error al marcar ingreso', 'error');
+                }
+            } catch(e) {
+                showToast('Error de conexión al marcar ingreso', 'error');
+            }
+        }
+    );
+};
+
+function renderDashboard(container) {
+    if (window.dashboardClockInterval) {
+        clearInterval(window.dashboardClockInterval);
+        window.dashboardClockInterval = null;
+    }
+
+    const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+    const userName = user.nombre || 'Colaborador';
+    const userRol = user.cargo || user.rol_nombre || 'Personal';
+    const userDni = user.dni || '';
+
+    container.innerHTML = `
+        <!-- WIDGET MODERNO TIPO APP: RELOJ CON SEGUNDOS Y ASISTENCIA -->
+        <div class="attendance-app-widget" id="dashboard-attendance-widget">
+            <div class="attendance-widget-header">
+                <div class="attendance-user-info">
+                    <div id="dash-user-avatar-slot">
+                        ${typeof window.renderEmpleadoAvatar === 'function' ? window.renderEmpleadoAvatar(user.nombre, user.apellido, user.foto_perfil, 52) : '<div class="attendance-avatar"><i class="ph ph-user"></i></div>'}
+                    </div>
+                    <div class="attendance-user-details">
+                        <h3 id="dash-user-greeting">¡Hola, ${userName}! 👋</h3>
+                        <p>
+                            <i class="ph ph-identification-badge"></i>
+                            <span id="dash-user-role-badge">${userRol}${userDni ? ' • DNI: ' + userDni : ''}</span>
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="attendance-clock-card">
+                    <div class="attendance-clock-time">
+                        <span id="dash-clock-hours-mins">00:00</span>
+                        <span class="clock-seconds" id="dash-clock-seconds">:00</span>
+                        <span class="clock-ampm" id="dash-clock-ampm">AM</span>
+                    </div>
+                    <div class="attendance-clock-date">
+                        <span class="date-day" id="dash-clock-day">Cargando...</span>
+                        <span class="date-full" id="dash-clock-date">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grid de 4 Hitos de Marcación -->
+            <div class="attendance-marks-grid">
+                <!-- 1. Hora de Ingreso -->
+                <div class="mark-tile" id="tile-mark-ingreso">
+                    <div class="mark-tile-top">
+                        <div class="mark-tile-icon"><i class="ph ph-door-open"></i></div>
+                        <span id="badge-mark-ingreso" class="mark-tile-badge"><i class="ph ph-clock"></i> Pendiente</span>
+                    </div>
+                    <div>
+                        <div class="mark-tile-label">Hora de Ingreso</div>
+                        <div id="time-mark-ingreso" class="mark-tile-time">--:--:--</div>
+                    </div>
+                </div>
+
+                <!-- 2. Inicio Refrigerio -->
+                <div class="mark-tile" id="tile-mark-refrig-ini">
+                    <div class="mark-tile-top">
+                        <div class="mark-tile-icon"><i class="ph ph-coffee"></i></div>
+                        <span id="badge-mark-refrig-ini" class="mark-tile-badge"><i class="ph ph-clock"></i> Pendiente</span>
+                    </div>
+                    <div>
+                        <div class="mark-tile-label">Inicio Refrigerio</div>
+                        <div id="time-mark-refrig-ini" class="mark-tile-time">--:--:--</div>
+                    </div>
+                </div>
+
+                <!-- 3. Fin Refrigerio -->
+                <div class="mark-tile" id="tile-mark-refrig-fin">
+                    <div class="mark-tile-top">
+                        <div class="mark-tile-icon"><i class="ph ph-fork-knife"></i></div>
+                        <span id="badge-mark-refrig-fin" class="mark-tile-badge"><i class="ph ph-clock"></i> Pendiente</span>
+                    </div>
+                    <div>
+                        <div class="mark-tile-label">Fin Refrigerio</div>
+                        <div id="time-mark-refrig-fin" class="mark-tile-time">--:--:--</div>
+                    </div>
+                </div>
+
+                <!-- 4. Hora de Salida -->
+                <div class="mark-tile" id="tile-mark-salida">
+                    <div class="mark-tile-top">
+                        <div class="mark-tile-icon"><i class="ph ph-sign-out"></i></div>
+                        <span id="badge-mark-salida" class="mark-tile-badge"><i class="ph ph-clock"></i> Pendiente</span>
+                    </div>
+                    <div>
+                        <div class="mark-tile-label">Hora de Salida</div>
+                        <div id="time-mark-salida" class="mark-tile-time">--:--:--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de Estado e Interacción -->
+            <div class="attendance-widget-footer">
+                <div class="attendance-status-pill">
+                    <span id="dash-attendance-dot" class="attendance-pulse-dot dot-muted"></span>
+                    <span id="dash-attendance-status-text">Sincronizando estado de jornada...</span>
+                </div>
+                <div class="attendance-action-btn-group" id="dash-attendance-action-group">
+                    <button class="btn-app-action btn-app-secondary" onclick="window.refreshDashboardAttendance(true)" title="Recargar estado">
+                        <i class="ph ph-arrows-clockwise" id="icon-refresh-attendance"></i>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="stats-grid">
@@ -918,6 +1376,13 @@ function renderDashboard(container) {
             </div>
         </div>
     `;
+
+    // Iniciar reloj inmediatamente y programar intervalo por segundo
+    updateDashboardClock();
+    window.dashboardClockInterval = setInterval(updateDashboardClock, 1000);
+
+    // Cargar estado de asistencia
+    window.refreshDashboardAttendance();
 }
 
 // El renderInventario ahora vive en js/modules/inventario.js

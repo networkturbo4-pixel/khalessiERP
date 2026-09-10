@@ -4,7 +4,7 @@
 require_once __DIR__ . '/totp.php';
 
 // Auto-checkout: Solo se evalúa en acciones relevantes para evitar bloqueos y lentitud en lecturas
-if (in_array($accion, ['estado', 'turnos_activos', 'marcar_entrada', 'marcar_salida', 'historial'])) {
+if (in_array($accion, ['estado', 'turnos_activos', 'marcar_entrada', 'marcar_salida', 'historial', 'mi_asistencia_hoy', 'marcar_refrigerio_inicio', 'marcar_refrigerio_fin', 'marcar_ingreso_rapido'])) {
     $hayAbiertos = $db->query("SELECT 1 FROM rrhh_asistencias WHERE estado = 'abierto' LIMIT 1")->fetchColumn();
     if ($hayAbiertos) {
         $qAutoClose = "UPDATE rrhh_asistencias a 
@@ -76,6 +76,99 @@ if ($method === 'GET' && $accion === 'estado') {
         "hora_actual" => $hora_actual,
         "tolerancia_minutos" => $tolerancia,
         "requiere_totp" => $es_tardanza
+    ]);
+}
+
+// ==========================================
+// 1.1 ASISTENCIA DEL DÍA DEL USUARIO (WIDGET DASHBOARD)
+// ==========================================
+else if ($method === 'GET' && $accion === 'mi_asistencia_hoy') {
+    $id_usuario = isset($_GET['id_usuario']) ? (int)$_GET['id_usuario'] : 0;
+    $dni = isset($_GET['dni']) ? trim($_GET['dni']) : '';
+
+    if (empty($id_usuario) && empty($dni)) {
+        respondError("ID de usuario o DNI es requerido");
+    }
+
+    $qUser = "SELECT u.id, u.nombre, u.apellido, u.dni, u.foto_perfil, u.cargo,
+                     r.nombre as rol_nombre,
+                     IFNULL(u.hora_entrada_asignada, r.hora_entrada) as hora_entrada_esperada,
+                     IFNULL(u.hora_salida_asignada, r.hora_salida) as hora_salida_esperada
+              FROM usuarios u
+              JOIN roles r ON u.id_rol = r.id
+              WHERE " . (!empty($id_usuario) ? "u.id = :id" : "u.dni = :dni") . " AND u.estado = 'activo' LIMIT 1";
+    $stmtU = $db->prepare($qUser);
+    if (!empty($id_usuario)) $stmtU->execute([':id' => $id_usuario]);
+    else $stmtU->execute([':dni' => $dni]);
+    $user = $stmtU->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        respondError("Usuario no encontrado o inactivo", 404);
+    }
+
+    // Buscar asistencia de hoy o turno abierto
+    $stmtA = $db->prepare("SELECT a.id, a.id_usuario, a.fecha_hora_entrada, a.inicio_refrigerio, a.fin_refrigerio,
+                                  a.minutos_refrigerio, a.fecha_hora_salida, a.metodo_salida, a.estado,
+                                  a.condicion, a.minutos_tardanza, a.horas_extra, a.foto_entrada_url,
+                                  TIMESTAMPDIFF(MINUTE, a.inicio_refrigerio, IFNULL(a.fin_refrigerio, NOW())) as minutos_transcurridos_refrigerio,
+                                  TIMESTAMPDIFF(MINUTE, a.fecha_hora_entrada, IFNULL(a.fecha_hora_salida, NOW())) as minutos_activos
+                           FROM rrhh_asistencias a
+                           WHERE a.id_usuario = :id_user
+                             AND (DATE(a.fecha_hora_entrada) = CURDATE() OR a.estado = 'abierto')
+                           ORDER BY a.id DESC LIMIT 1");
+    $stmtA->execute([':id_user' => $user['id']]);
+    $asistencia = $stmtA->fetch(PDO::FETCH_ASSOC);
+
+    // Determinar banderas booleanas de marcación
+    $marcado_ingreso = !empty($asistencia['fecha_hora_entrada']);
+    $marcado_inicio_refrigerio = !empty($asistencia['inicio_refrigerio']);
+    $marcado_fin_refrigerio = !empty($asistencia['fin_refrigerio']);
+    $marcado_salida = !empty($asistencia['fecha_hora_salida']);
+    $en_refrigerio = $marcado_inicio_refrigerio && !$marcado_fin_refrigerio;
+    $turno_abierto = $asistencia && $asistencia['estado'] === 'abierto';
+
+    // Determinar siguiente acción sugerida
+    $siguiente_accion = 'marcar_ingreso';
+    if ($marcado_salida) {
+        $siguiente_accion = 'jornada_terminada';
+    } else if ($en_refrigerio) {
+        $siguiente_accion = 'finalizar_refrigerio';
+    } else if ($marcado_fin_refrigerio) {
+        $siguiente_accion = 'marcar_salida';
+    } else if ($marcado_ingreso) {
+        $siguiente_accion = 'iniciar_refrigerio';
+    }
+
+    respondSuccess([
+        "user" => $user,
+        "asistencia" => $asistencia ?: null,
+        "marcas" => [
+            "ingreso" => [
+                "marcado" => $marcado_ingreso,
+                "hora" => $asistencia ? $asistencia['fecha_hora_entrada'] : null,
+                "condicion" => $asistencia ? $asistencia['condicion'] : null,
+                "tardanza_minutos" => $asistencia ? (int)$asistencia['minutos_tardanza'] : 0
+            ],
+            "inicio_refrigerio" => [
+                "marcado" => $marcado_inicio_refrigerio,
+                "hora" => $asistencia ? $asistencia['inicio_refrigerio'] : null
+            ],
+            "fin_refrigerio" => [
+                "marcado" => $marcado_fin_refrigerio,
+                "hora" => $asistencia ? $asistencia['fin_refrigerio'] : null,
+                "en_curso" => $en_refrigerio,
+                "minutos_transcurridos" => $asistencia && $en_refrigerio ? (int)$asistencia['minutos_transcurridos_refrigerio'] : ($asistencia ? (int)$asistencia['minutos_refrigerio'] : 0)
+            ],
+            "salida" => [
+                "marcado" => $marcado_salida,
+                "hora" => $asistencia ? $asistencia['fecha_hora_salida'] : null,
+                "metodo" => $asistencia ? $asistencia['metodo_salida'] : null
+            ]
+        ],
+        "en_refrigerio" => $en_refrigerio,
+        "turno_abierto" => $turno_abierto,
+        "siguiente_accion" => $siguiente_accion,
+        "servidor_tiempo" => date('Y-m-d H:i:s')
     ]);
 }
 
@@ -219,25 +312,178 @@ else if ($method === 'POST' && $accion === 'marcar_entrada') {
 }
 
 // ==========================================
+// 3.1 MARCAR INICIO DE REFRIGERIO
+// ==========================================
+else if ($method === 'POST' && $accion === 'marcar_refrigerio_inicio') {
+    $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
+    $id_usuario = isset($input['id_usuario']) ? (int)$input['id_usuario'] : 0;
+    $dni = isset($input['dni']) ? trim($input['dni']) : '';
+
+    if (empty($id_usuario) && empty($dni)) respondError("ID de usuario o DNI es requerido");
+
+    $userQuery = !empty($id_usuario) ? "SELECT id, nombre FROM usuarios WHERE id = :id AND estado = 'activo'" : "SELECT id, nombre FROM usuarios WHERE dni = :dni AND estado = 'activo'";
+    $stmtU = $db->prepare($userQuery);
+    if (!empty($id_usuario)) $stmtU->execute([':id' => $id_usuario]);
+    else $stmtU->execute([':dni' => $dni]);
+    $user = $stmtU->fetch(PDO::FETCH_ASSOC);
+    if (!$user) respondError("Usuario no encontrado o inactivo");
+
+    $stmt = $db->prepare("SELECT id, fecha_hora_entrada, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_user AND estado = 'abierto' ORDER BY id DESC LIMIT 1");
+    $stmt->execute([':id_user' => $user['id']]);
+    $asist = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$asist) {
+        respondError("No tienes un turno laboral activo abierto. Primero debes registrar tu ingreso.");
+    }
+    if (!empty($asist['inicio_refrigerio'])) {
+        respondError("Ya registraste el inicio de refrigerio para este turno.");
+    }
+
+    $ahora = date('Y-m-d H:i:s');
+    $stmtUpd = $db->prepare("UPDATE rrhh_asistencias SET inicio_refrigerio = :ahora WHERE id = :id");
+    $stmtUpd->execute([':ahora' => $ahora, ':id' => $asist['id']]);
+
+    respondSuccess([
+        "inicio_refrigerio" => $ahora,
+        "asistencia_id" => $asist['id']
+    ], "Inicio de refrigerio registrado a las " . date('h:i:s A', strtotime($ahora)) . ". ¡Buen provecho!");
+}
+
+// ==========================================
+// 3.2 MARCAR FIN DE REFRIGERIO
+// ==========================================
+else if ($method === 'POST' && $accion === 'marcar_refrigerio_fin') {
+    $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
+    $id_usuario = isset($input['id_usuario']) ? (int)$input['id_usuario'] : 0;
+    $dni = isset($input['dni']) ? trim($input['dni']) : '';
+
+    if (empty($id_usuario) && empty($dni)) respondError("ID de usuario o DNI es requerido");
+
+    $userQuery = !empty($id_usuario) ? "SELECT id, nombre FROM usuarios WHERE id = :id AND estado = 'activo'" : "SELECT id, nombre FROM usuarios WHERE dni = :dni AND estado = 'activo'";
+    $stmtU = $db->prepare($userQuery);
+    if (!empty($id_usuario)) $stmtU->execute([':id' => $id_usuario]);
+    else $stmtU->execute([':dni' => $dni]);
+    $user = $stmtU->fetch(PDO::FETCH_ASSOC);
+    if (!$user) respondError("Usuario no encontrado o inactivo");
+
+    $stmt = $db->prepare("SELECT id, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_user AND estado = 'abierto' ORDER BY id DESC LIMIT 1");
+    $stmt->execute([':id_user' => $user['id']]);
+    $asist = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$asist) {
+        respondError("No tienes un turno laboral activo abierto.");
+    }
+    if (empty($asist['inicio_refrigerio'])) {
+        respondError("Primero debes registrar el inicio de tu refrigerio.");
+    }
+    if (!empty($asist['fin_refrigerio'])) {
+        respondError("Ya registraste la finalización de tu refrigerio.");
+    }
+
+    $ahora = date('Y-m-d H:i:s');
+    $minutos = max(1, round((strtotime($ahora) - strtotime($asist['inicio_refrigerio'])) / 60));
+    $stmtUpd = $db->prepare("UPDATE rrhh_asistencias SET fin_refrigerio = :ahora, minutos_refrigerio = :min WHERE id = :id");
+    $stmtUpd->execute([':ahora' => $ahora, ':min' => $minutos, ':id' => $asist['id']]);
+
+    respondSuccess([
+        "fin_refrigerio" => $ahora,
+        "minutos_refrigerio" => $minutos,
+        "asistencia_id" => $asist['id']
+    ], "Fin de refrigerio registrado a las " . date('h:i:s A', strtotime($ahora)) . " ($minutos min de refrigerio). ¡A continuar con energía!");
+}
+
+// ==========================================
+// 3.3 MARCAR INGRESO RÁPIDO DESDE EL WIDGET
+// ==========================================
+else if ($method === 'POST' && $accion === 'marcar_ingreso_rapido') {
+    $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
+    $id_usuario = isset($input['id_usuario']) ? (int)$input['id_usuario'] : 0;
+    $dni = isset($input['dni']) ? trim($input['dni']) : '';
+    $latitud = isset($input['latitud']) ? trim($input['latitud']) : null;
+    $longitud = isset($input['longitud']) ? trim($input['longitud']) : null;
+
+    if (empty($id_usuario) && empty($dni)) respondError("ID de usuario o DNI es requerido");
+
+    $userQuery = !empty($id_usuario) ? "SELECT u.id, u.dni, u.hora_entrada_asignada, r.hora_entrada as rol_hora_entrada FROM usuarios u JOIN roles r ON u.id_rol = r.id WHERE u.id = :id AND u.estado = 'activo'" : "SELECT u.id, u.dni, u.hora_entrada_asignada, r.hora_entrada as rol_hora_entrada FROM usuarios u JOIN roles r ON u.id_rol = r.id WHERE u.dni = :dni AND u.estado = 'activo'";
+    $stmtU = $db->prepare($userQuery);
+    if (!empty($id_usuario)) $stmtU->execute([':id' => $id_usuario]);
+    else $stmtU->execute([':dni' => $dni]);
+    $user = $stmtU->fetch(PDO::FETCH_ASSOC);
+    if (!$user) respondError("Usuario no encontrado o inactivo");
+
+    // Verificar si ya tiene turno abierto
+    $stmt = $db->prepare("SELECT id FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto'");
+    $stmt->execute([':id_usuario' => $user['id']]);
+    if ($stmt->rowCount() > 0) respondError("Ya tienes un turno de trabajo abierto.");
+
+    // Evaluar tardanza
+    $stmtTol = $db->prepare("SELECT valor FROM configuracion WHERE clave = 'rrhh_tolerancia_tardanza_minutos' LIMIT 1");
+    $stmtTol->execute();
+    $tolerancia = (int)($stmtTol->fetchColumn() ?: 15);
+    
+    $hora_evaluar = !empty($user['hora_entrada_asignada']) ? $user['hora_entrada_asignada'] : $user['rol_hora_entrada'];
+    $condicion = 'puntual';
+    $minutos_tardanza = 0;
+    
+    if (!empty($hora_evaluar)) {
+        $hora_esperada_ts = strtotime(date('Y-m-d') . ' ' . $hora_evaluar);
+        $limite_tolerancia_ts = $hora_esperada_ts + ($tolerancia * 60);
+        $ahora_ts = time();
+        if ($ahora_ts > $limite_tolerancia_ts) {
+            $condicion = 'tardanza';
+            $minutos_tardanza = max(1, round(($ahora_ts - $hora_esperada_ts) / 60));
+        }
+    }
+
+    $stmtIns = $db->prepare("INSERT INTO rrhh_asistencias (id_usuario, fecha_hora_entrada, estado, condicion, minutos_tardanza, latitud, longitud, metodo_salida) 
+                             VALUES (:id_user, NOW(), 'abierto', :condicion, :tardanza, :lat, :lng, NULL)");
+    $stmtIns->execute([
+        ':id_user' => $user['id'],
+        ':condicion' => $condicion,
+        ':tardanza' => $minutos_tardanza,
+        ':lat' => $latitud,
+        ':lng' => $longitud
+    ]);
+
+    $ahora = date('Y-m-d H:i:s');
+    respondSuccess([
+        "fecha_hora_entrada" => $ahora,
+        "condicion" => $condicion,
+        "minutos_tardanza" => $minutos_tardanza
+    ], "Ingreso laboral registrado a las " . date('h:i:s A', strtotime($ahora)) . ($condicion === 'tardanza' ? " ($minutos_tardanza min de tardanza)" : " (Puntual)"));
+}
+
+// ==========================================
 // 4. MARCAR SALIDA
 // ==========================================
 else if ($method === 'POST' && $accion === 'marcar_salida') {
     $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
     $dni = isset($input['dni']) ? trim($input['dni']) : '';
+    $id_usuario = isset($input['id_usuario']) ? (int)$input['id_usuario'] : 0;
     
-    if (empty($dni)) respondError("DNI es obligatorio");
+    if (empty($dni) && empty($id_usuario)) respondError("DNI o ID de usuario es obligatorio");
     
-    $stmt = $db->prepare("SELECT id FROM usuarios WHERE dni = :dni AND estado = 'activo'");
-    $stmt->execute([':dni' => $dni]);
+    if (!empty($id_usuario)) {
+        $stmt = $db->prepare("SELECT id FROM usuarios WHERE id = :id AND estado = 'activo'");
+        $stmt->execute([':id' => $id_usuario]);
+    } else {
+        $stmt = $db->prepare("SELECT id FROM usuarios WHERE dni = :dni AND estado = 'activo'");
+        $stmt->execute([':dni' => $dni]);
+    }
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$user) respondError("Usuario no encontrado");
     
-    $stmt = $db->prepare("SELECT id, fecha_hora_entrada FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto' LIMIT 1");
+    $stmt = $db->prepare("SELECT id, fecha_hora_entrada, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto' ORDER BY id DESC LIMIT 1");
     $stmt->execute([':id_usuario' => $user['id']]);
     $asistencia = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$asistencia) respondError("No hay un turno abierto para este usuario");
     
-    $stmt = $db->prepare("UPDATE rrhh_asistencias SET fecha_hora_salida = NOW(), metodo_salida = 'manual', estado = 'cerrado' WHERE id = :id");
+    $extraRefrig = "";
+    if (!empty($asistencia['inicio_refrigerio']) && empty($asistencia['fin_refrigerio'])) {
+        $extraRefrig = ", fin_refrigerio = NOW(), minutos_refrigerio = TIMESTAMPDIFF(MINUTE, inicio_refrigerio, NOW())";
+    }
+
+    $stmt = $db->prepare("UPDATE rrhh_asistencias SET fecha_hora_salida = NOW(), metodo_salida = 'manual', estado = 'cerrado' $extraRefrig WHERE id = :id");
     $stmt->execute([':id' => $asistencia['id']]);
     
     respondSuccess(null, "Salida registrada exitosamente");
@@ -247,7 +493,8 @@ else if ($method === 'POST' && $accion === 'marcar_salida') {
 // 4.1 TURNOS ACTIVOS Y RETIRO DISCIPLINARIO
 // ==========================================
 else if ($method === 'GET' && $accion === 'turnos_activos') {
-    $q = "SELECT a.id as id_asistencia, a.id_usuario, a.fecha_hora_entrada, a.condicion, a.minutos_tardanza,
+    $q = "SELECT a.id as id_asistencia, a.id_usuario, a.fecha_hora_entrada, a.inicio_refrigerio, a.fin_refrigerio, a.minutos_refrigerio,
+                 a.condicion, a.minutos_tardanza,
                  a.foto_entrada_url, a.foto_entrada_url as foto_entrada, a.latitud, a.longitud,
                  u.nombre, u.apellido, u.dni, u.foto_perfil, u.cargo,
                  r.nombre as rol_nombre,

@@ -1,11 +1,11 @@
-const CACHE_NAME = 'khalessi-v12';
+const CACHE_NAME = 'khalessi-v13';
 const ASSETS = [
     './',
     './index.html',
     './css/index.css',
+    './js/phosphor-svg.js',
     './js/app.js',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
-    'https://unpkg.com/@phosphor-icons/web'
+    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap'
 ];
 
 // Detección segura de soporte de Cache API (evita ReferenceError en Safari Modo Hermético / Lockdown Mode)

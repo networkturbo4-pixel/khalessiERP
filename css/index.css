@@ -71,6 +71,43 @@ a:hover {
     text-decoration: underline;
 }
 
+/* Universal SVG Icons System (100% Offline & Lockdown Mode Compatible) */
+.ph, [class^="ph-"], [class*=" ph-"] {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    vertical-align: -0.125em;
+    width: 1em;
+    height: 1em;
+    line-height: 1;
+    flex-shrink: 0;
+    box-sizing: content-box;
+}
+
+.ph > svg, [class*="ph-"] > svg {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    display: block;
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.ph::before, [class*="ph-"]::before {
+    content: none !important;
+    display: none !important;
+}
+
+.ph-spin, i.ph-spin, .ph.ph-spin {
+    animation: ph-spin 1s infinite linear !important;
+    transform-origin: center center;
+}
+
+@keyframes ph-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 /* Layout */
 #app {
     width: 100%;

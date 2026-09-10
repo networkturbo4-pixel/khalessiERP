@@ -44,8 +44,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <!-- Icons (Phosphor Icons - clean and modern) -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Icons (Phosphor SVG Universal - 100% Local, Offline & Apple Lockdown Mode Compatible) -->
+    <script src="js/phosphor-svg.js?v=2.7.4"></script>
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -54,7 +54,7 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
     <!-- Global CSS -->
-    <link rel="stylesheet" href="css/index.css?v=2.7.3">
+    <link rel="stylesheet" href="css/index.css?v=2.7.4">
 </head>
 <body>
     
@@ -201,7 +201,7 @@
     <!-- Scripts -->
     <script src="js/modules/inventario.js?v=2.3.0"></script>
     <script src="js/modules/recetas.js?v=2.2.0"></script>
-    <script src="js/app.js?v=2.7.3"></script>
+    <script src="js/app.js?v=2.7.4"></script>
     <script>
         if ('serviceWorker' in navigator) {
             // Comprobación segura de Cache API (Safari en Modo Hermético / Lockdown Mode deshabilita caches)
@@ -220,7 +220,7 @@
                     }
                 }).catch(function() {});
             } else {
-                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.3';
+                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.4';
                 navigator.serviceWorker.register(swPath)
                     .then(function(reg) {
                         reg.update();

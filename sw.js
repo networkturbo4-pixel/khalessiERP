@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khalessi-v16';
+const CACHE_NAME = 'khalessi-v17';
 const ASSETS = [
     './',
     './index.html',

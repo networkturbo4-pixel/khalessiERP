@@ -9,10 +9,22 @@ window.renderInventario = function(container) {
         </div>
 
         <div class="nav-tabs">
-            <div class="nav-tab active" onclick="switchInventarioTab('stock')" id="tab-inv-stock">Stock por Local</div>
-            <div class="nav-tab" onclick="switchInventarioTab('transferencias')" id="tab-inv-transferencias">Transferencias</div>
-            <div class="nav-tab" onclick="switchInventarioTab('mermas')" id="tab-inv-mermas">Mermas (Cierre)</div>
-            <div class="nav-tab" onclick="switchInventarioTab('lotes')" id="tab-inv-lotes">Lotes y Caducidad</div>
+            <div class="nav-tab active" onclick="switchInventarioTab('stock')" id="tab-inv-stock">
+                <i class="ph ph-package"></i>
+                <span>Stock por Local</span>
+            </div>
+            <div class="nav-tab" onclick="switchInventarioTab('transferencias')" id="tab-inv-transferencias">
+                <i class="ph ph-arrows-left-right"></i>
+                <span>Transferencias</span>
+            </div>
+            <div class="nav-tab" onclick="switchInventarioTab('mermas')" id="tab-inv-mermas">
+                <i class="ph ph-trash"></i>
+                <span>Mermas</span>
+            </div>
+            <div class="nav-tab" onclick="switchInventarioTab('lotes')" id="tab-inv-lotes">
+                <i class="ph ph-barcode"></i>
+                <span>Lotes y Caducidad</span>
+            </div>
         </div>
 
         <!-- VISTA: STOCK LOCAL -->
@@ -102,7 +114,11 @@ window.renderInventario = function(container) {
 
 window.switchInventarioTab = function(tabId) {
     document.querySelectorAll('[id^="tab-inv-"]').forEach(el => el.classList.remove('active'));
-    document.getElementById('tab-inv-' + tabId).classList.add('active');
+    const targetTab = document.getElementById('tab-inv-' + tabId);
+    if (targetTab) {
+        targetTab.classList.add('active');
+        targetTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
     
     document.querySelectorAll('[id^="inv-view-"]').forEach(el => el.classList.add('hidden'));
     document.getElementById('inv-view-' + tabId).classList.remove('hidden');

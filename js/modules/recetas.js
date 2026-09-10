@@ -8,11 +8,26 @@ window.renderRecetas = function(container) {
         </div>
 
         <div class="nav-tabs">
-            <div class="nav-tab active" onclick="switchRecetasTab('calculadora')" id="tab-recetas-calculadora">Calculadora de Producción</div>
-            <div class="nav-tab" onclick="switchRecetasTab('compras')" id="tab-recetas-compras">Proyección de Compras</div>
-            <div class="nav-tab" onclick="switchRecetasTab('matriz')" id="tab-recetas-matriz">Receta Matriz</div>
-            <div class="nav-tab" onclick="switchRecetasTab('mermas')" id="tab-recetas-mermas">Control de Mermas</div>
-            <div class="nav-tab" onclick="switchRecetasTab('ingredientes')" id="tab-recetas-ingredientes">Ingredientes</div>
+            <div class="nav-tab active" onclick="switchRecetasTab('calculadora')" id="tab-recetas-calculadora">
+                <i class="ph ph-calculator"></i>
+                <span>Calculadora</span>
+            </div>
+            <div class="nav-tab" onclick="switchRecetasTab('compras')" id="tab-recetas-compras">
+                <i class="ph ph-shopping-cart"></i>
+                <span>Proyección Compras</span>
+            </div>
+            <div class="nav-tab" onclick="switchRecetasTab('matriz')" id="tab-recetas-matriz">
+                <i class="ph ph-cooking-pot"></i>
+                <span>Receta Matriz</span>
+            </div>
+            <div class="nav-tab" onclick="switchRecetasTab('mermas')" id="tab-recetas-mermas">
+                <i class="ph ph-warning-circle"></i>
+                <span>Control Mermas</span>
+            </div>
+            <div class="nav-tab" onclick="switchRecetasTab('ingredientes')" id="tab-recetas-ingredientes">
+                <i class="ph ph-fork-knife"></i>
+                <span>Ingredientes</span>
+            </div>
         </div>
 
         <!-- VISTA: CALCULADORA -->
@@ -315,7 +330,11 @@ window.renderRecetas = function(container) {
 
 window.switchRecetasTab = function(tabId) {
     document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
-    document.getElementById('tab-recetas-' + tabId).classList.add('active');
+    const targetTab = document.getElementById('tab-recetas-' + tabId);
+    if (targetTab) {
+        targetTab.classList.add('active');
+        targetTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
     
     document.getElementById('recetas-view-calculadora').classList.add('hidden');
     document.getElementById('recetas-view-compras').classList.add('hidden');

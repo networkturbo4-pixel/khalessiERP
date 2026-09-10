@@ -676,14 +676,27 @@ async function renderRRHH(container) {
         </div>
 
         <div class="nav-tabs">
-            <div class="nav-tab rrhh-nav-tab active" onclick="switchRRHHTab('historial')" id="tab-rrhh-historial">Historial y Exportación</div>
-            <div class="nav-tab rrhh-nav-tab" onclick="switchRRHHTab('justificaciones')" id="tab-rrhh-justificaciones">
-                Justificaciones y Permisos
-                <span class="badge badge-warning" id="badge-just-pendientes" style="margin-left: 6px; display:none; padding:2px 7px; font-size:11px;">0</span>
+            <div class="nav-tab rrhh-nav-tab active" onclick="switchRRHHTab('historial')" id="tab-rrhh-historial">
+                <i class="ph ph-calendar-check"></i>
+                <span>Historial</span>
             </div>
-            <div class="nav-tab rrhh-nav-tab" onclick="switchRRHHTab('personal')" id="tab-rrhh-personal">Ficha de Personal y Planilla</div>
-            <div class="nav-tab rrhh-nav-tab" onclick="switchRRHHTab('metricas')" id="tab-rrhh-metricas">Dashboard Analítico</div>
-            <div class="nav-tab rrhh-nav-tab" onclick="switchRRHHTab('ajustes')" id="tab-rrhh-ajustes">Ajustes de RRHH y 2FA</div>
+            <div class="nav-tab rrhh-nav-tab" onclick="switchRRHHTab('justificaciones')" id="tab-rrhh-justificaciones">
+                <i class="ph ph-shield-warning"></i>
+                <span>Justificaciones</span>
+                <span class="badge badge-warning" id="badge-just-pendientes" style="margin-left: 4px; display:none; padding:2px 7px; font-size:10px; border-radius:10px;">0</span>
+            </div>
+            <div class="nav-tab rrhh-nav-tab" onclick="switchRRHHTab('personal')" id="tab-rrhh-personal">
+                <i class="ph ph-identification-card"></i>
+                <span>Ficha de Personal</span>
+            </div>
+            <div class="nav-tab rrhh-nav-tab" onclick="switchRRHHTab('metricas')" id="tab-rrhh-metricas">
+                <i class="ph ph-chart-line-up"></i>
+                <span>Dashboard Analítico</span>
+            </div>
+            <div class="nav-tab rrhh-nav-tab" onclick="switchRRHHTab('ajustes')" id="tab-rrhh-ajustes">
+                <i class="ph ph-gear-six"></i>
+                <span>Ajustes y 2FA</span>
+            </div>
         </div>
 
         <!-- 1. VISTA: HISTORIAL Y EXPORTACIÓN -->
@@ -1271,7 +1284,11 @@ window.refrescarRRHHActual = async function() {
 window.switchRRHHTab = async function(tabName) {
     window.currentRRHHTab = tabName;
     document.querySelectorAll('.rrhh-nav-tab').forEach(el => el.classList.remove('active'));
-    document.querySelector('#tab-rrhh-' + tabName)?.classList.add('active');
+    const targetTab = document.querySelector('#tab-rrhh-' + tabName);
+    if (targetTab) {
+        targetTab.classList.add('active');
+        targetTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
     
     ['historial', 'justificaciones', 'personal', 'metricas', 'ajustes'].forEach(t => {
         const el = document.getElementById('rrhh-view-' + t);
@@ -2130,11 +2147,26 @@ function renderConfiguracion(container) {
         </div>
         
         <div class="nav-tabs">
-            <div class="nav-tab active" id="tab-empresa" onclick="switchConfigTab('empresa')">Información de la empresa</div>
-            <div class="nav-tab" id="tab-personalizacion" onclick="switchConfigTab('personalizacion')">Personalización</div>
-            <div class="nav-tab" id="tab-roles" onclick="switchConfigTab('roles')">Roles</div>
-            <div class="nav-tab" id="tab-usuarios" onclick="switchConfigTab('usuarios')">Usuarios</div>
-            <div class="nav-tab" id="tab-conexiones" onclick="switchConfigTab('conexiones')">Conexiones</div>
+            <div class="nav-tab active" id="tab-empresa" onclick="switchConfigTab('empresa')">
+                <i class="ph ph-buildings"></i>
+                <span>Empresa</span>
+            </div>
+            <div class="nav-tab" id="tab-personalizacion" onclick="switchConfigTab('personalizacion')">
+                <i class="ph ph-palette"></i>
+                <span>Personalización</span>
+            </div>
+            <div class="nav-tab" id="tab-roles" onclick="switchConfigTab('roles')">
+                <i class="ph ph-shield-check"></i>
+                <span>Roles</span>
+            </div>
+            <div class="nav-tab" id="tab-usuarios" onclick="switchConfigTab('usuarios')">
+                <i class="ph ph-users"></i>
+                <span>Usuarios</span>
+            </div>
+            <div class="nav-tab" id="tab-conexiones" onclick="switchConfigTab('conexiones')">
+                <i class="ph ph-plugs-connected"></i>
+                <span>Conexiones</span>
+            </div>
         </div>
         
         <!-- Tab: Empresa -->
@@ -2620,8 +2652,12 @@ window.switchConfigTab = function(tabName) {
     document.querySelectorAll('.config-content').forEach(c => c.classList.add('hidden'));
     
     // Activar el seleccionado
-    document.getElementById('tab-' + tabName).classList.add('active');
-    document.getElementById('content-' + tabName).classList.remove('hidden');
+    const targetTab = document.getElementById('tab-' + tabName);
+    if (targetTab) {
+        targetTab.classList.add('active');
+        targetTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+    document.getElementById('content-' + tabName)?.classList.remove('hidden');
 
     if (tabName === 'conexiones' && window.loadInfoGitConexiones) {
         window.loadInfoGitConexiones();

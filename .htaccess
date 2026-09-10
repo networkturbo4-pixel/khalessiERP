@@ -12,3 +12,13 @@
     # Si no existe, enviar todo al Frontend (SPA Container)
     RewriteRule ^(.*)$ index.html [QSA,L]
 </IfModule>
+
+# Prevenir que navegadores o proxys retengan versiones antiguas de index.html y sw.js
+<IfModule mod_headers.c>
+    <FilesMatch "^(sw\.js|index\.html)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires 0
+    </FilesMatch>
+</IfModule>
+

@@ -7,16 +7,25 @@ require_once __DIR__ . '/migrador.php';
 $repoUrl = "https://github.com/networkturbo4-pixel/khalessiERP.git";
 $baseDir = realpath(__DIR__ . '/..');
 
+/**
+ * Ejecuta comandos Git de forma compatible con Windows y Linux
+ */
+function runGitCmd($baseDir, $gitCmd) {
+    $isWin = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+    $prefix = $isWin ? "cd /d \"$baseDir\" && " : "cd \"$baseDir\" && ";
+    return @shell_exec($prefix . $gitCmd . " 2>&1");
+}
+
 if ($method === 'GET' && $accion === 'git_info') {
     // Obtener información del repositorio git local
-    $commitHash = trim(@shell_exec("cd /d \"$baseDir\" && git rev-parse --short HEAD 2>&1") ?: 'N/A');
+    $commitHash = trim(runGitCmd($baseDir, "git rev-parse --short HEAD") ?: 'N/A');
     if (strpos($commitHash, 'fatal:') !== false) $commitHash = 'Inicial';
-    $commitMsg = trim(@shell_exec("cd /d \"$baseDir\" && git log -1 --pretty=%B 2>&1") ?: 'Sin commits');
+    $commitMsg = trim(runGitCmd($baseDir, "git log -1 --pretty=%B") ?: 'Sin commits');
     if (strpos($commitMsg, 'fatal:') !== false) $commitMsg = 'Rama local lista';
-    $commitDate = trim(@shell_exec("cd /d \"$baseDir\" && git log -1 --format=%cd --date=relative 2>&1") ?: 'N/A');
+    $commitDate = trim(runGitCmd($baseDir, "git log -1 --format=%cd --date=relative") ?: 'N/A');
     if (strpos($commitDate, 'fatal:') !== false) $commitDate = 'Reciente';
-    $branch = trim(@shell_exec("cd /d \"$baseDir\" && git branch --show-current 2>&1") ?: 'main');
-    $remoteUrl = trim(@shell_exec("cd /d \"$baseDir\" && git config --get remote.origin.url 2>&1") ?: $repoUrl);
+    $branch = trim(runGitCmd($baseDir, "git branch --show-current") ?: 'main');
+    $remoteUrl = trim(runGitCmd($baseDir, "git config --get remote.origin.url") ?: $repoUrl);
 
     // Obtener estado de migraciones
     $migrador = new Migrador($db);
@@ -35,18 +44,18 @@ if ($method === 'GET' && $accion === 'git_info') {
 else if ($method === 'POST' && $accion === 'check_update') {
     // Comprobar si hay nuevos commits en GitHub
     // Paso 1: Ejecutar fetch silencioso
-    $fetchOutput = @shell_exec("cd /d \"$baseDir\" && git fetch origin main 2>&1");
+    $fetchOutput = runGitCmd($baseDir, "git fetch origin main");
     
     // Paso 2: Comparar HEAD local con origin/main
-    $localHash = trim(@shell_exec("cd /d \"$baseDir\" && git rev-parse HEAD 2>&1") ?: '');
-    $remoteHash = trim(@shell_exec("cd /d \"$baseDir\" && git rev-parse origin/main 2>&1") ?: '');
+    $localHash = trim(runGitCmd($baseDir, "git rev-parse HEAD") ?: '');
+    $remoteHash = trim(runGitCmd($baseDir, "git rev-parse origin/main") ?: '');
     
     $hayActualizacion = false;
     $commitsPendientes = [];
 
     if (!empty($localHash) && !empty($remoteHash) && $localHash !== $remoteHash) {
         $hayActualizacion = true;
-        $logOutput = @shell_exec("cd /d \"$baseDir\" && git log HEAD..origin/main --oneline -n 10 2>&1");
+        $logOutput = runGitCmd($baseDir, "git log HEAD..origin/main --oneline -n 10");
         if ($logOutput) {
             $commitsPendientes = array_filter(explode("\n", trim($logOutput)));
         }
@@ -72,9 +81,11 @@ else if ($method === 'POST' && $accion === 'actualizar') {
     // ACTUALIZACIÓN 1-CLICK: Git Pull + Migraciones Seguras
     $logs = [];
     
+    // Evitar problemas de permisos o propiedad en servidores Linux / cPanel (safe.directory)
+    runGitCmd($baseDir, "git config --global --add safe.directory \"$baseDir\"");
+
     // 1. Ejecutar Git Pull
-    $cmdPull = "cd /d \"$baseDir\" && git pull origin main 2>&1";
-    $pullResult = @shell_exec($cmdPull);
+    $pullResult = runGitCmd($baseDir, "git pull origin main");
     $logs[] = "--- GIT PULL ---\n" . ($pullResult ?: 'Pull completado sin salida.');
 
     // 2. Ejecutar Migraciones de Base de Datos de manera segura (solo las nuevas)
@@ -84,8 +95,14 @@ else if ($method === 'POST' && $accion === 'actualizar') {
     $totalNuevas = count($resMigraciones['aplicadas_ahora']);
     $logs[] = "--- MIGRACIONES BD ---\nSe ejecutaron $totalNuevas migraciones nuevas. La data de producción se mantuvo intacta.";
 
-    // 3. Commit actual después del pull
-    $commitFinal = trim(@shell_exec("cd /d \"$baseDir\" && git rev-parse --short HEAD 2>&1") ?: 'N/A');
+    // 3. Limpiar OPcache de PHP si está activo en el servidor
+    if (function_exists('opcache_reset')) {
+        @opcache_reset();
+        $logs[] = "--- CACHE PHP ---\nOPcache reiniciado con éxito.";
+    }
+
+    // 4. Commit actual después del pull
+    $commitFinal = trim(runGitCmd($baseDir, "git rev-parse --short HEAD") ?: 'N/A');
 
     respondSuccess([
         'nuevo_commit' => $commitFinal,

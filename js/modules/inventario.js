@@ -11,6 +11,7 @@
     let currentProductoEnEdicion = null;
     let comprasDelProducto = [];
     let comprobanteFileAdjunto = null;
+    let selectedCategoriaPill = '';
 
     // Función principal invocada por el enrutador
     window.renderInventario = function(container) {
@@ -69,47 +70,23 @@
                         </div>
                     </div>
 
-                    <!-- Barra de Herramientas y Filtros -->
-                    <div class="card mb-3" style="border-radius: 16px; border: 1px solid var(--border-color);">
-                        <div class="card-body" style="padding: 14px 18px;">
-                            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
-                                
-                                <!-- Buscador y Selectores -->
-                                <div style="display: flex; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 280px;">
-                                    <div style="position: relative; flex: 1; min-width: 200px;">
-                                        <i class="ph ph-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-sec); font-size: 17px;"></i>
-                                        <input type="text" id="filtro-prod-buscar" class="form-control" placeholder="Buscar por nombre, SKU, proveedor..." style="padding-left: 40px; border-radius: 10px;" oninput="filtrarProductosInventario()">
-                                    </div>
-                                    <select id="filtro-prod-categoria" class="form-control" style="width: auto; min-width: 160px; border-radius: 10px;" onchange="filtrarProductosInventario()">
-                                        <option value="">Todas las categorías</option>
-                                    </select>
-                                    <select id="filtro-prod-tipo" class="form-control" style="width: auto; min-width: 160px; border-radius: 10px;" onchange="filtrarProductosInventario()">
-                                        <option value="">Todos los tipos</option>
-                                        <option value="materia_prima">Materia Prima</option>
-                                        <option value="producto_terminado">Producto Terminado</option>
-                                        <option value="subreceta">Insumo Procesado</option>
-                                        <option value="bebida">Bebida / Envasado</option>
-                                        <option value="empaque">Empaque</option>
-                                    </select>
-                                    <select id="filtro-prod-estado" class="form-control" style="width: auto; min-width: 140px; border-radius: 10px;" onchange="filtrarProductosInventario()">
-                                        <option value="">Todos los estados</option>
-                                        <option value="disponible">Disponibles</option>
-                                        <option value="agotado">Agotados</option>
-                                        <option value="inactivo">Inactivos</option>
-                                    </select>
-                                </div>
-
-                                <!-- Botones de Acción -->
-                                <div style="display: flex; gap: 10px; align-items: center;">
-                                    <button class="btn btn-secondary btn-icon" title="Refrescar catálogo" onclick="cargarProductosInventario(true)">
-                                        <i class="ph ph-arrows-clockwise"></i>
-                                    </button>
-                                    <button class="btn btn-primary" onclick="abrirModalProducto()" style="border-radius: 10px; font-weight: 600;">
-                                        <i class="ph ph-plus"></i> Nuevo Producto
-                                    </button>
-                                </div>
-                            </div>
+                    <!-- Barra de Búsqueda y Acción Compacta (1 sola fila) -->
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                        <div style="position: relative; flex: 1;">
+                            <i class="ph ph-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-sec); font-size: 16px;"></i>
+                            <input type="text" id="filtro-prod-buscar" class="form-control" placeholder="Buscar insumo, SKU, proveedor..." style="padding-left: 38px; border-radius: 12px; height: 40px;" oninput="filtrarProductosInventario()">
                         </div>
+                        <button class="btn btn-secondary btn-icon" style="height: 40px; width: 40px; border-radius: 12px; flex-shrink: 0;" title="Refrescar catálogo" onclick="cargarProductosInventario(true)">
+                            <i class="ph ph-arrows-clockwise"></i>
+                        </button>
+                        <button class="btn btn-primary" onclick="abrirModalProducto()" style="border-radius: 12px; font-weight: 600; height: 40px; padding: 0 14px; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="ph ph-plus"></i> <span>Nuevo Producto</span>
+                        </button>
+                    </div>
+
+                    <!-- Pestañas Horizontales de Categorías (Pills Ultra Compactas y Rápidas) -->
+                    <div class="category-pills-bar" id="contenedor-category-pills">
+                        <button type="button" class="cat-pill active" onclick="filtrarPorPillCategoria('')">Todos</button>
                     </div>
 
                     <!-- Contenedor del Catálogo: Dual PC (Tabla Deslizable) y Móvil (Cards Ordenadas) -->
@@ -504,6 +481,28 @@
         if (typeof triggerHaptic === 'function') triggerHaptic(10);
     };
 
+    // Filtrar por Pill de Categoría
+    window.filtrarPorPillCategoria = function(catId) {
+        selectedCategoriaPill = catId;
+        renderizarCategoryPills();
+        filtrarProductosInventario();
+        if (typeof triggerHaptic === 'function') triggerHaptic(10);
+    };
+
+    function renderizarCategoryPills() {
+        const contenedor = document.getElementById('contenedor-category-pills');
+        if (!contenedor) return;
+
+        let html = `<button type="button" class="cat-pill ${selectedCategoriaPill === '' ? 'active' : ''}" onclick="filtrarPorPillCategoria('')">Todos</button>`;
+
+        categoriasData.forEach(c => {
+            const isActive = String(selectedCategoriaPill) === String(c.id);
+            html += `<button type="button" class="cat-pill ${isActive ? 'active' : ''}" onclick="filtrarPorPillCategoria('${c.id}')">${c.nombre}</button>`;
+        });
+
+        contenedor.innerHTML = html;
+    }
+
     // Cargar categorías
     window.cargarCategoriasInventario = async function() {
         try {
@@ -511,19 +510,15 @@
             const data = await res.json();
             if (data.status === 'success') {
                 categoriasData = data.data || [];
-                
-                const filtroCat = document.getElementById('filtro-prod-categoria');
+                renderizarCategoryPills();
+
                 const modalCat = document.getElementById('prod-categoria');
-                
-                let filtroHtml = '<option value="">Todas las categorías</option>';
                 let modalHtml = '<option value="">Sin Categoría</option>';
 
                 categoriasData.forEach(c => {
-                    filtroHtml += `<option value="${c.id}">${c.nombre}</option>`;
                     modalHtml += `<option value="${c.id}">${c.nombre}</option>`;
                 });
 
-                if (filtroCat) filtroCat.innerHTML = filtroHtml;
                 if (modalCat) modalCat.innerHTML = modalHtml;
             }
         } catch (e) {
@@ -633,6 +628,18 @@
         return tipos[tipo] || (tipo ? tipo.replace('_', ' ') : 'Materia Prima');
     }
 
+    // Abreviar unidad de medida para que no desborde en móvil
+    function abreviarUnidad(u) {
+        if (!u) return 'und.';
+        const s = u.toLowerCase();
+        if (s.includes('kilo') || s.includes('(kg)') || s === 'kg') return 'kg';
+        if (s.includes('litro') || s.includes('(l)') || s === 'l') return 'L';
+        if (s.includes('gram') || s.includes('(g)') || s === 'g') return 'g';
+        if (s.includes('mili') || s.includes('(ml)') || s === 'ml') return 'ml';
+        if (s.includes('porc')) return 'porc.';
+        return 'und.';
+    }
+
     // Renderizado Dual: Tabla Deslizable en PC + Cards Ordenadas en Móvil
     function renderizarCatalogoProductos(items) {
         const contenedor = document.getElementById('contenedor-productos-catalogo');
@@ -691,6 +698,7 @@
             const isExpanded = expandedProductIds.has(p.id);
             const totalCompras = parseInt(p.total_compras) || 0;
             const unidad = p.unidad_medida || 'unidades';
+            const unidadCorta = abreviarUnidad(unidad);
 
             // Alerta visual de stock
             let stockBadgeClass = 'badge-success';
@@ -807,40 +815,49 @@
                 </tr>
             `;
 
-            // Card Móvil Ordenada (2 columnas y sin cortes)
+            // Card Móvil Ordenada (2 columnas y sin cortes ni saltos de línea)
             mobileCardsHtml += `
                 <div class="prod-mobile-card ${isExpanded ? 'expanded' : ''}" id="prod-mcard-${p.id}">
-                    <!-- Cabecera Superior: Foto + Título Completo sin truncar + Badges -->
+                    <!-- Cabecera Superior: Foto + Título en 1 fila con Estado Badge + Badges -->
                     <div class="prod-mobile-top">
                         ${thumbImg}
                         <div class="prod-mobile-header-info">
-                            <div class="prod-mobile-title">${p.nombre}</div>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 2px;">
+                                <div class="prod-mobile-title" title="${p.nombre}">${p.nombre}</div>
+                                <div style="flex-shrink: 0;">${estadoBadge}</div>
+                            </div>
                             <div class="prod-mobile-badges">
                                 <span class="prod-mobile-sku">${p.codigo_sku || 'S/N'}</span>
-                                <span class="badge" style="background: rgba(217, 119, 6, 0.1); color: #D97706; font-size: 10.5px; font-weight: 600;">
+                                <span class="badge" style="background: rgba(217, 119, 6, 0.1); color: #D97706; font-size: 10.5px; font-weight: 600; white-space: nowrap;">
                                     ${formatearTipoArticulo(p.tipo_articulo)}
                                 </span>
-                                ${estadoBadge}
+                                ${p.categoria_nombre ? `<span style="font-size: 11px; color: var(--text-sec); white-space: nowrap;">• ${p.categoria_nombre}</span>` : ''}
                             </div>
                         </div>
                     </div>
 
-                    <!-- Grid de Datos Clave en 2 Columnas -->
+                    <!-- Grid de Datos Clave en 2 Columnas (Sin saltos de línea molestos) -->
                     <div class="prod-mobile-stats">
                         <div class="prod-stat-col">
-                            <span class="prod-stat-title">Existencias (${unidad})</span>
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px;">
+                                <span class="prod-stat-title" style="white-space: nowrap;">Existencias</span>
+                                <span style="font-size: 10.5px; color: var(--text-sec); white-space: nowrap;">Mín: ${stockMin}</span>
+                            </div>
                             <div class="prod-stat-val">
-                                <span class="badge ${stockBadgeClass}" style="font-size: 12px; font-weight: 700;">
-                                    ${stock} ${unidad}
+                                <span class="badge ${stockBadgeClass}" style="font-size: 11.5px; font-weight: 700; padding: 3px 8px; white-space: nowrap;">
+                                    ${stock} ${unidadCorta}
                                 </span>
-                                <span style="font-size: 10.5px; color: var(--text-sec); margin-left: 4px;">(Mín: ${stockMin})</span>
                             </div>
                         </div>
                         <div class="prod-stat-col" style="text-align: right;">
-                            <span class="prod-stat-title">Costo / Venta</span>
+                            <div style="display: flex; justify-content: flex-end; align-items: baseline; margin-bottom: 2px;">
+                                <span class="prod-stat-title" style="white-space: nowrap;">Precio Venta</span>
+                                ${costo > 0 ? `<span style="font-size: 10.5px; color: var(--text-sec); margin-left: 5px; white-space: nowrap;">Costo: S/ ${costo.toFixed(2)}</span>` : ''}
+                            </div>
                             <div class="prod-stat-val">
-                                <span style="color: #059669;">S/ ${costo.toFixed(2)}</span>
-                                ${precio > 0 ? `<span style="font-size: 11px; color: var(--text-sec); font-weight: normal;"> / S/ ${precio.toFixed(2)}</span>` : ''}
+                                <span style="font-weight: 700; color: var(--text-main); font-size: 13.5px; white-space: nowrap;">
+                                    ${precio > 0 ? `S/ ${precio.toFixed(2)}` : `<span style="color:#059669;">S/ ${costo.toFixed(2)}</span>`}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -908,9 +925,6 @@
     // Filtrar catálogo de productos
     window.filtrarProductosInventario = function() {
         const query = (document.getElementById('filtro-prod-buscar')?.value || '').toLowerCase().trim();
-        const categoriaId = document.getElementById('filtro-prod-categoria')?.value || '';
-        const tipoArticulo = document.getElementById('filtro-prod-tipo')?.value || '';
-        const estado = document.getElementById('filtro-prod-estado')?.value || '';
 
         const filtrados = productosData.filter(p => {
             const matchQ = !query || 
@@ -920,11 +934,9 @@
                 (p.codigo_barras && p.codigo_barras.toLowerCase().includes(query)) ||
                 (p.descripcion && p.descripcion.toLowerCase().includes(query));
 
-            const matchCat = !categoriaId || String(p.id_categoria) === String(categoriaId);
-            const matchTipo = !tipoArticulo || p.tipo_articulo === tipoArticulo;
-            const matchEst = !estado || p.estado === estado;
+            const matchCat = !selectedCategoriaPill || String(p.id_categoria) === String(selectedCategoriaPill);
 
-            return matchQ && matchCat && matchTipo && matchEst;
+            return matchQ && matchCat;
         });
 
         renderizarCatalogoProductos(filtrados);

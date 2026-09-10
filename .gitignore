@@ -5,6 +5,10 @@ uploads/asistencia/*
 !uploads/asistencia/.gitkeep
 uploads/justificaciones/*
 !uploads/justificaciones/.gitkeep
+uploads/comprobantes/*
+!uploads/comprobantes/.gitkeep
+uploads/productos/*
+!uploads/productos/.gitkeep
 
 # Entornos y logs locales
 .env

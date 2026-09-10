@@ -385,10 +385,39 @@ function renderAppLayout(container) {
                 </nav>
                 
                 <div class="sidebar-footer">
-                    <a href="javascript:window.cerrarSesion()" class="nav-item text-danger" style="display: flex; align-items: center; gap: 12px; font-weight: 600; cursor: pointer;">
-                        <i class="ph ph-sign-out" style="font-size: 20px;"></i>
-                        <span>Cerrar Sesión</span>
-                    </a>
+                    <!-- Aviso dinámico de actualización en Sidebar -->
+                    <div id="sidebar-update-notice" class="sidebar-update-notice" style="display: none;">
+                        <button type="button" class="btn-update-topbar" onclick="window.irAActualizaciones()" title="Nueva versión disponible en GitHub">
+                            <span class="pulse-indicator"></span>
+                            <i class="ph ph-sparkle" style="color: #f59e0b; font-size: 15px;"></i>
+                            <span class="update-label">Actualización disponible</span>
+                        </button>
+                    </div>
+
+                    <!-- Tarjeta de Perfil y Acciones Rápidas en Sidebar -->
+                    <div class="sidebar-user-card">
+                        <div class="sidebar-user-info" onclick="navigate('/perfil')" title="Ver mi perfil laboral">
+                            <div class="sidebar-avatar-wrapper">
+                                <div class="avatar" id="sidebar-avatar">${avatarHtml}</div>
+                                <span class="sidebar-status-dot" title="En línea"></span>
+                            </div>
+                            <div class="sidebar-user-details">
+                                <span class="sidebar-user-name" id="sidebar-name">${nombreUsuario}</span>
+                                <span class="sidebar-user-role" id="sidebar-role">${user.rol_nombre || 'Personal'}</span>
+                            </div>
+                        </div>
+                        <div class="sidebar-actions-row">
+                            <button type="button" class="btn-sidebar-tool btn-theme-toggle" onclick="toggleTheme()" title="Cambiar Tema (Claro / Oscuro)">
+                                <i class="ph ph-moon theme-icon-indicator"></i>
+                            </button>
+                            <button type="button" class="btn-sidebar-tool btn-kiosk" id="btn-toggle-kiosk-sidebar" onclick="toggleModoKiosko()" title="Pantalla Completa">
+                                <i class="ph ph-corners-out"></i>
+                            </button>
+                            <button type="button" class="btn-sidebar-tool btn-logout" onclick="window.cerrarSesion()" title="Cerrar Sesión">
+                                <i class="ph ph-sign-out"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </aside>
 
@@ -399,21 +428,20 @@ function renderAppLayout(container) {
                     <i class="ph ph-arrows-clockwise"></i>
                 </div>
 
-                <!-- Header -->
+                <!-- Header (Solo visible en Móvil) -->
                 <header class="topbar">
                     <div class="topbar-left">
-                        <button class="btn-icon" onclick="toggleSidebar()">
+                        <button class="btn-icon" onclick="toggleSidebarMobile()">
                             <i class="ph ph-list" style="font-size: 24px;"></i>
                         </button>
                         ${logoCollapsed ? `<img src="${logoCollapsed}" class="topbar-mobile-logo">` : ''}
                     </div>
                     <div class="topbar-right">
-                        <!-- Aviso dinámico de actualización en la cabecera -->
+                        <!-- Aviso dinámico de actualización en la cabecera móvil -->
                         <div id="topbar-update-notice" style="display: none; align-items: center;">
-                            <button type="button" class="btn-update-topbar" onclick="window.irAActualizaciones()" title="Nueva versión disponible en GitHub">
+                            <button type="button" class="btn-update-topbar" onclick="window.irAActualizaciones()" title="Nueva versión disponible">
                                 <span class="pulse-indicator"></span>
                                 <i class="ph ph-sparkle" style="color: #f59e0b; font-size: 15px;"></i>
-                                <span class="update-label">Actualización disponible</span>
                             </button>
                         </div>
                         <button class="btn-icon btn-kiosk" id="btn-toggle-kiosk" onclick="toggleModoKiosko()" title="Modo Pantalla Completa / Kiosko">
@@ -503,11 +531,11 @@ window.triggerHaptic = function(pattern = 15) {
 window.toggleModoKiosko = async function() {
     triggerHaptic(30);
     const body = document.body;
-    const btnIcon = document.querySelector('#btn-toggle-kiosk i');
+    const btnIcons = document.querySelectorAll('.btn-kiosk i');
     const isKiosk = body.classList.toggle('kiosk-mode');
 
     if (isKiosk) {
-        if (btnIcon) btnIcon.className = 'ph ph-corners-in';
+        btnIcons.forEach(icon => icon.className = 'ph ph-corners-in');
         try {
             if (document.documentElement.requestFullscreen) {
                 await document.documentElement.requestFullscreen();
@@ -520,7 +548,7 @@ window.toggleModoKiosko = async function() {
         } catch (e) {}
         if (window.showToast) showToast('Modo Kiosko activado (Pantalla Completa)', 'info');
     } else {
-        if (btnIcon) btnIcon.className = 'ph ph-corners-out';
+        btnIcons.forEach(icon => icon.className = 'ph ph-corners-out');
         try {
             if (document.fullscreenElement && document.exitFullscreen) {
                 await document.exitFullscreen();
@@ -546,10 +574,6 @@ window.updateFabForPath = function(path) {
         fab.style.display = 'flex';
         fab.title = 'Registrar Falta o Permiso';
         if (fabIcon) fabIcon.className = 'ph ph-calendar-plus';
-    } else if (path === '/inventario') {
-        fab.style.display = 'flex';
-        fab.title = 'Nuevo Ingreso / Insumo';
-        if (fabIcon) fabIcon.className = 'ph ph-plus';
     } else if (path === '/recetas') {
         fab.style.display = 'flex';
         fab.title = 'Nueva Receta';
@@ -569,8 +593,6 @@ window.handleFabClick = function() {
     const path = (base ? window.location.pathname.replace(base, '') : window.location.pathname) || '/dashboard';
     if (path === '/rrhh') {
         if (typeof abrirModalAusencia === 'function') abrirModalAusencia();
-    } else if (path === '/inventario') {
-        if (typeof openModal === 'function') openModal('modal-ingreso');
     } else if (path === '/recetas') {
         if (typeof abrirModalReceta === 'function') abrirModalReceta();
     } else if (path === '/clientes') {
@@ -4954,63 +4976,6 @@ window.verFotoJustificacion = function(rawUrl) {
     }
 };
 
-async function loadInventarioData() {
-    const tbody = document.querySelector('#table-inventario tbody');
-    if(!tbody) return;
-
-    try {
-        const response = await fetch('/khalessierp/api/inventario/productos');
-        const data = await response.json();
-
-        if(data.status === 'success' && data.data.length > 0) {
-            tbody.innerHTML = '';
-            data.data.forEach(p => {
-                const icon = p.id_categoria == 1 ? '<i class="ph-fill ph-pizza"></i>' : (p.id_categoria == 2 ? '<i class="ph-fill ph-drop"></i>' : '<i class="ph-fill ph-package"></i>');
-                const badgeClass = p.estado === 'disponible' ? 'badge-success' : 'badge-danger';
-                const stockClass = p.stock_actual > 0 ? 'text-success' : 'text-danger';
-                const stockText = p.stock_actual > 0 ? 'Disponible' : 'Agotado';
-                
-                tbody.innerHTML += `
-                    <tr>
-                        <td>
-                            <div class="product-cell">
-                                <div class="product-img" style="${p.id_categoria == 2 ? 'color:var(--link)' : ''}">${icon}</div>
-                                <div>
-                                    <div class="fw-500">${p.nombre}</div>
-                                    <div class="text-small text-sec">${p.descripcion || ''}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td>${p.categoria_nombre}</td>
-                        <td class="fw-500">$${parseFloat(p.precio_venta).toFixed(2)}</td>
-                        <td><span class="${stockClass}">${stockText} (${p.stock_actual})</span></td>
-                        <td><span class="badge ${badgeClass}">${p.estado}</span></td>
-                        <td>
-                            <button class="btn-icon" title="Editar"><i class="ph ph-pencil-simple"></i></button>
-                            <button class="btn-icon text-danger" title="Eliminar"><i class="ph ph-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
-        } else {
-            // Si no hay datos (porque BD está vacía aún de productos), dejamos la fila de "No hay datos"
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 30px;">No hay productos en la base de datos.<br><span class="text-sec text-small">Inserta productos en phpMyAdmin o usa el botón Agregar.</span></td></tr>`;
-        }
-    } catch(e) {
-        console.error(e);
-        showToast('Error cargando inventario', 'error');
-    }
-}
-
-// Interceptar renderInventario para inyectar llamada a la API
-const originalRenderInventario = renderInventario;
-renderInventario = function(container) {
-    originalRenderInventario(container);
-    // Cambiar id a la tabla para poder llenarla
-    container.querySelector('table').id = 'table-inventario';
-    loadInventarioData();
-};
-
 // ==========================================
 // CHART.JS: RRHH MÉTRICAS
 // ==========================================
@@ -5881,17 +5846,25 @@ window.confirmarAccion = function(mensaje, callback) {
 
 window.updateTopbarProfile = function(user) {
     if(!user) return;
-    const nameEl = document.getElementById('topbar-name');
-    const avatarEl = document.getElementById('topbar-avatar');
-    if(nameEl) nameEl.innerText = user.nombre;
-    if(avatarEl) {
-        if(user.foto_perfil) {
-            avatarEl.innerHTML = `<img src="${user.foto_perfil}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
-            avatarEl.style.background = 'transparent';
-        } else {
-            avatarEl.innerHTML = (user.nombre || 'US').substring(0,2).toUpperCase();
-            avatarEl.style.background = 'var(--link)';
+    ['topbar-name', 'sidebar-name'].forEach(id => {
+        const nameEl = document.getElementById(id);
+        if(nameEl) nameEl.innerText = user.nombre;
+    });
+    ['topbar-avatar', 'sidebar-avatar'].forEach(id => {
+        const avatarEl = document.getElementById(id);
+        if(avatarEl) {
+            if(user.foto_perfil) {
+                avatarEl.innerHTML = `<img src="${user.foto_perfil}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;">`;
+                avatarEl.style.background = 'transparent';
+            } else {
+                avatarEl.innerHTML = (user.nombre || 'US').substring(0,2).toUpperCase();
+                avatarEl.style.background = 'var(--link)';
+            }
         }
+    });
+    const roleEl = document.getElementById('sidebar-role');
+    if (roleEl && user.rol_nombre) {
+        roleEl.innerText = user.rol_nombre;
     }
 };
 
@@ -6504,8 +6477,12 @@ window.verificarActualizacionSilenciosa = async function() {
         const isAdministrador = user.rol_nombre && user.rol_nombre.toLowerCase() === 'administrador';
         if (!isAdministrador) return; // Solo administradores deben ver aviso de actualización del sistema
 
-        const noticeEl = document.getElementById('topbar-update-notice');
-        if (!noticeEl) return;
+        const setNoticeDisplay = (display) => {
+            const noticeEl = document.getElementById('topbar-update-notice');
+            const sidebarNoticeEl = document.getElementById('sidebar-update-notice');
+            if (noticeEl) noticeEl.style.display = display;
+            if (sidebarNoticeEl) sidebarNoticeEl.style.display = display;
+        };
 
         // Comprobar cache local para no saturar la red (ej. cada 15 minutos)
         const cacheKey = 'khalessi_update_check';
@@ -6516,9 +6493,9 @@ window.verificarActualizacionSilenciosa = async function() {
                 const parsed = JSON.parse(cached);
                 if (now - parsed.timestamp < 15 * 60 * 1000) {
                     if (parsed.hay_actualizacion || parsed.requiere_vinculacion) {
-                        noticeEl.style.display = 'inline-flex';
+                        setNoticeDisplay('inline-flex');
                     } else {
-                        noticeEl.style.display = 'none';
+                        setNoticeDisplay('none');
                     }
                     return;
                 }
@@ -6539,9 +6516,9 @@ window.verificarActualizacionSilenciosa = async function() {
             }));
 
             if (tieneNovedad) {
-                noticeEl.style.display = 'inline-flex';
+                setNoticeDisplay('inline-flex');
             } else {
-                noticeEl.style.display = 'none';
+                setNoticeDisplay('none');
             }
         }
     } catch(e) {

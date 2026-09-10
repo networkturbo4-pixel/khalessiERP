@@ -104,13 +104,6 @@ else if ($method === 'POST' && $accion === 'movimiento') {
         respondError("Error en movimiento: ".$e->getMessage());
     }
 }
-else if ($method === 'GET' && $accion === 'productos') {
-    $query = "SELECT p.*, c.nombre as categoria_nombre FROM productos p JOIN categorias c ON p.id_categoria = c.id ORDER BY c.nombre, p.nombre";
-    $stmt = $db->prepare($query);
-    $stmt->execute();
-    $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    respondSuccess($productos);
-}
 else {
     respondError("Acción de inventario no válida", 404);
 }

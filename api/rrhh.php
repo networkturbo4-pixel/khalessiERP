@@ -586,11 +586,11 @@ else if ($method === 'GET' && $accion === 'fichas_personal') {
 else if ($method === 'POST' && $accion === 'guardar_sueldo') {
     $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
     
-    $id_user = isset($input['id_usuario']) ? (int)$input['id_usuario'] : 0;
+    $id_user = isset($input['id_usuario']) ? (int)$input['id_usuario'] : (isset($input['id']) ? (int)$input['id'] : 0);
     $sueldo_base = isset($input['sueldo_base']) ? (float)$input['sueldo_base'] : 0.00;
     $sueldo_hora = isset($input['sueldo_por_hora']) ? (float)$input['sueldo_por_hora'] : 0.00;
     $tipo_pago = isset($input['tipo_pago']) ? trim($input['tipo_pago']) : 'mensual';
-    $horas_pactadas = isset($input['horas_semanales_pactadas']) ? (int)$input['horas_semanales_pactadas'] : 48;
+    $horas_pactadas = isset($input['horas_semanales_pactadas']) ? (int)$input['horas_semanales_pactadas'] : (isset($input['horas_pactadas']) ? (int)$input['horas_pactadas'] : 48);
     
     if (!$id_user) respondError("ID de usuario requerido");
     

@@ -37,14 +37,18 @@ if ($method === 'GET' && $accion === 'estado') {
     if (!$user) respondError("Usuario no encontrado o inactivo", 404);
     
     // Verificar si ya tiene un turno abierto hoy
-    $stmt = $db->prepare("SELECT id, fecha_hora_entrada FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto' LIMIT 1");
+    $stmt = $db->prepare("SELECT id, fecha_hora_entrada, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto' LIMIT 1");
     $stmt->execute([':id_usuario' => $user['id']]);
     $asistencia = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Obtener tolerancia configurada (en minutos)
-    $stmtTol = $db->prepare("SELECT valor FROM configuracion WHERE clave = 'rrhh_tolerancia_tardanza_minutos' LIMIT 1");
-    $stmtTol->execute();
-    $tolerancia = (int)($stmtTol->fetchColumn() ?: 15);
+    // Obtener tolerancia y horario de refrigerio configurado
+    $stmtCfg = $db->query("SELECT clave, valor FROM configuracion WHERE clave IN ('rrhh_tolerancia_tardanza_minutos', 'rrhh_refrigerio_inicio', 'rrhh_refrigerio_fin', 'rrhh_refrigerio_minutos')");
+    $cfgs = $stmtCfg ? $stmtCfg->fetchAll(PDO::FETCH_KEY_PAIR) : [];
+
+    $tolerancia = isset($cfgs['rrhh_tolerancia_tardanza_minutos']) ? (int)$cfgs['rrhh_tolerancia_tardanza_minutos'] : 15;
+    $ref_inicio = !empty($cfgs['rrhh_refrigerio_inicio']) ? $cfgs['rrhh_refrigerio_inicio'] : '13:00';
+    $ref_fin = !empty($cfgs['rrhh_refrigerio_fin']) ? $cfgs['rrhh_refrigerio_fin'] : '15:00';
+    $ref_minutos = !empty($cfgs['rrhh_refrigerio_minutos']) ? (int)$cfgs['rrhh_refrigerio_minutos'] : 60;
     
     // Evaluar horario de entrada
     $hora_evaluar = !empty($user['hora_entrada_asignada']) ? $user['hora_entrada_asignada'] : $user['rol_hora_entrada'];
@@ -62,6 +66,16 @@ if ($method === 'GET' && $accion === 'estado') {
             $minutos_tardanza = max(1, round(($ahora_ts - $hora_esperada_ts) / 60));
         }
     }
+
+    // Evaluar estado del refrigerio
+    $en_horario_refrigerio = ($hora_actual >= $ref_inicio && $hora_actual <= $ref_fin);
+    $inicio_refrigerio_marcado = !empty($asistencia['inicio_refrigerio']);
+    $fin_refrigerio_marcado = !empty($asistencia['fin_refrigerio']);
+    $en_refrigerio = ($inicio_refrigerio_marcado && !$fin_refrigerio_marcado);
+    $minutos_en_refrigerio = 0;
+    if ($en_refrigerio && !empty($asistencia['inicio_refrigerio'])) {
+        $minutos_en_refrigerio = max(1, round((time() - strtotime($asistencia['inicio_refrigerio'])) / 60));
+    }
     
     // No enviar secreto TOTP al frontend por seguridad
     unset($user['totp_secret']);
@@ -75,7 +89,19 @@ if ($method === 'GET' && $accion === 'estado') {
         "hora_esperada" => $hora_evaluar ? substr($hora_evaluar, 0, 5) : null,
         "hora_actual" => $hora_actual,
         "tolerancia_minutos" => $tolerancia,
-        "requiere_totp" => $es_tardanza
+        "requiere_totp" => $es_tardanza,
+        "refrigerio" => [
+            "horario_activo" => $en_horario_refrigerio,
+            "hora_inicio" => $ref_inicio,
+            "hora_fin" => $ref_fin,
+            "duracion_minutos" => $ref_minutos,
+            "inicio_marcado" => $inicio_refrigerio_marcado,
+            "fin_marcado" => $fin_refrigerio_marcado,
+            "en_curso" => $en_refrigerio,
+            "hora_inicio_marcada" => $asistencia ? $asistencia['inicio_refrigerio'] : null,
+            "hora_fin_marcada" => $asistencia ? $asistencia['fin_refrigerio'] : null,
+            "minutos_en_refrigerio" => $minutos_en_refrigerio
+        ]
     ]);
 }
 
@@ -139,9 +165,23 @@ else if ($method === 'GET' && $accion === 'mi_asistencia_hoy') {
         $siguiente_accion = 'iniciar_refrigerio';
     }
 
+    $stmtCfg = $db->query("SELECT clave, valor FROM configuracion WHERE clave IN ('rrhh_refrigerio_inicio', 'rrhh_refrigerio_fin', 'rrhh_refrigerio_minutos')");
+    $cfgs = $stmtCfg ? $stmtCfg->fetchAll(PDO::FETCH_KEY_PAIR) : [];
+    $ref_inicio = !empty($cfgs['rrhh_refrigerio_inicio']) ? $cfgs['rrhh_refrigerio_inicio'] : '13:00';
+    $ref_fin = !empty($cfgs['rrhh_refrigerio_fin']) ? $cfgs['rrhh_refrigerio_fin'] : '15:00';
+    $ref_minutos = !empty($cfgs['rrhh_refrigerio_minutos']) ? (int)$cfgs['rrhh_refrigerio_minutos'] : 60;
+    $hora_actual = date('H:i');
+    $en_horario_refrigerio = ($hora_actual >= $ref_inicio && $hora_actual <= $ref_fin);
+
     respondSuccess([
         "user" => $user,
         "asistencia" => $asistencia ?: null,
+        "refrigerio_config" => [
+            "horario_activo" => $en_horario_refrigerio,
+            "hora_inicio" => $ref_inicio,
+            "hora_fin" => $ref_fin,
+            "duracion_minutos" => $ref_minutos
+        ],
         "marcas" => [
             "ingreso" => [
                 "marcado" => $marcado_ingreso,
@@ -984,15 +1024,18 @@ else if ($method === 'GET' && $accion === 'totp_supervisor') {
     
     $qrUrl = GoogleAuthenticator::getQrCodeUrl($empresa, 'Supervisor RRHH', $secret);
     
-    // Obtener también la tolerancia configurada
-    $stmtTol = $db->query("SELECT valor FROM configuracion WHERE clave = 'rrhh_tolerancia_tardanza_minutos' LIMIT 1");
-    $tolerancia = $stmtTol ? ($stmtTol->fetchColumn() ?: '15') : '15';
-    
+    // Obtener tolerancia y horario de refrigerio configurado
+    $stmtCfg = $db->query("SELECT clave, valor FROM configuracion WHERE clave IN ('rrhh_tolerancia_tardanza_minutos', 'rrhh_refrigerio_inicio', 'rrhh_refrigerio_fin', 'rrhh_refrigerio_minutos')");
+    $cfgs = $stmtCfg ? $stmtCfg->fetchAll(PDO::FETCH_KEY_PAIR) : [];
+
     respondSuccess([
         'secret' => $secret,
         'empresa' => $empresa,
         'qr_url' => $qrUrl,
-        'tolerancia_minutos' => $tolerancia
+        'tolerancia_minutos' => isset($cfgs['rrhh_tolerancia_tardanza_minutos']) ? $cfgs['rrhh_tolerancia_tardanza_minutos'] : '15',
+        'refrigerio_inicio' => isset($cfgs['rrhh_refrigerio_inicio']) ? $cfgs['rrhh_refrigerio_inicio'] : '13:00',
+        'refrigerio_fin' => isset($cfgs['rrhh_refrigerio_fin']) ? $cfgs['rrhh_refrigerio_fin'] : '15:00',
+        'refrigerio_minutos' => isset($cfgs['rrhh_refrigerio_minutos']) ? $cfgs['rrhh_refrigerio_minutos'] : '60'
     ]);
 }
 
@@ -1014,12 +1057,29 @@ else if ($method === 'POST' && $accion === 'regenerar_totp_supervisor') {
 
 else if ($method === 'POST' && $accion === 'guardar_ajustes_rrhh') {
     $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
-    $tolerancia = isset($input['tolerancia_minutos']) ? (int)$input['tolerancia_minutos'] : 15;
     
-    $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES ('rrhh_tolerancia_tardanza_minutos', :val) ON DUPLICATE KEY UPDATE valor = :val");
-    $stmt->execute([':val' => (string)$tolerancia]);
+    if (isset($input['tolerancia_minutos'])) {
+        $val = (string)(int)$input['tolerancia_minutos'];
+        $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES ('rrhh_tolerancia_tardanza_minutos', :val) ON DUPLICATE KEY UPDATE valor = :val");
+        $stmt->execute([':val' => $val]);
+    }
+    if (isset($input['refrigerio_inicio'])) {
+        $val = trim($input['refrigerio_inicio']);
+        $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES ('rrhh_refrigerio_inicio', :val) ON DUPLICATE KEY UPDATE valor = :val");
+        $stmt->execute([':val' => $val]);
+    }
+    if (isset($input['refrigerio_fin'])) {
+        $val = trim($input['refrigerio_fin']);
+        $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES ('rrhh_refrigerio_fin', :val) ON DUPLICATE KEY UPDATE valor = :val");
+        $stmt->execute([':val' => $val]);
+    }
+    if (isset($input['refrigerio_minutos'])) {
+        $val = (string)(int)$input['refrigerio_minutos'];
+        $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES ('rrhh_refrigerio_minutos', :val) ON DUPLICATE KEY UPDATE valor = :val");
+        $stmt->execute([':val' => $val]);
+    }
     
-    respondSuccess(null, "Ajustes de RRHH guardados exitosamente");
+    respondSuccess(null, "Ajustes de RRHH y horario de refrigerio guardados exitosamente");
 }
 
 // ==========================================

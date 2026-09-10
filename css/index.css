@@ -2979,3 +2979,278 @@ body.kiosk-mode .content-area {
     }
 }
 
+/* ==========================================================
+   Visor Biométrico y Cámara Rápida para Asistencias
+   ========================================================== */
+.asistencia-cam-wrapper {
+    width: 100%;
+    max-width: 330px;
+    min-height: 270px;
+    margin: 0 auto;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #090d16;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    border: 2px solid var(--border-color);
+}
+
+.asistencia-cam-wrapper video {
+    width: 100%;
+    min-height: 270px;
+    display: block;
+    object-fit: cover;
+    transform: scaleX(-1);
+}
+
+/* Flash fotográfico instantáneo */
+.cam-flash-overlay {
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 10;
+    transition: opacity 0.25s ease-out;
+}
+
+.cam-flash-overlay.active {
+    opacity: 0.95;
+    transition: none;
+}
+
+/* Overlay animado de inicialización biométrica */
+.asistencia-cam-loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at center, #111827 0%, #030712 100%);
+    color: #f3f4f6;
+    gap: 16px;
+    z-index: 5;
+    padding: 24px;
+    transition: opacity 0.3s ease;
+}
+
+.biometric-scanner-ring {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scanner-pulse-circle {
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(239, 68, 68, 0.4);
+    border-radius: 50%;
+    animation: bio-pulse 2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+.scanner-pulse-circle.delay-1 {
+    animation-delay: 0.6s;
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+.biometric-center-icon {
+    font-size: 36px;
+    color: var(--primary);
+    animation: icon-float 2s ease-in-out infinite;
+    z-index: 2;
+}
+
+@keyframes bio-pulse {
+    0% { transform: scale(0.6); opacity: 0.8; }
+    100% { transform: scale(1.6); opacity: 0; }
+}
+
+@keyframes icon-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+
+.biometric-loader-info {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.biometric-loader-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #f9fafb;
+    letter-spacing: 0.2px;
+}
+
+.biometric-loader-sub {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.biometric-progress-bar {
+    width: 140px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.biometric-progress-fill {
+    width: 45%;
+    height: 100%;
+    background: var(--primary);
+    border-radius: 2px;
+    animation: progress-indeterminate 1.4s infinite ease-in-out;
+}
+
+@keyframes progress-indeterminate {
+    0% { transform: translateX(-100%); width: 30%; }
+    50% { width: 60%; }
+    100% { transform: translateX(250%); width: 30%; }
+}
+
+/* HUD Biométrico Visual */
+.biometric-hud-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.hud-corner {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-color: rgba(255, 255, 255, 0.45);
+    border-style: solid;
+}
+
+.hud-corner.top-left { top: 14px; left: 14px; border-width: 2px 0 0 2px; border-top-left-radius: 6px; }
+.hud-corner.top-right { top: 14px; right: 14px; border-width: 2px 2px 0 0; border-top-right-radius: 6px; }
+.hud-corner.bottom-left { bottom: 14px; left: 14px; border-width: 0 0 2px 2px; border-bottom-left-radius: 6px; }
+.hud-corner.bottom-right { bottom: 14px; right: 14px; border-width: 0 2px 2px 0; border-bottom-right-radius: 6px; }
+
+.hud-oval-guide {
+    position: absolute;
+    inset: 22px;
+    border: 2px dashed rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+}
+
+.hud-laser-line {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, rgba(239, 68, 68, 0.8) 50%, transparent 100%);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+    animation: laser-sweep 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes laser-sweep {
+    0% { top: 25px; opacity: 0.3; }
+    50% { opacity: 0.9; }
+    100% { top: calc(100% - 25px); opacity: 0.3; }
+}
+
+/* Sensor Status Pill */
+.asistencia-sensor-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-sec);
+    margin-top: 10px;
+}
+
+[data-theme="dark"] .asistencia-sensor-status {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.sensor-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f59e0b;
+    animation: pulse-orange 1.5s infinite;
+}
+
+.sensor-dot.is-ready {
+    background: #10b981;
+    animation: none;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+
+/* Tarjeta Inteligente de Refrigerio en Login */
+.refrigerio-banner-card {
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 16px;
+    text-align: left;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+}
+
+.refrigerio-banner-card.warning {
+    border-left: 4px solid #f59e0b;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, var(--bg-main) 100%);
+}
+
+.refrigerio-banner-card.info {
+    border-left: 4px solid var(--primary);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, var(--bg-main) 100%);
+}
+
+.refrigerio-banner-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.refrigerio-banner-header i {
+    font-size: 28px;
+    color: #f59e0b;
+    flex-shrink: 0;
+}
+
+.refrigerio-banner-card.info .refrigerio-banner-header i {
+    color: var(--primary);
+}
+
+/* Floating Notice de Refrigerio dentro del ERP */
+.refrigerio-floating-notice {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    max-width: 360px;
+    width: calc(100% - 48px);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid #f59e0b;
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: slide-up-notice 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slide-up-notice {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+

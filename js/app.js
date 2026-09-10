@@ -861,41 +861,76 @@ function renderLogin(container) {
                 </div>
 
                 <div id="auth-step-cam" class="hidden" style="text-align:center;">
-                    <h3 id="auth-nombre-user" style="margin-bottom:6px; font-size: 18px; font-weight: 700;"></h3>
+                    <h3 id="auth-nombre-user" style="margin-bottom:4px; font-size: 19px; font-weight: 700;"></h3>
                     <p style="color:var(--text-sec); margin-bottom:14px; font-size: 13.5px;">Captura tu foto para registrar tu asistencia</p>
-                    <div style="width: 100%; max-width: 320px; min-height: 250px; margin: 0 auto; border-radius: 16px; overflow: hidden; background: #0b0f19; position: relative; box-shadow: 0 4px 24px rgba(0,0,0,0.18); border: 2px solid var(--border-color);">
-                        <!-- Spinner indicador de inicio de cámara -->
-                        <div id="asistencia-cam-loader" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b0f19; color: #94a3b8; gap: 12px; z-index: 3;">
-                            <div style="width: 42px; height: 42px; border-radius: 50%; border: 3px solid rgba(239,68,68,0.2); border-top-color: var(--primary); animation: spin 0.8s linear infinite;"></div>
-                            <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.2px;">Iniciando cámara rápida...</span>
+
+                    <div class="asistencia-cam-wrapper">
+                        <!-- Flash fotográfico al disparar -->
+                        <div id="asistencia-cam-flash" class="cam-flash-overlay"></div>
+
+                        <!-- Loader tecnológico biométrico -->
+                        <div id="asistencia-cam-loader" class="asistencia-cam-loader">
+                            <div class="biometric-scanner-ring">
+                                <div class="scanner-pulse-circle"></div>
+                                <div class="scanner-pulse-circle delay-1"></div>
+                                <i class="ph ph-scan biometric-center-icon"></i>
+                            </div>
+                            <div class="biometric-loader-info">
+                                <span class="biometric-loader-title" id="cam-loader-text">Inicializando sensor biométrico y GPS...</span>
+                                <span class="biometric-loader-sub" id="cam-loader-sub">Calibrando lente de alta precisión...</span>
+                            </div>
+                            <div class="biometric-progress-bar">
+                                <div class="biometric-progress-fill" id="cam-progress-fill"></div>
+                            </div>
                         </div>
-                        <video id="asistencia-video" autoplay playsinline muted style="width: 100%; min-height: 250px; display: block; object-fit: cover; transform: scaleX(-1);"></video>
+
+                        <video id="asistencia-video" autoplay playsinline muted></video>
                         <canvas id="asistencia-canvas" style="display:none;"></canvas>
-                        <!-- Guía facial visual -->
-                        <div style="position: absolute; inset: 18px; border: 2px dashed rgba(255,255,255,0.26); border-radius: 50%; pointer-events: none; z-index: 2;"></div>
+
+                        <!-- HUD Biométrico con visor facial -->
+                        <div class="biometric-hud-overlay">
+                            <div class="hud-corner top-left"></div>
+                            <div class="hud-corner top-right"></div>
+                            <div class="hud-corner bottom-left"></div>
+                            <div class="hud-corner bottom-right"></div>
+                            <div class="hud-oval-guide"></div>
+                            <div class="hud-laser-line"></div>
+                        </div>
                     </div>
-                    <button class="btn btn-primary" id="btn-capturar-entrada" style="margin-top:18px; width:100%; padding: 14px; font-size: 15px; font-weight: 600; border-radius: 12px;" onclick="capturarYMarcarEntrada()">
+
+                    <!-- Indicador dinámico de estado GPS y Lente -->
+                    <div id="asistencia-sensor-status" class="asistencia-sensor-status">
+                        <span class="sensor-dot"></span>
+                        <span id="sensor-status-msg">Calibrando lente y ubicación segura...</span>
+                    </div>
+
+                    <button class="btn btn-primary btn-lg" id="btn-capturar-entrada" style="margin-top:16px; width:100%; padding: 14px; font-size: 15px; font-weight: 600; border-radius: 14px;" onclick="capturarYMarcarEntrada()">
                         <i class="ph ph-camera"></i> Tomar Foto e Ingresar
                     </button>
-                    <button class="btn btn-secondary" style="margin-top:10px; width:100%;" onclick="reiniciarAuth()">Cancelar</button>
+                    <button class="btn btn-secondary" style="margin-top:10px; width:100%; padding: 12px; border-radius: 12px;" onclick="reiniciarAuth()">Cancelar</button>
                 </div>
 
                 <div id="auth-step-opciones" class="hidden" style="text-align:center;">
                     <div id="auth-opciones-avatar-container" style="background: rgba(239, 68, 68, 0.1); border-radius: 50%; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; overflow: hidden; border: 2px solid var(--primary);">
                         <i class="ph-fill ph-user-circle" style="font-size: 40px; color: var(--primary);"></i>
                     </div>
-                    <h3 id="auth-nombre-opciones" style="margin-bottom:8px; font-size: 20px;"></h3>
-                    <p style="color:var(--text-sec); margin-bottom:28px; font-size: 14px;">Tienes un turno laboral en curso.</p>
+                    <h3 id="auth-nombre-opciones" style="margin-bottom:6px; font-size: 20px; font-weight: 700;"></h3>
+                    <p id="auth-subtitulo-opciones" style="color:var(--text-sec); margin-bottom:18px; font-size: 14px;">Tienes un turno laboral en curso.</p>
                     
-                    <button class="btn btn-black" style="width:100%; padding: 16px; margin-bottom: 12px; font-size: 16px; border-radius: 16px; font-weight: 600;" onclick="ingresarAlSistema()">
-                        <i class="ph ph-squares-four"></i> Entrar al ERP
-                    </button>
+                    <!-- Contenedor dinámico de aviso de refrigerio -->
+                    <div id="auth-refrigerio-container" style="display:none;"></div>
+
+                    <div id="auth-opciones-normales">
+                        <button class="btn btn-black" style="width:100%; padding: 15px; margin-bottom: 12px; font-size: 15px; border-radius: 14px; font-weight: 600;" onclick="ingresarAlSistema()">
+                            <i class="ph ph-squares-four"></i> Entrar al ERP
+                        </button>
+                        
+                        <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--danger); width: 100%; padding: 15px; font-size: 15px; border-radius: 14px; font-weight: 600;" onclick="marcarSalida()">
+                            <i class="ph ph-sign-out"></i> Finalizar mi Turno
+                        </button>
+                    </div>
                     
-                    <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--danger); width: 100%; padding: 16px; font-size: 16px; border-radius: 16px; font-weight: 600;" onclick="marcarSalida()">
-                        <i class="ph ph-sign-out"></i> Finalizar mi Turno
-                    </button>
-                    
-                    <button class="btn" style="margin-top:12px; width:100%; padding: 16px; font-size: 15px; color: var(--text-sec); border-radius: 16px; background: transparent;" onclick="reiniciarAuth()">Cancelar</button>
+                    <button class="btn btn-ghost" style="margin-top:10px; width:100%; padding: 12px; font-size: 14px; color: var(--text-sec);" onclick="reiniciarAuth()">Cancelar</button>
                 </div>
                 
                 <div id="auth-step-despedida" class="hidden" style="text-align:center; padding: 30px 0;">
@@ -907,6 +942,10 @@ function renderLogin(container) {
             </div>
         </div>
     `;
+
+    if (typeof window.precargarGPS === 'function') {
+        window.precargarGPS();
+    }
 }
 
 // ==========================================
@@ -983,6 +1022,9 @@ window.refreshDashboardAttendance = async function(manual = false) {
         if (res.ok && json.status === 'success') {
             window.dashboardAttendanceState = json.data;
             renderDashboardAttendanceMarks(json.data);
+            if (window.verificarAvisoRefrigerioERP) {
+                window.verificarAvisoRefrigerioERP(json.data);
+            }
             if (manual && typeof showToast === 'function') {
                 showToast('Estado de jornada sincronizado', 'success');
             }
@@ -1155,6 +1197,7 @@ window.marcarRefrigerioInicio = async function() {
         });
         const json = await res.json();
         if (res.ok && json.status === 'success') {
+            document.getElementById('floating-refrigerio-notice')?.remove();
             showToast(json.message || 'Inicio de refrigerio registrado', 'success');
             window.refreshDashboardAttendance();
         } else {
@@ -1178,6 +1221,7 @@ window.marcarRefrigerioFin = async function() {
         });
         const json = await res.json();
         if (res.ok && json.status === 'success') {
+            document.getElementById('floating-refrigerio-notice')?.remove();
             showToast(json.message || 'Fin de refrigerio registrado', 'success');
             window.refreshDashboardAttendance();
         } else {
@@ -1264,6 +1308,91 @@ window.marcarIngresoDashboard = function() {
             }
         }
     );
+};
+
+// ==========================================
+// AVISO INTELIGENTE DE REFRIGERIO EN EL ERP
+// ==========================================
+window.verificarAvisoRefrigerioERP = function(attendanceData) {
+    if (!attendanceData) {
+        attendanceData = window.dashboardAttendanceState;
+    }
+    if (!attendanceData || !attendanceData.marcas) return;
+
+    // Eliminar aviso flotante anterior si existe
+    const existingNotice = document.getElementById('floating-refrigerio-notice');
+    if (existingNotice) existingNotice.remove();
+
+    // Solo si el turno de hoy está abierto y no ha marcado salida
+    if (attendanceData.estado !== 'abierto' || attendanceData.marcas.salida?.marcado) {
+        return;
+    }
+
+    const cfg = attendanceData.refrigerio_config;
+    const marcas = attendanceData.marcas;
+
+    // CASO 1: Ya está en refrigerio actualmente -> Recordar marcar retorno
+    if (attendanceData.en_refrigerio) {
+        const mins = marcas.fin_refrigerio?.minutos_transcurridos || 0;
+        const notice = document.createElement('div');
+        notice.id = 'floating-refrigerio-notice';
+        notice.className = 'refrigerio-floating-notice';
+        notice.innerHTML = `
+            <div class="notice-icon"><i class="ph-fill ph-bowl-food"></i></div>
+            <div class="notice-content">
+                <div class="notice-title">Turno en Pausa: Refrigerio en curso</div>
+                <div class="notice-desc">Llevas ${mins > 0 ? mins + ' min' : 'unos momentos'} en almuerzo. Al terminar, registra tu retorno para reanudar tu jornada.</div>
+                <div class="notice-actions">
+                    <button class="notice-btn notice-btn-primary" onclick="window.marcarRefrigerioFin()">
+                        <i class="ph ph-check-fat"></i> Marcar Fin de Refrigerio
+                    </button>
+                    <button class="notice-btn notice-btn-ghost" onclick="document.getElementById('floating-refrigerio-notice')?.remove()">
+                        Cerrar aviso
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(notice);
+        return;
+    }
+
+    // CASO 2: Horario de refrigerio oficial activo y aún no ha marcado salida a almorzar
+    if (cfg && cfg.horario_activo && !marcas.inicio_refrigerio?.marcado) {
+        const pospuesto = sessionStorage.getItem('khalessi_refrig_pospuesto_hasta');
+        if (pospuesto && Date.now() < parseInt(pospuesto)) {
+            return; // Usuario solicitó recordar más tarde
+        }
+
+        const notice = document.createElement('div');
+        notice.id = 'floating-refrigerio-notice';
+        notice.className = 'refrigerio-floating-notice';
+        notice.innerHTML = `
+            <div class="notice-icon"><i class="ph-fill ph-coffee"></i></div>
+            <div class="notice-content">
+                <div class="notice-title">¡Es Horario de Refrigerio! (${cfg.hora_inicio || '13:00'} - ${cfg.hora_fin || '15:00'})</div>
+                <div class="notice-desc">¿Vas a tomar tu descanso de almuerzo (${cfg.duracion_minutos || 60} min)? Puedes marcar tu salida o posponer el aviso si aún no vas a almorzar.</div>
+                <div class="notice-actions">
+                    <button class="notice-btn notice-btn-primary" onclick="window.marcarRefrigerioInicio()">
+                        <i class="ph ph-coffee"></i> Marcar Salida a Refrigerio
+                    </button>
+                    <button class="notice-btn notice-btn-ghost" onclick="window.posponerAvisoRefrigerio(30)">
+                        Aún no (recordar en 30m)
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(notice);
+    }
+};
+
+window.posponerAvisoRefrigerio = function(minutos = 30) {
+    const hasta = Date.now() + (minutos * 60 * 1000);
+    sessionStorage.setItem('khalessi_refrig_pospuesto_hasta', hasta.toString());
+    const notice = document.getElementById('floating-refrigerio-notice');
+    if (notice) notice.remove();
+    if (typeof showToast === 'function') {
+        showToast(`Aviso de almuerzo pospuesto por ${minutos} min`, 'info');
+    }
 };
 
 function renderDashboard(container) {
@@ -1868,6 +1997,39 @@ async function renderRRHH(container) {
                                 <img id="cfg-totp-qr-img" src="" style="width:180px; height:180px; display:block;">
                             </div>
                             <p class="text-sec text-small mt-2" style="max-width:240px; margin:8px auto 0;">Abre Google Authenticator en tu celular, pulsa "+" y selecciona "Escanear código QR".</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuración de Horario Oficial de Refrigerio -->
+            <div class="card mb-4" style="border-left: 4px solid #f59e0b;">
+                <div class="card-header flex-between">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <i class="ph ph-coffee" style="font-size:20px; color:#f59e0b;"></i>
+                        <span style="font-weight:600;">Horario Oficial de Refrigerio (Almuerzo)</span>
+                    </div>
+                    <span class="badge" style="background:rgba(245,158,11,0.12); color:#d97706; font-weight:600;">Avisos Inteligentes</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-sec text-small mb-4">Define la franja horaria en la que el personal toma su refrigerio. Si un colaborador ingresa al sistema o tiene turno activo durante este horario, se le mostrará un aviso inteligente para marcar salida a refrigerio, registrar fin de refrigerio o ingresar directamente si aún no va a almorzar.</p>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; align-items:flex-end;">
+                        <div class="form-group mb-0">
+                            <label class="form-label font-bold">Inicio de Refrigerio</label>
+                            <input type="time" id="cfg-refrigerio-inicio" class="form-control" value="13:00">
+                        </div>
+                        <div class="form-group mb-0">
+                            <label class="form-label font-bold">Fin de Refrigerio</label>
+                            <input type="time" id="cfg-refrigerio-fin" class="form-control" value="15:00">
+                        </div>
+                        <div class="form-group mb-0">
+                            <label class="form-label font-bold">Duración Estándar (min)</label>
+                            <input type="number" id="cfg-refrigerio-minutos" class="form-control" value="60" min="15" max="180">
+                        </div>
+                        <div>
+                            <button class="btn btn-primary" onclick="guardarAjustesRefrigerio()" style="width:100%; height:42px;">
+                                <i class="ph ph-floppy-disk"></i> Guardar Horario
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -3672,10 +3834,41 @@ window.loadAjustesRRHHYTotp = async function() {
         const data = await res.json();
         if (res.ok && data.status === 'success') {
             document.getElementById('cfg-tolerancia-minutos').value = data.data.tolerancia_minutos || 15;
+            if (document.getElementById('cfg-refrigerio-inicio')) {
+                document.getElementById('cfg-refrigerio-inicio').value = data.data.refrigerio_inicio || '13:00';
+            }
+            if (document.getElementById('cfg-refrigerio-fin')) {
+                document.getElementById('cfg-refrigerio-fin').value = data.data.refrigerio_fin || '15:00';
+            }
+            if (document.getElementById('cfg-refrigerio-minutos')) {
+                document.getElementById('cfg-refrigerio-minutos').value = data.data.refrigerio_minutos || 60;
+            }
             document.getElementById('cfg-totp-secret').value = data.data.secret || '';
             document.getElementById('cfg-totp-qr-img').src = data.data.qr_url || '';
         }
     } catch(e) {}
+};
+
+window.guardarAjustesRefrigerio = async function() {
+    const refrigerio_inicio = document.getElementById('cfg-refrigerio-inicio')?.value || '13:00';
+    const refrigerio_fin = document.getElementById('cfg-refrigerio-fin')?.value || '15:00';
+    const refrigerio_minutos = parseInt(document.getElementById('cfg-refrigerio-minutos')?.value) || 60;
+
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/guardar_ajustes_rrhh', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ refrigerio_inicio, refrigerio_fin, refrigerio_minutos })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast('Horario de refrigerio actualizado con éxito', 'success');
+        } else {
+            showToast(data.message || 'Error al guardar horario de refrigerio', 'error');
+        }
+    } catch(e) {
+        showToast('Error de conexión con el servidor', 'error');
+    }
 };
 
 window.guardarToleranciaTardanza = async function() {
@@ -4417,7 +4610,7 @@ window.procesarDNI = async function() {
                     iniciarCamara();
                 }
             } else {
-                // ESCENARIO B: Ya tiene turno abierto -> Mostrar opciones
+                // ESCENARIO B: Ya tiene turno abierto -> Opciones inteligentes (Refrigerio o ERP)
                 document.getElementById('auth-nombre-opciones').innerText = `Hola de nuevo, ${user.nombre}`;
                 
                 const avatarContainer = document.getElementById('auth-opciones-avatar-container');
@@ -4427,6 +4620,88 @@ window.procesarDNI = async function() {
                     avatarContainer.innerHTML = `<i class="ph-fill ph-user-circle" style="font-size: 40px; color: var(--primary);"></i>`;
                 }
                 
+                const ref = data.data.refrigerio;
+                const refContainer = document.getElementById('auth-refrigerio-container');
+                const normalOpciones = document.getElementById('auth-opciones-normales');
+                const subTitle = document.getElementById('auth-subtitulo-opciones');
+
+                if (ref && (ref.en_curso || ref.horario_activo)) {
+                    if (ref.en_curso) {
+                        if (subTitle) subTitle.innerText = 'Actualmente te encuentras en tu horario de refrigerio.';
+                        if (refContainer) {
+                            refContainer.style.display = 'block';
+                            refContainer.innerHTML = `
+                                <div class="refrigerio-banner-card warning">
+                                    <div class="refrigerio-banner-header">
+                                        <span class="refrigerio-banner-badge">
+                                            <i class="ph ph-fork-knife"></i> En Refrigerio
+                                        </span>
+                                        <span class="refrigerio-banner-time">Llevas ${ref.minutos_en_refrigerio} min</span>
+                                    </div>
+                                    <div class="refrigerio-banner-title">¿Terminaste de almorzar?</div>
+                                    <div class="refrigerio-banner-desc">Registra el retorno a tus labores o accede al sistema si necesitas consultar algo mientras sigues en almuerzo.</div>
+                                    <div class="refrigerio-banner-actions">
+                                        <button class="btn btn-warning refrigerio-action-btn primary" onclick="marcarFinRefrigerioDesdeLogin('${dni}')">
+                                            <i class="ph ph-check-circle"></i> Marcar Fin de Refrigerio y Trabajar
+                                        </button>
+                                        <button class="btn btn-secondary refrigerio-action-btn" onclick="ingresarAlSistema()">
+                                            <i class="ph ph-squares-four"></i> Entrar al ERP (Sigo en Almuerzo)
+                                        </button>
+                                        <button class="btn btn-ghost refrigerio-action-btn" style="color:var(--danger);" onclick="marcarSalida()">
+                                            <i class="ph ph-sign-out"></i> Finalizar Turno de Hoy
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        if (normalOpciones) normalOpciones.style.display = 'none';
+                    } else if (ref.horario_activo && !ref.inicio_marcado) {
+                        if (subTitle) subTitle.innerText = `Horario oficial de almuerzo (${ref.hora_inicio} - ${ref.hora_fin})`;
+                        if (refContainer) {
+                            refContainer.style.display = 'block';
+                            refContainer.innerHTML = `
+                                <div class="refrigerio-banner-card info">
+                                    <div class="refrigerio-banner-header">
+                                        <span class="refrigerio-banner-badge">
+                                            <i class="ph ph-coffee"></i> Hora de Almuerzo
+                                        </span>
+                                        <span class="refrigerio-banner-time">${ref.hora_inicio} - ${ref.hora_fin}</span>
+                                    </div>
+                                    <div class="refrigerio-banner-title">¿Vas a salir a tu refrigerio?</div>
+                                    <div class="refrigerio-banner-desc">Puedes registrar tu salida al almuerzo (${ref.duracion_minutos} min estándar) o continuar hacia el sistema si aún no vas a almorzar.</div>
+                                    <div class="refrigerio-banner-actions">
+                                        <button class="btn btn-warning refrigerio-action-btn primary" onclick="marcarRefrigerioDesdeLogin('${dni}')">
+                                            <i class="ph ph-coffee"></i> Marcar Salida a Refrigerio
+                                        </button>
+                                        <button class="btn btn-black refrigerio-action-btn" onclick="ingresarAlSistema()">
+                                            <i class="ph ph-squares-four"></i> Entrar al ERP (Aún no almuerzo)
+                                        </button>
+                                        <button class="btn btn-ghost refrigerio-action-btn" style="color:var(--danger);" onclick="marcarSalida()">
+                                            <i class="ph ph-sign-out"></i> Finalizar Turno de Hoy
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        if (normalOpciones) normalOpciones.style.display = 'none';
+                    } else {
+                        // Horario activo pero ya marcó inicio y fin, o no aplica
+                        if (refContainer) {
+                            refContainer.style.display = 'none';
+                            refContainer.innerHTML = '';
+                        }
+                        if (normalOpciones) normalOpciones.style.display = 'block';
+                        if (subTitle) subTitle.innerText = 'Tienes un turno laboral en curso.';
+                    }
+                } else {
+                    if (refContainer) {
+                        refContainer.style.display = 'none';
+                        refContainer.innerHTML = '';
+                    }
+                    if (normalOpciones) normalOpciones.style.display = 'block';
+                    if (subTitle) subTitle.innerText = 'Tienes un turno laboral en curso.';
+                }
+
                 document.getElementById('auth-step-opciones').classList.remove('hidden');
             }
         } else {
@@ -4435,6 +4710,61 @@ window.procesarDNI = async function() {
             document.getElementById('auth-dni').value = '';
         }
     } catch (e) {
+        showToast('Error de conexión', 'error');
+    }
+};
+
+window.marcarRefrigerioDesdeLogin = async function(dni) {
+    dni = dni || window.currentDniAsistencia || document.getElementById('auth-dni').value.trim();
+    if (!dni) return;
+
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/marcar_refrigerio_inicio', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ dni })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast(data.message || 'Salida a refrigerio registrada. ¡Buen provecho!', 'success');
+            document.getElementById('auth-step-opciones').classList.add('hidden');
+            const desp = document.getElementById('auth-step-despedida');
+            if (desp) {
+                const h3 = desp.querySelector('h3');
+                const p = desp.querySelector('p');
+                if (h3) h3.innerText = '¡Buen provecho!';
+                if (p) p.innerText = 'Disfruta tu refrigerio. Al terminar, recuerda registrar tu retorno.';
+                desp.classList.remove('hidden');
+            } else {
+                reiniciarAuth();
+            }
+        } else {
+            showToast(data.message || 'Error al registrar salida a refrigerio', 'error');
+        }
+    } catch(e) {
+        showToast('Error de conexión', 'error');
+    }
+};
+
+window.marcarFinRefrigerioDesdeLogin = async function(dni) {
+    dni = dni || window.currentDniAsistencia || document.getElementById('auth-dni').value.trim();
+    if (!dni) return;
+
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/marcar_refrigerio_fin', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ dni })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast(data.message || 'Fin de refrigerio registrado. ¡De vuelta al trabajo!', 'success');
+            // Auto login directo al ERP
+            ingresarAlSistema();
+        } else {
+            showToast(data.message || 'Error al registrar fin de refrigerio', 'error');
+        }
+    } catch(e) {
         showToast('Error de conexión', 'error');
     }
 };
@@ -4498,6 +4828,7 @@ window.ingresarAlSistema = async function() {
 
 window.streamAsistencia = null;
 window.cachedPosition = null;
+window.camAnimationInterval = null;
 
 // Precarga anticipada de GPS para marcar asistencia al instante (0ms de espera)
 window.precargarGPS = function() {
@@ -4513,13 +4844,42 @@ window.precargarGPS = function() {
 window.iniciarCamara = async function() {
     const video = document.getElementById('asistencia-video');
     const loader = document.getElementById('asistencia-cam-loader');
+    const loaderText = document.getElementById('cam-loader-text');
+    const loaderSub = document.getElementById('cam-loader-sub');
+    const progressFill = document.getElementById('cam-progress-fill');
+    const sensorStatus = document.getElementById('asistencia-sensor-status');
+    const sensorMsg = document.getElementById('sensor-status-msg');
+    const sensorDot = sensorStatus?.querySelector('.sensor-dot');
+
     if (loader) loader.style.display = 'flex';
-    
+    if (progressFill) progressFill.style.width = '20%';
+    if (sensorDot) sensorDot.classList.remove('is-ready');
+
     // Iniciar precarga de GPS en paralelo
     window.precargarGPS();
 
     // Detener stream previo si existiera
     window.detenerCamara();
+
+    // Animación visual de pasos tecnológicos de calibración para eliminar sensación de espera
+    let step = 0;
+    const steps = [
+        { title: 'Conectando sensor de cámara...', sub: 'Iniciando captura óptica de alta velocidad...', pct: '45%' },
+        { title: 'Sincronizando coordenadas GPS...', sub: 'Validando geolocalización segura de la sede...', pct: '75%' },
+        { title: 'Sensor biométrico activo', sub: 'Encuadra tu rostro en el centro del visor...', pct: '95%' }
+    ];
+
+    clearInterval(window.camAnimationInterval);
+    window.camAnimationInterval = setInterval(() => {
+        if (step < steps.length) {
+            const current = steps[step];
+            if (loaderText) loaderText.innerText = current.title;
+            if (loaderSub) loaderSub.innerText = current.sub;
+            if (progressFill) progressFill.style.width = current.pct;
+            if (sensorMsg) sensorMsg.innerText = current.title;
+            step++;
+        }
+    }, 650);
 
     // Constraints optimizadas para respuesta ultrarrápida del hardware móvil/desktop
     const constraintsFast = {
@@ -4550,6 +4910,7 @@ window.iniciarCamara = async function() {
     }
 
     if (!stream) {
+        clearInterval(window.camAnimationInterval);
         if (loader) loader.style.display = 'none';
         showToast('No se pudo acceder a la cámara. Asegúrate de otorgar permisos en tu navegador.', 'error');
         reiniciarAuth();
@@ -4563,7 +4924,13 @@ window.iniciarCamara = async function() {
         video.setAttribute('playsinline', '');
 
         const hideLoader = () => {
-            if (loader) loader.style.display = 'none';
+            clearInterval(window.camAnimationInterval);
+            if (progressFill) progressFill.style.width = '100%';
+            setTimeout(() => {
+                if (loader) loader.style.display = 'none';
+                if (sensorDot) sensorDot.classList.add('is-ready');
+                if (sensorMsg) sensorMsg.innerHTML = '<strong>Lente activo • Sensor listo</strong> • Encuadra tu rostro';
+            }, 250);
         };
 
         video.onloadedmetadata = () => {
@@ -4572,12 +4939,13 @@ window.iniciarCamara = async function() {
         video.onplaying = hideLoader;
         video.onloadeddata = hideLoader;
 
-        // Quitar loader de seguridad
-        setTimeout(hideLoader, 1000);
+        // Quitar loader de seguridad tras arranque
+        setTimeout(hideLoader, 1600);
     }
 };
 
 window.detenerCamara = function() {
+    clearInterval(window.camAnimationInterval);
     if (window.streamAsistencia) {
         try {
             window.streamAsistencia.getTracks().forEach(track => track.stop());
@@ -4594,16 +4962,29 @@ window.capturarYMarcarEntrada = async function() {
     const video = document.getElementById('asistencia-video');
     const canvas = document.getElementById('asistencia-canvas');
     const btn = document.getElementById('btn-capturar-entrada');
+    const flash = document.getElementById('asistencia-cam-flash');
+    const sensorMsg = document.getElementById('sensor-status-msg');
     const dni = window.currentDniAsistencia || document.getElementById('auth-dni').value.trim();
     
     if (!video || !video.videoWidth) {
         showToast('Iniciando cámara, espera un momento...', 'info');
         return;
     }
+
+    // Disparar flash fotográfico biométrico de alta gama
+    if (flash) {
+        flash.classList.remove('active');
+        void flash.offsetWidth; // Forzar reflow
+        flash.classList.add('active');
+        setTimeout(() => flash.classList.remove('active'), 450);
+    }
     
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Procesando...';
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Registrando ingreso...';
+    }
+    if (sensorMsg) {
+        sensorMsg.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Validando biometría y coordenadas...';
     }
     
     const maxWidth = 640;
@@ -4668,12 +5049,18 @@ window.capturarYMarcarEntrada = async function() {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="ph ph-camera"></i> Tomar Foto e Ingresar';
             }
+            if (sensorMsg) {
+                sensorMsg.innerHTML = '<strong>Listo para reintentar</strong> • Encuadra tu rostro';
+            }
         }
     } catch (e) {
         showToast('Error de conexión al marcar asistencia', 'error');
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = '<i class="ph ph-camera"></i> Tomar Foto e Ingresar';
+        }
+        if (sensorMsg) {
+            sensorMsg.innerHTML = 'Error de conexión. Intenta nuevamente.';
         }
     }
 };
@@ -4703,13 +5090,32 @@ window.reiniciarAuth = function() {
     detenerCamara();
     window.currentTotpCode = '';
     window.currentDniAsistencia = '';
-    document.getElementById('auth-dni').value = '';
+    const dniInput = document.getElementById('auth-dni');
+    if (dniInput) dniInput.value = '';
     
     // Ocultar todos los pasos
     document.getElementById('auth-step-tardanza')?.classList.add('hidden');
     document.getElementById('auth-step-cam')?.classList.add('hidden');
     document.getElementById('auth-step-opciones')?.classList.add('hidden');
     document.getElementById('auth-step-despedida')?.classList.add('hidden');
+
+    // Resetear banner y botones de refrigerio
+    const refContainer = document.getElementById('auth-refrigerio-container');
+    if (refContainer) {
+        refContainer.innerHTML = '';
+        refContainer.style.display = 'none';
+    }
+    const opcNormales = document.getElementById('auth-opciones-normales');
+    if (opcNormales) opcNormales.style.display = 'block';
+
+    // Resetear texto de despedida a su valor por defecto
+    const desp = document.getElementById('auth-step-despedida');
+    if (desp) {
+        const h3 = desp.querySelector('h3');
+        const p = desp.querySelector('p');
+        if (h3) h3.innerText = '¡Excelente trabajo hoy!';
+        if (p) p.innerText = 'Que tengas un buen descanso.';
+    }
     
     // Mostrar paso 1
     if (document.getElementById('auth-subtitle-text')) document.getElementById('auth-subtitle-text').classList.remove('hidden');

@@ -2999,46 +2999,96 @@ function renderConfiguracion(container) {
 
         <!-- Modal Usuario -->
         <div class="modal-backdrop hidden" id="modal-usuario">
-            <div class="modal" style="max-width: 500px;">
+            <div class="modal" style="max-width: 620px; max-height: 92vh; display: flex; flex-direction: column;">
                 <div class="modal-header">
-                    <h3 id="modal-usuario-title">Crear Nuevo Usuario</h3>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <i class="ph ph-user-gear text-primary" style="font-size:22px;"></i>
+                        <h3 id="modal-usuario-title" style="margin:0;">Crear Nuevo Usuario</h3>
+                    </div>
                     <button class="btn-icon" onclick="cerrarModalUsuario()"><i class="ph ph-x"></i></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body" style="overflow-y:auto; padding: 20px;">
                     <input type="hidden" id="usuario_id">
                     
-                    <div class="form-group">
-                        <label class="form-label">Nombre Completo</label>
+                    <div class="form-group mb-3">
+                        <label class="form-label font-bold">Nombre Completo *</label>
                         <input type="text" class="form-control" id="usuario_nombre" placeholder="Ej. Juan Pérez">
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
                         <div class="form-group">
-                            <label class="form-label">DNI</label>
-                            <input type="text" class="form-control" id="usuario_dni" placeholder="Ej. 74839210">
+                            <label class="form-label font-bold">DNI *</label>
+                            <input type="text" class="form-control" id="usuario_dni" placeholder="Ej. 74839210" inputmode="numeric">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Celular</label>
-                            <input type="text" class="form-control" id="usuario_celular" placeholder="Ej. +52...">
+                            <label class="form-label font-bold">Celular / WhatsApp</label>
+                            <input type="text" class="form-control" id="usuario_celular" placeholder="Ej. 987654321" inputmode="tel">
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label">Correo Electrónico (Email)</label>
+                    <div class="form-group mb-3">
+                        <label class="form-label font-bold">Correo Electrónico (Email) *</label>
                         <input type="email" class="form-control" id="usuario_email" placeholder="juan@ejemplo.com">
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px;">
                         <div class="form-group">
-                            <label class="form-label">Rol del Sistema</label>
+                            <label class="form-label font-bold">Rol del Sistema *</label>
                             <select class="form-control" id="usuario_rol">
                                 <!-- Generado por JS -->
                             </select>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Contraseña</label>
+                            <label class="form-label font-bold">Contraseña</label>
                             <input type="password" class="form-control" id="usuario_password" placeholder="Min. 6 caracteres">
                             <span class="text-small text-sec" id="usuario_password_hint"></span>
+                        </div>
+                    </div>
+
+                    <!-- SECCIÓN LABORAL Y REMUNERACIÓN -->
+                    <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 4px;">
+                        <h4 style="font-size: 14px; margin-bottom: 14px; color: var(--primary); display: flex; align-items: center; gap: 8px;">
+                            <i class="ph ph-briefcase"></i> Cargo, Remuneración y Horario Laboral
+                        </h4>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
+                            <div class="form-group">
+                                <label class="form-label font-bold">Cargo / Puesto de Trabajo</label>
+                                <input type="text" class="form-control" id="usuario_cargo" placeholder="Ej. Maestro Pizzero, Cajero Principal">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label font-bold">Estado del Empleado</label>
+                                <select class="form-control" id="usuario_estado">
+                                    <option value="activo">Activo (En funciones)</option>
+                                    <option value="inactivo">Inactivo (Cesado / Suspendido)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px;">
+                            <div class="form-group">
+                                <label class="form-label font-bold">Salario Mensual (${AppConfig.get('moneda') || 'S/'})</label>
+                                <input type="number" step="0.01" min="0" class="form-control" id="usuario_sueldo_base" placeholder="Ej. 1500.00" inputmode="decimal">
+                                <p class="text-sec text-small" style="margin-top: 3px;">Monto base mensual para cálculo de planilla.</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label font-bold">Fecha de Contratación</label>
+                                <input type="date" class="form-control" id="usuario_fecha_contratacion">
+                                <p class="text-sec text-small" style="margin-top: 3px;">Fecha de ingreso a la empresa.</p>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+                            <div class="form-group">
+                                <label class="form-label font-bold">Hora de Entrada Habitual</label>
+                                <input type="time" class="form-control" id="usuario_hora_entrada">
+                                <p class="text-sec text-small" style="margin-top: 3px;">Para control de tardanzas y 2FA.</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label font-bold">Hora de Salida Habitual</label>
+                                <input type="time" class="form-control" id="usuario_hora_salida">
+                                <p class="text-sec text-small" style="margin-top: 3px;">Para cierre de jornada y horas extra.</p>
+                            </div>
                         </div>
                     </div>
 
@@ -4236,30 +4286,51 @@ window.renderUsuariosTable = function() {
         return;
     }
     
-    tbody.innerHTML = window.usuariosData.map(u => `
-        <tr>
-            <td>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    ${window.renderEmpleadoAvatar(u.nombre, u.apellido || '', u.foto_perfil, 34)}
-                    <div>
-                        <div class="fw-500">${u.nombre} ${u.apellido || ''}</div>
-                        <div class="text-small text-sec">${u.dni ? 'DNI: '+u.dni : ''}</div>
+    const moneda = AppConfig.get('moneda') || 'S/';
+
+    tbody.innerHTML = window.usuariosData.map(u => {
+        const cargoHtml = u.cargo ? `<span class="badge badge-secondary" style="font-size:10px; margin-right:4px;">${u.cargo}</span>` : '';
+        const sueldoHtml = (parseFloat(u.sueldo_base) > 0) ? `<div class="text-small" style="color:var(--success); font-weight:600; margin-top:2px;"><i class="ph ph-money"></i> ${moneda} ${parseFloat(u.sueldo_base).toFixed(2)}/mes</div>` : '';
+        const horarioHtml = (u.hora_entrada_asignada && u.hora_salida_asignada) ? `<div class="text-small text-sec" style="margin-top:2px;"><i class="ph ph-clock"></i> ${u.hora_entrada_asignada.substring(0,5)} - ${u.hora_salida_asignada.substring(0,5)}</div>` : '';
+        const estadoBadge = u.estado === 'inactivo' 
+            ? `<span class="badge badge-danger">Inactivo</span>` 
+            : `<span class="badge badge-success">Activo</span>`;
+
+        return `
+            <tr>
+                <td>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${window.renderEmpleadoAvatar(u.nombre, u.apellido || '', u.foto_perfil, 36)}
+                        <div>
+                            <div class="fw-500">${u.nombre} ${u.apellido || ''}</div>
+                            <div class="text-small text-sec" style="margin-top:2px;">
+                                ${cargoHtml}
+                                ${u.dni ? 'DNI: ' + u.dni : ''}
+                            </div>
+                            ${sueldoHtml}
+                        </div>
                     </div>
-                </div>
-            </td>
-            <td>
-                <div>${u.email}</div>
-                <div class="text-small text-sec">${u.celular || ''}</div>
-            </td>
-            <td><span class="badge badge-success">${u.rol_nombre || 'Sin Rol'}</span></td>
-            <td>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn-icon" onclick="abrirModalUsuario(${u.id})"><i class="ph ph-pencil-simple"></i></button>
-                    ${u.id != 1 ? `<button class="btn-icon text-danger" onclick="eliminarUsuario(${u.id})"><i class="ph ph-trash"></i></button>` : ''}
-                </div>
-            </td>
-        </tr>
-    `).join('');
+                </td>
+                <td>
+                    <div>${u.email}</div>
+                    <div class="text-small text-sec">${u.celular || ''}</div>
+                    ${horarioHtml}
+                </td>
+                <td>
+                    <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+                        <span class="badge badge-secondary" style="font-weight:600;">${u.rol_nombre || 'Sin Rol'}</span>
+                        ${estadoBadge}
+                    </div>
+                </td>
+                <td>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-icon" onclick="abrirModalUsuario(${u.id})" title="Editar Usuario y Ficha Laboral"><i class="ph ph-pencil-simple"></i></button>
+                        ${u.id != 1 ? `<button class="btn-icon text-danger" onclick="eliminarUsuario(${u.id})" title="Eliminar"><i class="ph ph-trash"></i></button>` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
 };
 
 window.abrirModalUsuario = function(id = null) {
@@ -4268,7 +4339,7 @@ window.abrirModalUsuario = function(id = null) {
     let u = null;
     if (id && window.usuariosData) {
         u = window.usuariosData.find(x => x.id == id);
-        document.getElementById('modal-usuario-title').innerText = 'Editar Usuario';
+        document.getElementById('modal-usuario-title').innerText = 'Editar Usuario y Ficha Laboral';
         document.getElementById('usuario_password_hint').innerText = '(Déjalo en blanco para no cambiarla)';
     } else {
         document.getElementById('modal-usuario-title').innerText = 'Crear Nuevo Usuario';
@@ -4281,6 +4352,14 @@ window.abrirModalUsuario = function(id = null) {
     document.getElementById('usuario_email').value = u ? u.email : '';
     document.getElementById('usuario_celular').value = u ? (u.celular || '') : '';
     document.getElementById('usuario_password').value = '';
+
+    // Campos Laborales y Remuneración
+    document.getElementById('usuario_cargo').value = u ? (u.cargo || '') : '';
+    document.getElementById('usuario_estado').value = u ? (u.estado || 'activo') : 'activo';
+    document.getElementById('usuario_sueldo_base').value = u && parseFloat(u.sueldo_base) > 0 ? parseFloat(u.sueldo_base).toFixed(2) : '';
+    document.getElementById('usuario_fecha_contratacion').value = u ? (u.fecha_contratacion || '') : '';
+    document.getElementById('usuario_hora_entrada').value = u && u.hora_entrada_asignada ? u.hora_entrada_asignada.substring(0, 5) : '';
+    document.getElementById('usuario_hora_salida').value = u && u.hora_salida_asignada ? u.hora_salida_asignada.substring(0, 5) : '';
     
     // Poblar combo de roles
     const rolSelect = document.getElementById('usuario_rol');
@@ -4306,6 +4385,14 @@ window.guardarUsuario = async function() {
     const celular = document.getElementById('usuario_celular').value;
     const password = document.getElementById('usuario_password').value;
     const id_rol = document.getElementById('usuario_rol').value;
+
+    // Campos Laborales y Remuneración
+    const cargo = document.getElementById('usuario_cargo').value;
+    const estado = document.getElementById('usuario_estado').value;
+    const sueldo_base = document.getElementById('usuario_sueldo_base').value;
+    const fecha_contratacion = document.getElementById('usuario_fecha_contratacion').value;
+    const hora_entrada_asignada = document.getElementById('usuario_hora_entrada').value;
+    const hora_salida_asignada = document.getElementById('usuario_hora_salida').value;
     
     if(!nombre.trim() || !email.trim() || !id_rol) {
         showToast('Nombre, Email y Rol son obligatorios', 'error');
@@ -4317,7 +4404,21 @@ window.guardarUsuario = async function() {
         return;
     }
     
-    const payload = { id, nombre, dni, email, celular, password, id_rol };
+    const payload = { 
+        id, 
+        nombre, 
+        dni, 
+        email, 
+        celular, 
+        password, 
+        id_rol,
+        cargo,
+        estado,
+        sueldo_base,
+        fecha_contratacion,
+        hora_entrada_asignada,
+        hora_salida_asignada
+    };
     
     try {
         const response = await fetch('/khalessierp/api/usuarios/save', {
@@ -4330,6 +4431,7 @@ window.guardarUsuario = async function() {
             showToast(res.message, 'success');
             cerrarModalUsuario();
             loadUsuarios();
+            if (typeof loadFichasPersonal === 'function') loadFichasPersonal();
         } else {
             showToast(res.message, 'error');
         }

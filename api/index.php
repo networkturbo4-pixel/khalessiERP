@@ -298,7 +298,9 @@ try {
         // ==========================================
         case 'usuarios':
             if ($method === 'GET' && $accion === 'list') {
-                $query = "SELECT u.id, u.id_rol, u.nombre, u.apellido, u.dni, u.email, u.celular, u.foto_perfil, u.bio, u.estado, u.fecha_creacion, r.nombre as rol_nombre 
+                $query = "SELECT u.id, u.id_rol, u.nombre, u.apellido, u.cargo, u.dni, u.email, u.celular, u.foto_perfil, u.bio, u.estado, 
+                                 u.fecha_contratacion, u.hora_entrada_asignada, u.hora_salida_asignada, u.sueldo_base, u.sueldo_por_hora, 
+                                 u.tipo_pago, u.horas_semanales_pactadas, u.fecha_creacion, r.nombre as rol_nombre 
                           FROM usuarios u 
                           JOIN roles r ON u.id_rol = r.id 
                           ORDER BY u.id DESC";
@@ -313,10 +315,16 @@ try {
                 $id_rol = isset($input['id_rol']) ? $input['id_rol'] : null;
                 $nombre = isset($input['nombre']) ? trim($input['nombre']) : '';
                 $apellido = isset($input['apellido']) ? trim($input['apellido']) : null;
+                $cargo = isset($input['cargo']) ? trim($input['cargo']) : null;
                 $dni = isset($input['dni']) ? trim($input['dni']) : null;
                 $email = isset($input['email']) ? trim($input['email']) : '';
                 $celular = isset($input['celular']) ? trim($input['celular']) : null;
                 $password = isset($input['password']) ? trim($input['password']) : '';
+                $estado = isset($input['estado']) && in_array($input['estado'], ['activo', 'inactivo']) ? $input['estado'] : 'activo';
+                $fecha_contratacion = isset($input['fecha_contratacion']) && !empty($input['fecha_contratacion']) ? $input['fecha_contratacion'] : null;
+                $hora_entrada_asignada = isset($input['hora_entrada_asignada']) && !empty($input['hora_entrada_asignada']) ? $input['hora_entrada_asignada'] : null;
+                $hora_salida_asignada = isset($input['hora_salida_asignada']) && !empty($input['hora_salida_asignada']) ? $input['hora_salida_asignada'] : null;
+                $sueldo_base = isset($input['sueldo_base']) && $input['sueldo_base'] !== '' ? floatval($input['sueldo_base']) : 0.00;
                 
                 if (empty($nombre) || empty($email) || empty($id_rol)) {
                     respondError("Nombre, correo y rol son obligatorios.");
@@ -324,25 +332,54 @@ try {
                 
                 if ($id) {
                     // Update
+                    $params = [
+                        ':id_rol' => $id_rol,
+                        ':nombre' => $nombre,
+                        ':apellido' => $apellido,
+                        ':cargo' => $cargo,
+                        ':dni' => $dni,
+                        ':email' => $email,
+                        ':celular' => $celular,
+                        ':estado' => $estado,
+                        ':fecha_contratacion' => $fecha_contratacion,
+                        ':hora_entrada_asignada' => $hora_entrada_asignada,
+                        ':hora_salida_asignada' => $hora_salida_asignada,
+                        ':sueldo_base' => $sueldo_base,
+                        ':id' => $id
+                    ];
+
                     if (!empty($password)) {
-                        $hash = password_hash($password, PASSWORD_DEFAULT);
-                        $query = "UPDATE usuarios SET id_rol = :id_rol, nombre = :nombre, apellido = :apellido, dni = :dni, email = :email, celular = :celular, password_hash = :hash WHERE id = :id";
-                        $stmt = $db->prepare($query);
-                        $stmt->execute([':id_rol' => $id_rol, ':nombre' => $nombre, ':apellido' => $apellido, ':dni' => $dni, ':email' => $email, ':celular' => $celular, ':hash' => $hash, ':id' => $id]);
+                        $params[':hash'] = password_hash($password, PASSWORD_DEFAULT);
+                        $query = "UPDATE usuarios SET id_rol = :id_rol, nombre = :nombre, apellido = :apellido, cargo = :cargo, dni = :dni, email = :email, celular = :celular, estado = :estado, fecha_contratacion = :fecha_contratacion, hora_entrada_asignada = :hora_entrada_asignada, hora_salida_asignada = :hora_salida_asignada, sueldo_base = :sueldo_base, password_hash = :hash WHERE id = :id";
                     } else {
-                        $query = "UPDATE usuarios SET id_rol = :id_rol, nombre = :nombre, apellido = :apellido, dni = :dni, email = :email, celular = :celular WHERE id = :id";
-                        $stmt = $db->prepare($query);
-                        $stmt->execute([':id_rol' => $id_rol, ':nombre' => $nombre, ':apellido' => $apellido, ':dni' => $dni, ':email' => $email, ':celular' => $celular, ':id' => $id]);
+                        $query = "UPDATE usuarios SET id_rol = :id_rol, nombre = :nombre, apellido = :apellido, cargo = :cargo, dni = :dni, email = :email, celular = :celular, estado = :estado, fecha_contratacion = :fecha_contratacion, hora_entrada_asignada = :hora_entrada_asignada, hora_salida_asignada = :hora_salida_asignada, sueldo_base = :sueldo_base WHERE id = :id";
                     }
+                    $stmt = $db->prepare($query);
+                    $stmt->execute($params);
                     respondSuccess(["id" => $id], "Usuario actualizado exitosamente");
                 } else {
                     // Create
                     if (empty($password)) respondError("La contraseña es obligatoria para nuevos usuarios");
                     $hash = password_hash($password, PASSWORD_DEFAULT);
-                    $query = "INSERT INTO usuarios (id_rol, nombre, apellido, dni, email, celular, password_hash) VALUES (:id_rol, :nombre, :apellido, :dni, :email, :celular, :hash)";
+                    $query = "INSERT INTO usuarios (id_rol, nombre, apellido, cargo, dni, email, celular, password_hash, estado, fecha_contratacion, hora_entrada_asignada, hora_salida_asignada, sueldo_base) 
+                              VALUES (:id_rol, :nombre, :apellido, :cargo, :dni, :email, :celular, :hash, :estado, :fecha_contratacion, :hora_entrada_asignada, :hora_salida_asignada, :sueldo_base)";
                     $stmt = $db->prepare($query);
                     try {
-                        $stmt->execute([':id_rol' => $id_rol, ':nombre' => $nombre, ':apellido' => $apellido, ':dni' => $dni, ':email' => $email, ':celular' => $celular, ':hash' => $hash]);
+                        $stmt->execute([
+                            ':id_rol' => $id_rol,
+                            ':nombre' => $nombre,
+                            ':apellido' => $apellido,
+                            ':cargo' => $cargo,
+                            ':dni' => $dni,
+                            ':email' => $email,
+                            ':celular' => $celular,
+                            ':hash' => $hash,
+                            ':estado' => $estado,
+                            ':fecha_contratacion' => $fecha_contratacion,
+                            ':hora_entrada_asignada' => $hora_entrada_asignada,
+                            ':hora_salida_asignada' => $hora_salida_asignada,
+                            ':sueldo_base' => $sueldo_base
+                        ]);
                         $id = $db->lastInsertId();
                         respondSuccess(["id" => $id], "Usuario creado exitosamente");
                     } catch (PDOException $e) {

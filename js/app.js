@@ -408,6 +408,14 @@ function renderAppLayout(container) {
                         ${logoCollapsed ? `<img src="${logoCollapsed}" class="topbar-mobile-logo">` : ''}
                     </div>
                     <div class="topbar-right">
+                        <!-- Aviso dinámico de actualización en la cabecera -->
+                        <div id="topbar-update-notice" style="display: none; align-items: center;">
+                            <button type="button" class="btn-update-topbar" onclick="window.irAActualizaciones()" title="Nueva versión disponible en GitHub">
+                                <span class="pulse-indicator"></span>
+                                <i class="ph ph-sparkle" style="color: #f59e0b; font-size: 15px;"></i>
+                                <span class="update-label">Actualización disponible</span>
+                            </button>
+                        </div>
                         <button class="btn-icon btn-kiosk" id="btn-toggle-kiosk" onclick="toggleModoKiosko()" title="Modo Pantalla Completa / Kiosko">
                             <i class="ph ph-corners-out" style="font-size: 20px;"></i>
                         </button>
@@ -461,6 +469,9 @@ function renderAppLayout(container) {
     setTimeout(() => {
         initPullToRefresh();
         initModalTouchDismiss();
+        if (typeof window.verificarActualizacionSilenciosa === 'function') {
+            window.verificarActualizacionSilenciosa();
+        }
     }, 100);
 }
 
@@ -4004,6 +4015,56 @@ function renderConfiguracion(container) {
                 </div>
             </div>
 
+            <!-- Card: Credenciales de Base de Datos de Producción (Blindadas) -->
+            <div class="card mb-4" id="card-sistema-bd" style="border: 1px solid var(--border);">
+                <div class="card-header flex-between">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <i class="ph ph-database" style="font-size: 20px; color: var(--primary);"></i>
+                        <span style="font-weight: 600;">Base de Datos de Producción (Blindada contra Actualizaciones)</span>
+                    </div>
+                    <span class="badge badge-success" id="badge-bd-protegida" style="font-size: 11px;">
+                        <i class="ph ph-shield-check"></i> Blindaje Activo
+                    </span>
+                </div>
+                <div class="card-body">
+                    <p class="text-small text-sec mb-3">
+                        Tus credenciales de conexión se protegen en <code>api/config.prod.php</code> (ignorado por Git). Al realizar cualquier actualización del sistema desde GitHub, el actualizador conservará intactas estas credenciales de forma automática para que <strong>nunca se borren ni se desconecte la base de datos</strong>.
+                    </p>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Servidor / Host</label>
+                            <input type="text" class="form-control" id="cfg_db_host" placeholder="localhost" value="localhost">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Nombre de Base de Datos</label>
+                            <input type="text" class="form-control" id="cfg_db_name" placeholder="khalessi_erp" value="khalessi_erp">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Usuario MySQL</label>
+                            <input type="text" class="form-control" id="cfg_db_user" placeholder="root" value="root">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Contraseña MySQL</label>
+                            <input type="password" class="form-control" id="cfg_db_pass" placeholder="••••••••">
+                        </div>
+                        <div class="form-group" style="margin: 0; max-width: 130px;">
+                            <label class="form-label">Puerto</label>
+                            <input type="text" class="form-control" id="cfg_db_port" placeholder="3306" value="3306">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="probarConexionBdProduccion()" id="btn-test-db">
+                            <i class="ph ph-plugs"></i> Probar Conexión BD
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="guardarCredencialesBdProduccion()" id="btn-save-db">
+                            <i class="ph ph-shield-check"></i> Guardar y Blindar Credenciales
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
                 <div class="card" style="opacity: 0.8; position: relative; overflow: hidden; margin-bottom: 0;">
                     <div style="position: absolute; top: 12px; right: 12px;"><span class="badge badge-warning">Próximamente</span></div>
@@ -4236,8 +4297,9 @@ window.switchConfigTab = function(tabName) {
     }
     document.getElementById('content-' + tabName)?.classList.remove('hidden');
 
-    if (tabName === 'conexiones' && window.loadInfoGitConexiones) {
-        window.loadInfoGitConexiones();
+    if (tabName === 'conexiones') {
+        if (window.loadInfoGitConexiones) window.loadInfoGitConexiones();
+        if (window.cargarCredencialesBdProduccion) window.cargarCredencialesBdProduccion();
     }
 };
 
@@ -6130,6 +6192,7 @@ window.loadInfoGitConexiones = async function() {
     const elBranch = document.getElementById('git-branch-name');
     const elRemote = document.getElementById('git-remote-url');
     const elDb = document.getElementById('git-db-migrations');
+    const alertEl = document.getElementById('git-update-status-alert');
     if (!elHash) return;
 
     try {
@@ -6137,9 +6200,47 @@ window.loadInfoGitConexiones = async function() {
         const data = await res.json();
         if (data.status === 'success' && data.data) {
             const info = data.data;
-            if (elHash) elHash.innerText = info.commit_hash || 'N/A';
-            if (elMsg) elMsg.innerText = info.commit_mensaje || '-';
-            if (elBranch) elBranch.innerText = info.branch || 'main';
+            if (info.is_git_repo) {
+                if (elHash) elHash.innerText = info.commit_hash || 'N/A';
+                if (elMsg) elMsg.innerText = info.commit_mensaje || '-';
+                if (elBranch) {
+                    elBranch.innerHTML = `<span style="color: var(--primary);"><i class="ph ph-git-commit"></i> ${info.branch || 'main'}</span>`;
+                }
+                if (alertEl && alertEl.getAttribute('data-unlinked') === 'true') {
+                    alertEl.style.display = 'none';
+                    alertEl.removeAttribute('data-unlinked');
+                }
+            } else {
+                if (elHash) elHash.innerHTML = `<span style="color: var(--text-sec); font-size: 12px;">Sin vincular</span>`;
+                if (elMsg) elMsg.innerText = 'Repositorio no inicializado en este servidor';
+                if (elBranch) {
+                    elBranch.innerHTML = `<span class="badge badge-warning" style="font-size: 11px; padding: 2px 6px;"><i class="ph ph-warning"></i> No vinculada</span>`;
+                }
+                if (alertEl && alertEl.style.display !== 'block') {
+                    alertEl.setAttribute('data-unlinked', 'true');
+                    alertEl.style.display = 'block';
+                    alertEl.style.background = 'rgba(245, 158, 11, 0.08)';
+                    alertEl.style.border = '1px solid var(--warning)';
+                    alertEl.style.color = 'var(--text-main)';
+                    alertEl.innerHTML = `
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--warning); margin-bottom: 2px;">
+                                    <i class="ph ph-warning-circle" style="font-size: 18px;"></i> Repositorio Git no inicializado en el servidor
+                                </div>
+                                <p style="margin: 0; font-size: 12px; color: var(--text-sec); max-width: 650px;">
+                                    Esta instalación no tiene la carpeta <code>.git</code> activa (muy común al transferir archivos por cPanel, FTP o ZIP).
+                                    Puedes vincularla con GitHub en 1 clic para habilitar las actualizaciones automáticas seguras.
+                                </p>
+                            </div>
+                            <button type="button" class="btn btn-warning btn-sm" onclick="vincularRepositorioGitHub()" id="btn-vincular-banner">
+                                <i class="ph ph-git-fork"></i> Vincular con GitHub Ahora (1-Click)
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+
             if (elRemote) elRemote.innerText = info.remote_url || 'https://github.com/networkturbo4-pixel/khalessiERP.git';
             if (elDb) {
                 elDb.innerText = `${info.total_migraciones} migración(es) aplicada(s)`;
@@ -6148,6 +6249,69 @@ window.loadInfoGitConexiones = async function() {
     } catch(e) {
         console.error('Error cargando información de git:', e);
     }
+};
+
+window.vincularRepositorioGitHub = function() {
+    confirmarAccion(
+        '¿Deseas vincular este servidor con el repositorio oficial de GitHub?<br><br><small class="text-sec">El sistema inicializará la conexión con GitHub de manera segura, descargará las ramas oficiales y ejecutará las nuevas migraciones de base de datos sin alterar tu configuración privada ni datos existentes.</small>',
+        async () => {
+            const btn = document.getElementById('btn-vincular-banner') || document.getElementById('btn-check-git');
+            const consoleWrap = document.getElementById('git-update-console-wrap');
+            const consoleEl = document.getElementById('git-update-console');
+            const alertEl = document.getElementById('git-update-status-alert');
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Vinculando...';
+            }
+            if (consoleWrap && consoleEl) {
+                consoleWrap.style.display = 'block';
+                consoleEl.innerText = 'Iniciando vinculación 1-Click con GitHub...\n[1/3] Configurando permisos y repositorio oficial...\n[2/3] Descargando ramas y sincronizando índices...\n';
+            }
+
+            try {
+                const res = await fetch('/khalessierp/api/index.php?request=sistema/vincular_git', {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    showToast('¡Repositorio vinculado y sincronizado con éxito!', 'success');
+                    if (consoleEl) {
+                        consoleEl.innerText += `[3/3] Operación finalizada con éxito.\n\n${data.data.logs || 'Vinculación completada.'}`;
+                    }
+                    if (alertEl) {
+                        alertEl.removeAttribute('data-unlinked');
+                        alertEl.style.display = 'block';
+                        alertEl.style.background = 'rgba(16, 185, 129, 0.1)';
+                        alertEl.style.border = '1px solid var(--success)';
+                        alertEl.style.color = 'var(--success)';
+                        alertEl.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                                <i class="ph ph-check-circle" style="font-size: 18px;"></i> Repositorio vinculado y sincronizado con éxito con GitHub.
+                            </div>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-sec);">
+                                Versión activa: <code>${data.data.nuevo_commit || 'al día'}</code>. El sistema ya puede recibir actualizaciones automáticas.
+                            </p>
+                        `;
+                    }
+                    loadInfoGitConexiones();
+                } else {
+                    showToast(data.message || 'Error al vincular repositorio', 'error');
+                    if (consoleEl) {
+                        consoleEl.innerText += `\n[ERROR] ${data.message || 'Error de vinculación'}`;
+                    }
+                }
+            } catch(e) {
+                showToast('Error de conexión con el servidor', 'error');
+                if (consoleEl) consoleEl.innerText += '\n[ERROR] Error de conexión de red.';
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph ph-git-fork"></i> Vincular con GitHub Ahora (1-Click)';
+                }
+            }
+        }
+    );
 };
 
 window.comprobarActualizacionGitHub = async function() {
@@ -6168,7 +6332,26 @@ window.comprobarActualizacionGitHub = async function() {
             const info = data.data;
             if (alertEl) {
                 alertEl.style.display = 'block';
-                if (info.hay_actualizacion) {
+                if (info.requiere_vinculacion || !info.is_git_repo) {
+                    alertEl.style.background = 'rgba(245, 158, 11, 0.1)';
+                    alertEl.style.border = '1px solid var(--warning)';
+                    alertEl.style.color = 'var(--text-main)';
+                    alertEl.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--warning);">
+                            <i class="ph ph-warning-circle" style="font-size: 18px;"></i> Repositorio Git pendiente de vincular en este servidor
+                        </div>
+                        <p style="margin: 4px 0 8px 0; font-size: 13px;">
+                            Última versión disponible en GitHub: <code>${info.remote_commit || 'main'}</code>
+                        </p>
+                        <p style="margin: 0 0 10px 0; font-size: 12px; color: var(--text-sec);">
+                            Esta instalación no tiene activa la carpeta <code>.git</code>. Haz clic a continuación para vincular y sincronizar automáticamente.
+                        </p>
+                        <button class="btn btn-warning btn-sm" onclick="vincularRepositorioGitHub()">
+                            <i class="ph ph-git-fork"></i> Vincular Repositorio Git Ahora (1-Click)
+                        </button>
+                    `;
+                    showToast('Se requiere vincular repositorio', 'warning');
+                } else if (info.hay_actualizacion) {
                     const commitsHtml = info.commits_pendientes && info.commits_pendientes.length 
                         ? `<ul style="margin: 8px 0 0 16px; font-family: monospace; font-size: 12px;">${info.commits_pendientes.map(c => `<li>${c}</li>`).join('')}</ul>`
                         : '';
@@ -6189,6 +6372,7 @@ window.comprobarActualizacionGitHub = async function() {
                             </button>
                         </div>
                     `;
+                    showToast('Nuevas actualizaciones disponibles', 'info');
                 } else {
                     alertEl.style.background = 'rgba(16, 185, 129, 0.1)';
                     alertEl.style.border = '1px solid var(--success)';
@@ -6201,9 +6385,9 @@ window.comprobarActualizacionGitHub = async function() {
                             Commit actual: <code>${info.local_commit || 'al día'}</code>. No hay cambios pendientes.
                         </p>
                     `;
+                    showToast('El sistema está actualizado', 'info');
                 }
             }
-            showToast(info.hay_actualizacion ? 'Nuevas actualizaciones disponibles' : 'El sistema está actualizado', 'info');
         } else {
             showToast(data.message || 'Error al comprobar actualizaciones', 'error');
         }
@@ -6219,7 +6403,7 @@ window.comprobarActualizacionGitHub = async function() {
 
 window.confirmarActualizacion1Click = function() {
     confirmarAccion(
-        '¿Deseas ejecutar la Actualización 1-Click ahora?<br><br><small class="text-sec">El sistema descargará los cambios de GitHub y correrá automáticamente las nuevas migraciones de base de datos de manera incremental y segura sin tocar la data existente.</small>',
+        '¿Deseas ejecutar la Actualización 1-Click ahora?<br><br><small class="text-sec">El sistema descargará los cambios de GitHub y correrá automáticamente las nuevas migraciones de base de datos de manera incremental y segura sin tocar la data existente ni la configuración del servidor.</small>',
         () => {
             ejecutarActualizacion1Click();
         }
@@ -6239,7 +6423,7 @@ window.ejecutarActualizacion1Click = async function() {
 
     if (consoleWrap && consoleEl) {
         consoleWrap.style.display = 'block';
-        consoleEl.innerText = 'Iniciando actualización 1-Click...\n[1/2] Conectando con GitHub para git pull origin main...\n';
+        consoleEl.innerText = 'Iniciando actualización 1-Click...\n[1/2] Conectando con GitHub para sincronizar cambios...\n';
     }
 
     try {
@@ -6307,5 +6491,190 @@ window.ejecutarMigracionesSeguras = async function() {
         }
     } catch(e) {
         showToast('Error de conexión', 'error');
+    }
+};
+
+// ========================================================
+// AVISO DINÁMICO DE ACTUALIZACIONES EN LA CABECERA (TOPBAR)
+// ========================================================
+
+window.verificarActualizacionSilenciosa = async function() {
+    try {
+        const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
+        const isAdministrador = user.rol_nombre && user.rol_nombre.toLowerCase() === 'administrador';
+        if (!isAdministrador) return; // Solo administradores deben ver aviso de actualización del sistema
+
+        const noticeEl = document.getElementById('topbar-update-notice');
+        if (!noticeEl) return;
+
+        // Comprobar cache local para no saturar la red (ej. cada 15 minutos)
+        const cacheKey = 'khalessi_update_check';
+        const cached = localStorage.getItem(cacheKey);
+        const now = Date.now();
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (now - parsed.timestamp < 15 * 60 * 1000) {
+                    if (parsed.hay_actualizacion || parsed.requiere_vinculacion) {
+                        noticeEl.style.display = 'inline-flex';
+                    } else {
+                        noticeEl.style.display = 'none';
+                    }
+                    return;
+                }
+            } catch(e) {}
+        }
+
+        const res = await fetch('/khalessierp/api/index.php?request=sistema/check_update', {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            const info = data.data;
+            const tieneNovedad = (info.hay_actualizacion === true || info.requiere_vinculacion === true);
+            localStorage.setItem(cacheKey, JSON.stringify({
+                timestamp: now,
+                hay_actualizacion: info.hay_actualizacion,
+                requiere_vinculacion: info.requiere_vinculacion
+            }));
+
+            if (tieneNovedad) {
+                noticeEl.style.display = 'inline-flex';
+            } else {
+                noticeEl.style.display = 'none';
+            }
+        }
+    } catch(e) {
+        // Silencioso, no interrumpe al usuario
+    }
+};
+
+window.irAActualizaciones = function() {
+    navigate('/configuracion');
+    setTimeout(() => {
+        if (typeof window.switchConfigTab === 'function') {
+            window.switchConfigTab('conexiones');
+        }
+        setTimeout(() => {
+            const card = document.getElementById('card-sistema-actualizacion');
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                card.style.transition = 'box-shadow 0.4s ease';
+                card.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.5)';
+                setTimeout(() => card.style.boxShadow = '', 2500);
+            }
+        }, 200);
+    }, 150);
+};
+
+// ========================================================
+// GESTIÓN Y BLINDAJE DE BASE DE DATOS DE PRODUCCIÓN
+// ========================================================
+
+window.cargarCredencialesBdProduccion = async function() {
+    const elHost = document.getElementById('cfg_db_host');
+    const elName = document.getElementById('cfg_db_name');
+    const elUser = document.getElementById('cfg_db_user');
+    const elPort = document.getElementById('cfg_db_port');
+    const badge = document.getElementById('badge-bd-protegida');
+    if (!elHost) return;
+
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=sistema/obtener_credenciales_bd');
+        const data = await res.json();
+        if (data.status === 'success' && data.data) {
+            const cred = data.data;
+            if (elHost) elHost.value = cred.host || 'localhost';
+            if (elName) elName.value = cred.db_name || 'khalessi_erp';
+            if (elUser) elUser.value = cred.username || 'root';
+            if (elPort) elPort.value = cred.port || '3306';
+            if (badge) {
+                if (cred.is_protected) {
+                    badge.className = 'badge badge-success';
+                    badge.innerHTML = '<i class="ph ph-shield-check"></i> Blindaje Activo (config.prod.php)';
+                } else {
+                    badge.className = 'badge badge-warning';
+                    badge.innerHTML = '<i class="ph ph-warning"></i> En memoria de db.php (Requiere Guardar)';
+                }
+            }
+        }
+    } catch(e) {
+        console.warn('Error cargando credenciales de BD:', e);
+    }
+};
+
+window.probarConexionBdProduccion = async function() {
+    const btn = document.getElementById('btn-test-db');
+    const host = document.getElementById('cfg_db_host')?.value.trim();
+    const db_name = document.getElementById('cfg_db_name')?.value.trim();
+    const username = document.getElementById('cfg_db_user')?.value.trim();
+    const password = document.getElementById('cfg_db_pass')?.value || '';
+    const port = document.getElementById('cfg_db_port')?.value.trim() || '3306';
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Probando...';
+    }
+
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=sistema/probar_credenciales_bd', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host, db_name, username, password, port })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast('¡Conexión a MySQL exitosa!', 'success');
+        } else {
+            showToast(data.message || 'Error de conexión a la base de datos', 'error');
+        }
+    } catch(e) {
+        showToast('Error de comunicación con el servidor', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-plugs"></i> Probar Conexión BD';
+        }
+    }
+};
+
+window.guardarCredencialesBdProduccion = async function() {
+    const btn = document.getElementById('btn-save-db');
+    const host = document.getElementById('cfg_db_host')?.value.trim();
+    const db_name = document.getElementById('cfg_db_name')?.value.trim();
+    const username = document.getElementById('cfg_db_user')?.value.trim();
+    const password = document.getElementById('cfg_db_pass')?.value || '';
+    const port = document.getElementById('cfg_db_port')?.value.trim() || '3306';
+
+    if (!host || !db_name || !username) {
+        showToast('Servidor, base de datos y usuario son obligatorios', 'warning');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Guardando...';
+    }
+
+    try {
+        const res = await fetch('/khalessierp/api/index.php?request=sistema/guardar_credenciales_bd', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ host, db_name, username, password, port })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast(data.message, 'success');
+            cargarCredencialesBdProduccion();
+        } else {
+            showToast(data.message || 'Error al guardar credenciales', 'error');
+        }
+    } catch(e) {
+        showToast('Error de conexión con el servidor', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-shield-check"></i> Guardar y Blindar Credenciales';
+        }
     }
 };

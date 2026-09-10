@@ -4,7 +4,16 @@ window.AppConfig = {
     get: function(key) {
         try {
             const config = JSON.parse(localStorage.getItem('khalessi_config')) || {};
-            return config[key] !== undefined ? config[key] : '';
+            let val = config[key] !== undefined ? config[key] : '';
+            if (typeof val === 'string' && val.startsWith('/khalessierp/uploads/')) {
+                const base = typeof window.getAppBase === 'function' ? window.getAppBase() : (typeof window.APP_BASE === 'string' ? window.APP_BASE : '');
+                if (base === '') {
+                    val = val.replace('/khalessierp', '');
+                } else if (base !== '/khalessierp') {
+                    val = val.replace('/khalessierp', base);
+                }
+            }
+            return val;
         } catch(e) { return ''; }
     },
     setAll: function(data) {
@@ -182,14 +191,20 @@ window.closeSidebarMobile = function() {
     if (overlay) overlay.classList.remove('show');
 };
 
+window.getAppBase = function() {
+    return typeof window.APP_BASE === 'string' ? window.APP_BASE : (window.location.pathname.startsWith('/khalessierp') ? '/khalessierp' : '');
+};
+
 window.navigate = function(path) {
     window.closeSidebarMobile();
-    window.history.pushState({}, path, `/khalessierp${path}`);
+    const base = window.getAppBase();
+    window.history.pushState({}, path, `${base}${path}`);
     router();
 };
 
 function router() {
-    let path = window.location.pathname.replace('/khalessierp', '');
+    const base = window.getAppBase();
+    let path = base ? window.location.pathname.replace(base, '') : window.location.pathname;
     if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
     if (path === '/' || path === '') path = '/login';
     
@@ -207,7 +222,7 @@ function router() {
         if (!allowed && !isAdministrador) {
             let firstAllowed = user.permisos ? user.permisos.find(x => x.puede_ver == 1) : null;
             if (firstAllowed) {
-                window.history.replaceState({}, '/' + firstAllowed.modulo, `/khalessierp/${firstAllowed.modulo}`);
+                window.history.replaceState({}, '/' + firstAllowed.modulo, `${base}/${firstAllowed.modulo}`);
                 path = '/' + firstAllowed.modulo;
             } else {
                 document.getElementById('app').innerHTML = '<div style="padding:40px; text-align:center;"><h2>Acceso Denegado</h2><p>No tienes permisos asignados.</p></div>';
@@ -490,7 +505,8 @@ window.updateFabForPath = function(path) {
 
 window.handleFabClick = function() {
     triggerHaptic(25);
-    const path = window.location.pathname.replace('/khalessierp', '') || '/dashboard';
+    const base = window.getAppBase();
+    const path = (base ? window.location.pathname.replace(base, '') : window.location.pathname) || '/dashboard';
     if (path === '/rrhh') {
         if (typeof abrirModalAusencia === 'function') abrirModalAusencia();
     } else if (path === '/inventario') {
@@ -541,7 +557,8 @@ window.initPullToRefresh = function() {
         if (touchDistance > 80 && window.scrollY <= 5) {
             triggerHaptic([30, 50, 30]);
             ptr.classList.add('refreshing');
-            const path = window.location.pathname.replace('/khalessierp', '');
+            const base = window.getAppBase();
+            const path = base ? window.location.pathname.replace(base, '') : window.location.pathname;
             try {
                 if (path === '/rrhh' && typeof refrescarRRHHActual === 'function') {
                     await refrescarRRHHActual();
@@ -2782,7 +2799,8 @@ window.copiarEnlaceBoletaPublica = function() {
 
     const mesInput = document.getElementById('filtro-personal-mes');
     const mes = (item.metricas && item.metricas.mes) ? item.metricas.mes : (mesInput ? mesInput.value : '');
-    const url = `${window.location.origin}/khalessierp/boleta?u=${item.usuario.id}&mes=${encodeURIComponent(mes)}`;
+    const base = window.getAppBase();
+    const url = `${window.location.origin}${base}/boleta?u=${item.usuario.id}&mes=${encodeURIComponent(mes)}`;
     
     window.copiarTextoAlPortapapeles(url, '¡Enlace de boleta pública copiado al portapapeles!');
 };
@@ -2839,6 +2857,7 @@ window.renderBoletaPublica = async function(container) {
     const logoDark = AppConfig.get('logo_dark');
     const logoSrc = logoLight || logoDark;
     const moneda = AppConfig.get('moneda') || 'S/';
+    const base = window.getAppBase();
 
     if (!userId) {
         container.innerHTML = `
@@ -2849,7 +2868,7 @@ window.renderBoletaPublica = async function(container) {
                     </div>
                     <h3 style="margin-bottom:8px;">Parámetro no especificado</h3>
                     <p class="text-sec" style="font-size:13px; margin-bottom:20px;">No se especificó el identificador del colaborador para mostrar su boleta de pago.</p>
-                    <a href="/khalessierp/login" class="btn btn-primary" style="text-decoration:none;"><i class="ph ph-sign-in"></i> Ir al Acceso del Sistema</a>
+                    <a href="${base}/login" class="btn btn-primary" style="text-decoration:none;"><i class="ph ph-sign-in"></i> Ir al Acceso del Sistema</a>
                 </div>
             </div>
         `;
@@ -2878,7 +2897,7 @@ window.renderBoletaPublica = async function(container) {
                         </div>
                         <h3 style="margin-bottom:8px;">Boleta no disponible</h3>
                         <p class="text-sec" style="font-size:13px; margin-bottom:20px;">No se encontró información salarial registrada para el colaborador en el período ${mes}.</p>
-                        <a href="/khalessierp/login" class="btn btn-secondary" style="text-decoration:none;"><i class="ph ph-sign-in"></i> Acceso al Sistema</a>
+                        <a href="${base}/login" class="btn btn-secondary" style="text-decoration:none;"><i class="ph ph-sign-in"></i> Acceso al Sistema</a>
                     </div>
                 </div>
             `;

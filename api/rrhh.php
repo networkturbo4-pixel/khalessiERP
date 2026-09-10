@@ -192,7 +192,7 @@ else if ($method === 'POST' && $accion === 'marcar_entrada') {
     $file = $uploadDir . $filename;
     file_put_contents($file, $image_base64);
     
-    $foto_url = '/khalessierp/uploads/asistencia/' . $filename;
+    $foto_url = 'uploads/asistencia/' . $filename;
     
     $stmt = $db->prepare("INSERT INTO rrhh_asistencias (id_usuario, fecha_hora_entrada, foto_entrada_url, estado, condicion, minutos_tardanza, autorizado_por_totp, latitud, longitud) 
                           VALUES (:id_user, NOW(), :foto, 'abierto', :condicion, :tardanza, :totp_auth, :lat, :lng)");
@@ -370,12 +370,12 @@ else if ($method === 'POST' && $accion === 'enviar_justificacion') {
             $data = base64_decode(str_replace(' ', '+', $parts[1]));
             $filename = 'just_' . $user['id'] . '_' . time() . '.' . $ext;
             file_put_contents($uploadDir . $filename, $data);
-            $foto_url = '/khalessierp/uploads/justificaciones/' . $filename;
+            $foto_url = 'uploads/justificaciones/' . $filename;
         } else if (is_array($foto_data) && isset($foto_data['tmp_name']) && is_uploaded_file($foto_data['tmp_name'])) {
             $ext = pathinfo($foto_data['name'], PATHINFO_EXTENSION);
             $filename = 'just_' . $user['id'] . '_' . time() . '.' . $ext;
             if (move_uploaded_file($foto_data['tmp_name'], $uploadDir . $filename)) {
-                $foto_url = '/khalessierp/uploads/justificaciones/' . $filename;
+                $foto_url = 'uploads/justificaciones/' . $filename;
             }
         }
     }

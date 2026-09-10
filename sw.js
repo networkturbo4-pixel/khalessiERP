@@ -1,9 +1,9 @@
-const CACHE_NAME = 'khalessi-v2'; // Bump version para invalidar caché vieja
+const CACHE_NAME = 'khalessi-v3';
 const ASSETS = [
-    '/khalessierp/',
-    '/khalessierp/index.html',
-    '/khalessierp/css/index.css',
-    '/khalessierp/js/app.js',
+    './',
+    './index.html',
+    './css/index.css',
+    './js/app.js',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap',
     'https://unpkg.com/@phosphor-icons/web'
 ];

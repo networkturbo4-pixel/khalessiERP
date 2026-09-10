@@ -1,6 +1,6 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /khalessierp/
+    # RewriteBase /khalessierp/
 
     # Si la petición es para /api/, enviarlo al enrutador PHP
     RewriteRule ^api/(.*)$ api/index.php?request=$1 [QSA,NC,L]

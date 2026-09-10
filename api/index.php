@@ -177,10 +177,9 @@ try {
                         // Limpiar nombre y asegurar extensión segura
                         $filename = $key . '_' . time() . '.' . $ext;
                         $targetPath = $uploadDir . $filename;
-                        
                         if (move_uploaded_file($file['tmp_name'], $targetPath)) {
                             // Guardar la ruta relativa en la configuración
-                            $input[$key] = '/khalessierp/uploads/logos/' . $filename;
+                            $input[$key] = 'uploads/logos/' . $filename;
                         }
                     }
                 }

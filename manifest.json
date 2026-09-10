@@ -2,7 +2,7 @@
     "name": "Khalessi ERP",
     "short_name": "Khalessi",
     "description": "Sistema ERP para Pizzería",
-    "start_url": "/khalessierp/",
+    "start_url": "./",
     "display": "standalone",
     "background_color": "#F8FAFC",
     "theme_color": "#EF4444",

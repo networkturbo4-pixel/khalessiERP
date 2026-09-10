@@ -5,13 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Khalessi ERP</title>
     
+    <!-- Dynamic Base Path Detection & Universal Compatibility -->
+    <script>
+        (function() {
+            var path = window.location.pathname;
+            var isSubdir = path.startsWith('/khalessierp');
+            window.APP_BASE = isSubdir ? '/khalessierp' : '';
+            var baseHref = isSubdir ? '/khalessierp/' : '/';
+            var baseEl = document.createElement('base');
+            baseEl.href = baseHref;
+            document.head.appendChild(baseEl);
+
+            // Interceptor transparente de Fetch para compatibilidad universal con APIs
+            var _origFetch = window.fetch;
+            window.fetch = function(input, init) {
+                if (typeof input === 'string') {
+                    if (window.APP_BASE === '' && input.startsWith('/khalessierp/')) {
+                        input = input.replace('/khalessierp', '');
+                    } else if (window.APP_BASE !== '' && window.APP_BASE !== '/khalessierp' && input.startsWith('/khalessierp/')) {
+                        input = input.replace('/khalessierp', window.APP_BASE);
+                    }
+                }
+                return _origFetch.apply(this, [input, init]);
+            };
+        })();
+    </script>
+    
     <!-- PWA -->
-    <link rel="manifest" href="/khalessierp/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#EF4444">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="/khalessierp/img/icon-192.png">
+    <link rel="apple-touch-icon" href="img/icon-192.png">
 
     <!-- Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,7 +54,7 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
     <!-- Global CSS -->
-    <link rel="stylesheet" href="/khalessierp/css/index.css">
+    <link rel="stylesheet" href="css/index.css">
 </head>
 <body>
     
@@ -173,12 +199,13 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/khalessierp/js/modules/inventario.js"></script>
-    <script src="/khalessierp/js/modules/recetas.js"></script>
-    <script src="/khalessierp/js/app.js"></script>
+    <script src="js/modules/inventario.js"></script>
+    <script src="js/modules/recetas.js"></script>
+    <script src="js/app.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/khalessierp/sw.js')
+            var swPath = (window.APP_BASE || '') + '/sw.js';
+            navigator.serviceWorker.register(swPath)
                 .then(reg => console.log('SW Registrado'))
                 .catch(err => console.error('Error SW', err));
         }

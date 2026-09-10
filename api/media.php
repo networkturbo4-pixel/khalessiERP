@@ -21,7 +21,7 @@ if ($method === 'POST' && $accion === 'upload') {
     $targetPath = $uploadDir . $filename;
 
     if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-        $url = '/khalessierp/uploads/media/' . $filename;
+        $url = 'uploads/media/' . $filename;
         respondSuccess(["url" => $url], "Archivo subido exitosamente");
     } else {
         respondError("No se pudo guardar el archivo en el servidor");
@@ -44,7 +44,7 @@ else if ($method === 'GET' && $accion === 'list') {
                 if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])) {
                     $mediaFiles[] = [
                         "name" => $file,
-                        "url" => '/khalessierp/uploads/media/' . $file,
+                        "url" => 'uploads/media/' . $file,
                         "time" => filemtime($path)
                     ];
                 }

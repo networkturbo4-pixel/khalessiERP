@@ -19,3 +19,7 @@ Thumbs.db
 # Carpetas de agentes o temporales
 .system_generated/
 scratch/
+
+# Configuración sensible de producción
+api/config.prod.php
+*.zip

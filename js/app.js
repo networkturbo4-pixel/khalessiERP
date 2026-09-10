@@ -688,18 +688,26 @@ async function renderRRHH(container) {
 
         <!-- 1. VISTA: HISTORIAL Y EXPORTACIÓN -->
         <div id="rrhh-view-historial">
-            <div class="card" style="margin-bottom: 24px;">
-                <div class="card-body" style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
-                    <div style="flex:1; min-width: 200px;">
-                        <label class="form-label">Desde</label>
-                        <input type="date" id="filtro-rrhh-inicio" class="form-control">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px;">
+                        <div>
+                            <label class="form-label font-bold" style="margin-bottom: 4px;">Desde</label>
+                            <input type="date" id="filtro-rrhh-inicio" class="form-control">
+                        </div>
+                        <div>
+                            <label class="form-label font-bold" style="margin-bottom: 4px;">Hasta</label>
+                            <input type="date" id="filtro-rrhh-fin" class="form-control">
+                        </div>
                     </div>
-                    <div style="flex:1; min-width: 200px;">
-                        <label class="form-label">Hasta</label>
-                        <input type="date" id="filtro-rrhh-fin" class="form-control">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-primary" style="flex: 1; min-width: 120px; justify-content: center;" onclick="loadHistorialAsistencia()">
+                            <i class="ph ph-funnel"></i> Filtrar
+                        </button>
+                        <button class="btn btn-secondary" style="flex: 1; min-width: 120px; justify-content: center;" onclick="exportarHistorialCSV()">
+                            <i class="ph ph-file-csv"></i> Exportar CSV
+                        </button>
                     </div>
-                    <button class="btn btn-primary" onclick="loadHistorialAsistencia()"><i class="ph ph-funnel"></i> Filtrar</button>
-                    <button class="btn btn-secondary" onclick="exportarHistorialCSV()"><i class="ph ph-file-csv"></i> Exportar CSV</button>
                 </div>
             </div>
 
@@ -773,23 +781,23 @@ async function renderRRHH(container) {
 
         <!-- 3. VISTA: FICHA DE PERSONAL Y PLANILLA -->
         <div id="rrhh-view-personal" class="hidden">
-            <div class="card mb-4">
-                <div class="card-body flex-between" style="flex-wrap:wrap; gap:14px; align-items:flex-end;">
-                    <div style="display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
-                        <div>
-                            <label class="form-label" style="font-weight:600;">Período Mensual</label>
-                            <input type="month" id="filtro-personal-mes" class="form-control" style="width:170px;" onchange="loadFichasPersonal()">
+            <div class="card mb-3">
+                <div class="card-body flex-between" style="flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; flex:1; min-width:260px;">
+                        <div style="flex:1; min-width:140px;">
+                            <label class="form-label font-bold" style="margin-bottom:4px;">Período Mensual</label>
+                            <input type="month" id="filtro-personal-mes" class="form-control" onchange="loadFichasPersonal()">
                         </div>
-                        <button class="btn btn-primary" onclick="loadFichasPersonal()"><i class="ph ph-arrows-clockwise"></i> Calcular Planilla</button>
+                        <button class="btn btn-primary" onclick="loadFichasPersonal()" style="white-space:nowrap; padding:9px 16px;"><i class="ph ph-arrows-clockwise"></i> Calcular Planilla</button>
                     </div>
-                    <div class="text-sec text-small">
-                        Moneda: <strong>${moneda}</strong> | Horas pactadas: <strong>48h/sem</strong>
+                    <div class="text-sec text-small" style="font-weight:500;">
+                        Moneda: <strong>${moneda}</strong> | Base: <strong>48h/sem</strong>
                     </div>
                 </div>
             </div>
 
-            <!-- Tarjetas de resumen métrico -->
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <!-- Tarjetas de resumen métrico (2 columnas en celular/tablet) -->
+            <div class="stat-grid-personal">
                 <div class="stat-card">
                     <div class="stat-icon" style="background: rgba(59, 130, 246, 0.1); color: var(--link);"><i class="ph ph-users-three"></i></div>
                     <div class="stat-details">
@@ -1100,18 +1108,18 @@ async function renderRRHH(container) {
 
         <!-- Modal Ficha Individual de Personal -->
         <div class="modal-backdrop" id="modal-ficha-individual">
-            <div class="modal" style="max-width: 760px; max-height: 92vh; display:flex; flex-direction:column;">
+            <div class="modal" style="max-width: 720px; max-height: 94vh; display:flex; flex-direction:column;">
                 <div class="modal-header">
                     <div style="display:flex; align-items:center; gap:8px;">
                         <i class="ph ph-identification-badge text-primary" style="font-size:22px;"></i>
                         <h3 style="font-size: 16px; margin: 0;">Ficha Laboral y Boleta de Pago</h3>
                     </div>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <button class="btn btn-secondary btn-sm" onclick="imprimirFichaIndividual()"><i class="ph ph-printer"></i> Imprimir</button>
+                        <button class="btn btn-secondary btn-sm mobile-hide" onclick="imprimirFichaIndividual()"><i class="ph ph-printer"></i> Imprimir</button>
                         <button class="btn-icon" onclick="cerrarModalFichaIndividual()"><i class="ph ph-x"></i></button>
                     </div>
                 </div>
-                <div class="modal-body" style="overflow-y:auto; padding:24px;" id="ficha-individual-printable">
+                <div class="modal-body" style="overflow-y:auto;" id="ficha-individual-printable">
                     <!-- Contenido inyectado por JS -->
                 </div>
                 <div class="modal-footer">
@@ -1223,6 +1231,88 @@ window.saveRolHorario = async function(id) {
         }
     } catch(e) {
         showToast('Error de conexión', 'error');
+    }
+};
+
+window.historialAsistenciaData = [];
+
+window.loadHistorialAsistencia = async function() {
+    const inicio = document.getElementById('filtro-rrhh-inicio')?.value || '';
+    const fin = document.getElementById('filtro-rrhh-fin')?.value || '';
+    const tbody = document.querySelector('#table-asistencia tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px;"><i class="ph ph-circle-notch ph-spin" style="font-size:24px;"></i><br>Cargando historial de asistencias...</td></tr>';
+
+    try {
+        let url = '/khalessierp/api/index.php?request=rrhh/historial';
+        if (inicio && fin) {
+            url += `&fecha_inicio=${encodeURIComponent(inicio)}&fecha_fin=${encodeURIComponent(fin)}`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+            window.historialAsistenciaData = data.data || [];
+            
+            if (window.historialAsistenciaData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-sec);"><i class="ph ph-calendar-blank" style="font-size:32px; display:block; margin-bottom:8px; opacity:0.5;"></i>No se encontraron registros de asistencia para las fechas seleccionadas.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = window.historialAsistenciaData.map(item => {
+                let condicionBadge = '<span class="badge badge-success">Puntual</span>';
+                if (item.condicion === 'tardanza') {
+                    const auth2FA = item.autorizado_por_totp == 1 ? '<i class="ph ph-shield-check" title="Autorizado por 2FA"></i> 2FA ' : '';
+                    condicionBadge = `<span class="badge badge-danger">${auth2FA}+${item.minutos_tardanza || 0}m tarde</span>`;
+                } else if (item.condicion === 'falta_justificada') {
+                    condicionBadge = '<span class="badge badge-warning">Falta Justificada</span>';
+                } else if (item.condicion === 'falta_injustificada') {
+                    condicionBadge = '<span class="badge badge-danger">Falta Injustificada</span>';
+                } else if (item.condicion === 'permiso') {
+                    condicionBadge = '<span class="badge badge-secondary">Permiso</span>';
+                }
+
+                let fotoBtn = '';
+                if (item.foto_entrada) {
+                    fotoBtn = `<button class="btn-icon btn-sm" onclick="verFotoAsistencia('${item.foto_entrada}')" title="Ver Fotografía"><i class="ph ph-camera"></i></button>`;
+                }
+                let gpsBtn = '';
+                if (item.latitud && item.longitud) {
+                    gpsBtn = `<button class="btn-icon btn-sm" onclick="window.open('https://www.google.com/maps?q=${item.latitud},${item.longitud}', '_blank')" title="Ver Ubicación GPS"><i class="ph ph-map-pin"></i></button>`;
+                }
+                const evidenciaHtml = (fotoBtn || gpsBtn) 
+                    ? `<div style="display:flex; gap:6px; align-items:center;">${fotoBtn}${gpsBtn}</div>` 
+                    : '<span class="text-sec text-small">Sin registro</span>';
+
+                const entradaTxt = item.fecha_hora_entrada || '--';
+                const salidaTxt = item.fecha_hora_salida || '<span class="text-warning font-bold">En turno</span>';
+                const horasTxt = item.minutos_trabajados ? `${(item.minutos_trabajados / 60).toFixed(1)} hrs` : '--';
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="fw-500">${item.nombre} ${item.apellido || ''}</div>
+                        </td>
+                        <td>${item.dni}</td>
+                        <td>
+                            <div style="font-weight:600;">${entradaTxt}</div>
+                            ${item.hora_entrada_asignada ? `<div class="text-sec text-small">Esperada: ${item.hora_entrada_asignada.substring(0,5)}</div>` : ''}
+                        </td>
+                        <td>
+                            <div>${salidaTxt}</div>
+                            <div class="text-sec text-small">${horasTxt}</div>
+                        </td>
+                        <td>${condicionBadge}</td>
+                        <td>${evidenciaHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+        } else {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger); padding:20px;">${data.message || 'Error cargando historial'}</td></tr>`;
+        }
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--danger); padding:20px;">Error de conexión con el servidor</td></tr>';
     }
 };
 
@@ -1759,94 +1849,96 @@ window.verFichaIndividualPersonal = function(id) {
 
     const container = document.getElementById('ficha-individual-printable');
     container.innerHTML = `
-        <div style="border-bottom: 2px solid var(--border); padding-bottom: 16px; margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="border-bottom: 2px solid var(--border); padding-bottom: 12px; margin-bottom: 16px; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
             <div>
-                <h2 style="margin:0 0 4px 0; font-size:22px; color:var(--primary);">${empresa}</h2>
-                <div class="text-sec" style="font-size:13px;">Ficha Individual de Asistencia y Liquidación de Sueldo</div>
+                <h2 style="margin:0 0 2px 0; font-size:19px; color:var(--primary); font-weight:700;">${empresa}</h2>
+                <div class="text-sec" style="font-size:12px;">Ficha Individual y Liquidación de Sueldo</div>
             </div>
-            <div style="text-align:right;">
-                <div style="font-weight:700; font-size:14px;">Período: ${m.mes}</div>
+            <div style="text-align:right; font-size:12px;">
+                <div style="font-weight:700; color:var(--text-main);">Período: ${m.mes}</div>
                 <div class="text-sec text-small">Generado: ${new Date().toLocaleDateString('es-PE')}</div>
             </div>
         </div>
 
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:14px; background:var(--bg-main); padding:16px; border-radius:12px; margin-bottom:20px; border:1px solid var(--border);">
+        <!-- Datos del Colaborador (2 columnas limpias) -->
+        <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; background:var(--bg-main); padding:12px 14px; border-radius:10px; margin-bottom:16px; border:1px solid var(--border);">
             <div>
-                <span class="text-sec text-small">Colaborador</span>
-                <div style="font-weight:600; font-size:14px; margin-top:2px;">${u.nombre} ${u.apellido || ''}</div>
+                <span class="text-sec text-small" style="display:block; font-size:11px;">Colaborador</span>
+                <div style="font-weight:600; font-size:13px; margin-top:2px; word-break:break-word;">${u.nombre} ${u.apellido || ''}</div>
             </div>
             <div>
-                <span class="text-sec text-small">Documento DNI</span>
-                <div style="font-weight:600; font-size:14px; margin-top:2px;">${u.dni}</div>
+                <span class="text-sec text-small" style="display:block; font-size:11px;">Documento DNI</span>
+                <div style="font-weight:600; font-size:13px; margin-top:2px;">${u.dni}</div>
             </div>
             <div>
-                <span class="text-sec text-small">Rol / Puesto</span>
-                <div style="font-weight:600; font-size:14px; margin-top:2px;">${u.rol}</div>
+                <span class="text-sec text-small" style="display:block; font-size:11px;">Puesto / Rol</span>
+                <div style="font-weight:600; font-size:13px; margin-top:2px;">${u.rol}</div>
             </div>
             <div>
-                <span class="text-sec text-small">Modalidad Salarial</span>
-                <div style="font-weight:600; font-size:14px; margin-top:2px; text-transform:capitalize;">${c.tipo_pago} (${moneda} ${c.sueldo_base})</div>
+                <span class="text-sec text-small" style="display:block; font-size:11px;">Modalidad Salarial</span>
+                <div style="font-weight:600; font-size:13px; margin-top:2px; text-transform:capitalize;">${c.tipo_pago} (${moneda} ${c.sueldo_base})</div>
             </div>
         </div>
 
-        <h4 style="margin-bottom:12px; font-size:15px;"><i class="ph ph-chart-bar"></i> Resumen de Registro y Cumplimiento</h4>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:24px;">
-            <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px; border-radius:10px; text-align:center;">
-                <span class="text-sec text-small">Horas Trabajadas (Mes)</span>
-                <div style="font-size:18px; font-weight:700; color:var(--primary); margin-top:4px;">${m.horas_mes} hrs</div>
+        <!-- Resumen de Registro y Cumplimiento (2 cols en celular, 4 en desktop) -->
+        <h4 style="margin-bottom:10px; font-size:14px; display:flex; align-items:center; gap:6px;"><i class="ph ph-chart-bar" style="color:var(--primary);"></i> Resumen de Registro y Cumplimiento</h4>
+        <div class="ficha-mini-stats-grid">
+            <div class="ficha-stat-box">
+                <span class="text-sec text-small">Horas Mes</span>
+                <div style="font-size:16px; font-weight:700; color:var(--primary); margin-top:2px;">${m.horas_mes} hrs</div>
             </div>
-            <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px; border-radius:10px; text-align:center;">
-                <span class="text-sec text-small">Horas Semana Actual</span>
-                <div style="font-size:18px; font-weight:700; margin-top:4px;">${m.horas_semana} hrs</div>
+            <div class="ficha-stat-box">
+                <span class="text-sec text-small">Horas Semana</span>
+                <div style="font-size:16px; font-weight:700; margin-top:2px;">${m.horas_semana} hrs</div>
             </div>
-            <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px; border-radius:10px; text-align:center;">
-                <span class="text-sec text-small">Tardanzas Totales</span>
-                <div style="font-size:18px; font-weight:700; color:var(--danger); margin-top:4px;">${m.tardanzas_conteo} (${m.tardanzas_minutos} min)</div>
+            <div class="ficha-stat-box">
+                <span class="text-sec text-small">Tardanzas</span>
+                <div style="font-size:16px; font-weight:700; color:var(--danger); margin-top:2px;">${m.tardanzas_conteo} (${m.tardanzas_minutos}m)</div>
             </div>
-            <div style="background:var(--bg-card); border:1px solid var(--border); padding:12px; border-radius:10px; text-align:center;">
-                <span class="text-sec text-small">Inasistencias / Faltas</span>
-                <div style="font-size:18px; font-weight:700; margin-top:4px;">${m.faltas_injustificadas + m.faltas_justificadas} días</div>
+            <div class="ficha-stat-box">
+                <span class="text-sec text-small">Inasistencias</span>
+                <div style="font-size:16px; font-weight:700; margin-top:2px;">${m.faltas_injustificadas + m.faltas_justificadas} días</div>
             </div>
         </div>
 
-        <h4 style="margin-bottom:12px; font-size:15px;"><i class="ph ph-receipt"></i> Desglose y Liquidación Salarial</h4>
-        <table class="table" style="margin-bottom:24px; border:1px solid var(--border); border-radius:10px; overflow:hidden;">
-            <tbody>
-                <tr>
-                    <td><strong>Sueldo Base Asignado (${c.tipo_pago})</strong></td>
-                    <td style="text-align:right; font-weight:600;">${moneda} ${parseFloat(c.sueldo_base).toFixed(2)}</td>
-                </tr>
-                <tr>
-                    <td>Tarifa Efectiva por Hora (Ref. 240 hrs)</td>
-                    <td style="text-align:right;">${moneda} ${parseFloat(c.tarifa_hora_efectiva).toFixed(2)} / hora</td>
-                </tr>
-                <tr style="color:var(--danger);">
-                    <td>Descuento por Minutos de Tardanza acumulados (${m.tardanzas_minutos} min)</td>
-                    <td style="text-align:right;">- ${moneda} ${l.descuento_tardanzas.toFixed(2)}</td>
-                </tr>
-                <tr style="color:var(--danger);">
-                    <td>Descuento por Inasistencias y Horas Perdidas (${m.horas_perdidas} hrs)</td>
-                    <td style="text-align:right;">- ${moneda} ${l.descuento_horas_perdidas.toFixed(2)}</td>
-                </tr>
-                <tr style="color:var(--success);">
-                    <td>Bonificación por Horas Extra Compensatorias (+${m.horas_extra} hrs x 1.25)</td>
-                    <td style="text-align:right;">+ ${moneda} ${l.bonificacion_horas_extra.toFixed(2)}</td>
-                </tr>
-                <tr style="background:var(--bg-main); font-size:16px;">
-                    <td><strong style="color:var(--text-main);">TOTAL NETO A COBRAR EN EL PERÍODO</strong></td>
-                    <td style="text-align:right;"><strong style="color:var(--success); font-size:18px;">${moneda} ${l.monto_total_cobrar.toFixed(2)}</strong></td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div style="display:flex; justify-content:space-between; margin-top:40px; padding-top:20px; border-top:1px dashed var(--border);">
-            <div style="text-align:center; width:200px;">
-                <div style="border-bottom:1px solid var(--border); margin-bottom:6px; height:40px;"></div>
-                <div class="text-sec text-small">Firma del Colaborador</div>
+        <!-- Desglose Salarial 100% responsive sin desbordamiento horizontal -->
+        <h4 style="margin-bottom:10px; font-size:14px; display:flex; align-items:center; gap:6px;"><i class="ph ph-receipt" style="color:var(--primary);"></i> Desglose y Liquidación Salarial</h4>
+        <div style="border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:20px; font-size:13px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); background:var(--bg-main);">
+                <span style="font-weight:600;">Sueldo Base Asignado (${c.tipo_pago})</span>
+                <span style="font-weight:700;">${moneda} ${parseFloat(c.sueldo_base).toFixed(2)}</span>
             </div>
-            <div style="text-align:center; width:200px;">
-                <div style="border-bottom:1px solid var(--border); margin-bottom:6px; height:40px;"></div>
-                <div class="text-sec text-small">Recursos Humanos / Administración</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border);">
+                <span class="text-sec">Tarifa Efectiva por Hora (Ref. 240 hrs)</span>
+                <span>${moneda} ${parseFloat(c.tarifa_hora_efectiva).toFixed(2)} / hora</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); color:var(--danger);">
+                <span>Descuento por Tardanzas (${m.tardanzas_minutos} min)</span>
+                <span style="font-weight:600;">- ${moneda} ${l.descuento_tardanzas.toFixed(2)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); color:var(--danger);">
+                <span>Descuento Inasistencias / Horas Perdidas (${m.horas_perdidas}h)</span>
+                <span style="font-weight:600;">- ${moneda} ${l.descuento_horas_perdidas.toFixed(2)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); color:var(--success);">
+                <span>Bonificación Horas Extra (+${m.horas_extra}h x 1.25)</span>
+                <span style="font-weight:600;">+ ${moneda} ${l.bonificacion_horas_extra.toFixed(2)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(16, 185, 129, 0.08); border-top:2px solid var(--success);">
+                <strong style="color:var(--text-main); font-size:13px;">TOTAL NETO A COBRAR</strong>
+                <strong style="color:var(--success); font-size:18px;">${moneda} ${l.monto_total_cobrar.toFixed(2)}</strong>
+            </div>
+        </div>
+
+        <!-- Firmas Responsivas -->
+        <div class="ficha-firmas-wrap">
+            <div style="text-align:center; flex:1; max-width:220px; margin:0 auto;">
+                <div style="border-bottom:1px solid var(--border); margin-bottom:6px; height:36px;"></div>
+                <div class="text-sec text-small" style="font-size:11px;">Firma del Colaborador</div>
+            </div>
+            <div style="text-align:center; flex:1; max-width:220px; margin:0 auto;">
+                <div style="border-bottom:1px solid var(--border); margin-bottom:6px; height:36px;"></div>
+                <div class="text-sec text-small" style="font-size:11px;">Recursos Humanos / Administración</div>
             </div>
         </div>
     `;

@@ -1289,6 +1289,206 @@ input:checked + .slider:before {
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
 }
 
+/* ==========================================
+   ESTILOS RESPONSIVE: MÓVIL Y TABLET (2 COLUMNAS Y MODALES)
+   ========================================== */
+
+/* 1. Grid de tarjetas métricas en 2 columnas fijas para móvil y tablet */
+.stat-grid-personal {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+@media (min-width: 992px) {
+    .stat-grid-personal {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+    }
+}
+
+@media (max-width: 768px) {
+    .stat-grid-personal {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+    .stat-grid-personal .stat-card {
+        padding: 12px 10px !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+        min-width: 0 !important;
+    }
+    .stat-grid-personal .stat-icon {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 18px !important;
+        border-radius: 8px !important;
+        flex-shrink: 0 !important;
+    }
+    .stat-grid-personal .stat-details {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+    .stat-grid-personal .stat-details h3 {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        margin-bottom: 2px !important;
+        line-height: 1.2 !important;
+        word-break: break-word !important;
+    }
+    .stat-grid-personal .stat-details p {
+        font-size: 11px !important;
+        color: var(--text-sec) !important;
+        line-height: 1.2 !important;
+    }
+}
+
+/* Tablet optimizations (769px - 991px) */
+@media (min-width: 769px) and (max-width: 991px) {
+    .stat-grid-personal {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+    }
+    .stat-grid-personal .stat-card {
+        padding: 14px !important;
+    }
+}
+
+/* 2. Modales Ultra-Amigables en Celular y Tablet */
+@media (max-width: 768px) {
+    .modal-backdrop {
+        padding: 10px !important;
+    }
+    
+    .modal {
+        width: 96% !important;
+        max-width: 96% !important;
+        max-height: 94vh !important;
+        border-radius: 16px !important;
+        margin: auto !important;
+    }
+
+    .modal-header {
+        padding: 12px 16px !important;
+    }
+
+    .modal-header h3 {
+        font-size: 15px !important;
+    }
+
+    .modal-body {
+        padding: 14px 16px !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        max-height: calc(94vh - 120px) !important;
+    }
+
+    .modal-footer {
+        padding: 12px 16px !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+    }
+
+    .modal-footer button {
+        flex: 1 1 auto !important;
+        min-height: 40px !important;
+        font-size: 13px !important;
+        justify-content: center !important;
+    }
+
+    .mobile-hide {
+        display: none !important;
+    }
+
+    /* Tabs de navegación con desplazamiento horizontal nativo */
+    .nav-tabs {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 6px !important;
+        padding-bottom: 4px !important;
+        margin-bottom: 16px !important;
+    }
+
+    .nav-tabs::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    .nav-tab {
+        flex-shrink: 0 !important;
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+    }
+
+    /* Cabecera de páginas en móvil */
+    .page-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+
+    .page-header > div:last-child {
+        width: 100% !important;
+        display: flex !important;
+        gap: 8px !important;
+    }
+
+    .page-header > div:last-child button {
+        flex: 1 !important;
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        justify-content: center !important;
+    }
+}
+
+/* 3. Ficha Individual de Personal en Modal Responsive */
+.ficha-mini-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+@media (min-width: 650px) {
+    .ficha-mini-stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+}
+
+.ficha-stat-box {
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.ficha-firmas-wrap {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--border);
+    gap: 16px;
+}
+
+@media (max-width: 600px) {
+    .ficha-firmas-wrap {
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+    }
+    .ficha-firmas-wrap > div {
+        width: 100% !important;
+        max-width: 220px;
+    }
+}
+
 /* Print styles para Ficha Individual / Boleta */
 @media print {
     body * {
@@ -1318,5 +1518,13 @@ input:checked + .slider:before {
     #ficha-individual-printable {
         padding: 0 !important;
     }
+    .ficha-firmas-wrap {
+        flex-direction: row !important;
+        justify-content: space-between !important;
+    }
+    .ficha-mini-stats-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+    }
 }
+
 

@@ -1,10 +1,12 @@
-const CACHE_NAME = 'khalessi-v14';
+const CACHE_NAME = 'khalessi-v15';
 const ASSETS = [
     './',
     './index.html',
     './css/index.css',
     './js/phosphor-svg.js',
     './js/app.js',
+    './js/modules/inventario.js',
+    './js/modules/recetas.js',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap'
 ];
 

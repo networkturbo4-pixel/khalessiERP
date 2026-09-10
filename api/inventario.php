@@ -104,6 +104,185 @@ else if ($method === 'POST' && $accion === 'movimiento') {
         respondError("Error en movimiento: ".$e->getMessage());
     }
 }
+// Listar Productos con Categoría
+else if ($method === 'GET' && ($accion === 'list_productos' || $accion === 'productos')) {
+    $categoria = isset($_GET['id_categoria']) && $_GET['id_categoria'] !== '' ? (int)$_GET['id_categoria'] : null;
+    $estado = isset($_GET['estado']) && $_GET['estado'] !== '' ? $_GET['estado'] : null;
+    $buscar = isset($_GET['q']) ? trim($_GET['q']) : '';
+
+    $query = "SELECT p.*, c.nombre as categoria_nombre, r.nombre as receta_nombre 
+              FROM productos p 
+              LEFT JOIN categorias c ON p.id_categoria = c.id 
+              LEFT JOIN recetas r ON p.id_receta = r.id 
+              WHERE 1=1";
+    $params = [];
+
+    if ($categoria) {
+        $query .= " AND p.id_categoria = :cat";
+        $params[':cat'] = $categoria;
+    }
+    if ($estado) {
+        $query .= " AND p.estado = :est";
+        $params[':est'] = $estado;
+    }
+    if ($buscar !== '') {
+        $query .= " AND (p.nombre LIKE :q OR p.codigo_sku LIKE :q OR p.descripcion LIKE :q)";
+        $params[':q'] = "%$buscar%";
+    }
+
+    $query .= " ORDER BY p.nombre ASC";
+    $stmt = $db->prepare($query);
+    $stmt->execute($params);
+    $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    respondSuccess($productos);
+}
+// Listar Categorías
+else if ($method === 'GET' && ($accion === 'list_categorias' || $accion === 'categorias')) {
+    $query = "SELECT * FROM categorias ORDER BY nombre ASC";
+    $stmt = $db->prepare($query);
+    $stmt->execute();
+    $categorias = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    respondSuccess($categorias);
+}
+// Guardar / Actualizar Producto
+else if ($method === 'POST' && ($accion === 'save_producto' || $accion === 'guardar_producto')) {
+    $input = json_decode(file_get_contents("php://input"), true);
+    $id = !empty($input['id']) ? (int)$input['id'] : null;
+    $nombre = trim($input['nombre'] ?? '');
+    $id_categoria = !empty($input['id_categoria']) ? (int)$input['id_categoria'] : null;
+    $codigo_sku = trim($input['codigo_sku'] ?? '');
+    $descripcion = trim($input['descripcion'] ?? '');
+    $precio_venta = isset($input['precio_venta']) ? (float)$input['precio_venta'] : 0.00;
+    $stock_actual = isset($input['stock_actual']) ? (float)$input['stock_actual'] : 0.00;
+    $stock_minimo = isset($input['stock_minimo']) ? (float)$input['stock_minimo'] : 0.00;
+    $imagen_url = trim($input['imagen_url'] ?? '');
+    $estado = in_array($input['estado'] ?? '', ['disponible', 'agotado', 'inactivo']) ? $input['estado'] : 'disponible';
+    $id_receta = !empty($input['id_receta']) ? (int)$input['id_receta'] : null;
+
+    if (empty($nombre)) {
+        respondError("El nombre del producto es obligatorio");
+    }
+    if (empty($codigo_sku)) {
+        $codigo_sku = 'PROD-' . strtoupper(substr(uniqid(), -6));
+    }
+
+    // Auto-ajustar estado si el stock es cero y no se marcó inactivo
+    if ($stock_actual <= 0 && $estado === 'disponible') {
+        $estado = 'agotado';
+    } else if ($stock_actual > 0 && $estado === 'agotado') {
+        $estado = 'disponible';
+    }
+
+    if ($id) {
+        $query = "UPDATE productos SET 
+                  nombre = :nombre,
+                  id_categoria = :id_categoria,
+                  codigo_sku = :codigo_sku,
+                  descripcion = :descripcion,
+                  precio_venta = :precio_venta,
+                  stock_actual = :stock_actual,
+                  stock_minimo = :stock_minimo,
+                  imagen_url = :imagen_url,
+                  estado = :estado,
+                  id_receta = :id_receta
+                  WHERE id = :id";
+        $stmt = $db->prepare($query);
+        $stmt->execute([
+            ':nombre' => $nombre,
+            ':id_categoria' => $id_categoria,
+            ':codigo_sku' => $codigo_sku,
+            ':descripcion' => $descripcion,
+            ':precio_venta' => $precio_venta,
+            ':stock_actual' => $stock_actual,
+            ':stock_minimo' => $stock_minimo,
+            ':imagen_url' => $imagen_url,
+            ':estado' => $estado,
+            ':id_receta' => $id_receta,
+            ':id' => $id
+        ]);
+        respondSuccess(["id" => $id], "Producto actualizado exitosamente");
+    } else {
+        $query = "INSERT INTO productos (nombre, id_categoria, codigo_sku, descripcion, precio_venta, stock_actual, stock_minimo, imagen_url, estado, id_receta)
+                  VALUES (:nombre, :id_categoria, :codigo_sku, :descripcion, :precio_venta, :stock_actual, :stock_minimo, :imagen_url, :estado, :id_receta)";
+        $stmt = $db->prepare($query);
+        $stmt->execute([
+            ':nombre' => $nombre,
+            ':id_categoria' => $id_categoria,
+            ':codigo_sku' => $codigo_sku,
+            ':descripcion' => $descripcion,
+            ':precio_venta' => $precio_venta,
+            ':stock_actual' => $stock_actual,
+            ':stock_minimo' => $stock_minimo,
+            ':imagen_url' => $imagen_url,
+            ':estado' => $estado,
+            ':id_receta' => $id_receta
+        ]);
+        $newId = (int)$db->lastInsertId();
+        respondSuccess(["id" => $newId], "Producto creado exitosamente");
+    }
+}
+// Eliminar Producto
+else if ($method === 'POST' && ($accion === 'delete_producto' || $accion === 'eliminar_producto')) {
+    $input = json_decode(file_get_contents("php://input"), true);
+    $id = !empty($input['id']) ? (int)$input['id'] : null;
+    if (!$id) respondError("ID de producto requerido");
+    
+    $stmt = $db->prepare("DELETE FROM productos WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    respondSuccess(null, "Producto eliminado correctamente");
+}
+// Ajustar Stock Rápido (Entrada, Salida, Ajuste Directo)
+else if ($method === 'POST' && ($accion === 'ajustar_stock' || $accion === 'ajustar_stock_producto')) {
+    $input = json_decode(file_get_contents("php://input"), true);
+    $id = !empty($input['id_producto']) ? (int)$input['id_producto'] : null;
+    $tipo = $input['tipo'] ?? 'ajuste'; // 'entrada', 'salida', 'ajuste'
+    $cantidad = (float)($input['cantidad'] ?? 0);
+    $motivo = trim($input['motivo'] ?? 'Ajuste manual');
+    
+    if (!$id || $cantidad < 0) respondError("Datos de ajuste inválidos");
+    
+    $db->beginTransaction();
+    try {
+        $pStmt = $db->prepare("SELECT stock_actual, precio_venta FROM productos WHERE id = :id FOR UPDATE");
+        $pStmt->execute([':id' => $id]);
+        $prod = $pStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$prod) throw new Exception("Producto no encontrado");
+        
+        $stockActual = (float)$prod['stock_actual'];
+        $nuevoStock = $stockActual;
+        $cantMov = $cantidad;
+        
+        if ($tipo === 'entrada') {
+            $nuevoStock = $stockActual + $cantidad;
+            $cantMov = $cantidad;
+        } else if ($tipo === 'salida') {
+            $nuevoStock = max(0, $stockActual - $cantidad);
+            $cantMov = -$cantidad;
+        } else { // ajuste directo
+            $nuevoStock = $cantidad;
+            $cantMov = $cantidad - $stockActual;
+        }
+        
+        $uStmt = $db->prepare("UPDATE productos SET stock_actual = :s, estado = IF(:s <= 0, 'agotado', 'disponible') WHERE id = :id");
+        $uStmt->execute([':s' => $nuevoStock, ':id' => $id]);
+        
+        // Registrar en movimientos de inventario si existe tabla
+        $mStmt = $db->prepare("INSERT INTO movimientos_inventario (id_local, id_producto, tipo_movimiento, cantidad, observaciones) 
+                               VALUES (1, :id, :tipo, :cant, :obs)");
+        $mStmt->execute([
+            ':id' => $id,
+            ':tipo' => ($tipo === 'entrada' ? 'compra' : ($tipo === 'salida' ? 'merma' : 'ajuste')),
+            ':cant' => $cantMov,
+            ':obs' => $motivo
+        ]);
+        
+        $db->commit();
+        respondSuccess(["nuevo_stock" => $nuevoStock], "Stock actualizado exitosamente a " . $nuevoStock);
+    } catch (Exception $e) {
+        $db->rollBack();
+        respondError($e->getMessage());
+    }
+}
 else {
     respondError("Acción de inventario no válida", 404);
 }

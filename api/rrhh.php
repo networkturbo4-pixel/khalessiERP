@@ -700,18 +700,24 @@ else if ($method === 'GET' && $accion === 'historial') {
     respondSuccess($historial);
 }
 
-else if ($method === 'POST' && $accion === 'save_horario_rol') {
-    $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
-    $id_rol = isset($input['id_rol']) ? $input['id_rol'] : null;
-    $hora_entrada = isset($input['hora_entrada']) && $input['hora_entrada'] !== '' ? $input['hora_entrada'] : null;
-    $hora_salida = isset($input['hora_salida']) && $input['hora_salida'] !== '' ? $input['hora_salida'] : null;
-    
-    if (!$id_rol) respondError("ID de rol requerido");
-    
-    $stmt = $db->prepare("UPDATE roles SET hora_entrada = :entrada, hora_salida = :salida WHERE id = :id");
-    $stmt->execute([':entrada' => $hora_entrada, ':salida' => $hora_salida, ':id' => $id_rol]);
-    
-    respondSuccess(null, "Horario del rol actualizado exitosamente");
+else if ($accion === 'roles_horarios' || ($method === 'POST' && $accion === 'save_horario_rol')) {
+    if ($method === 'GET') {
+        $stmt = $db->query("SELECT id, nombre, descripcion, hora_entrada, hora_salida FROM roles ORDER BY id");
+        $roles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        respondSuccess($roles);
+    } else {
+        $input = json_decode(file_get_contents("php://input"), true) ?: $_POST;
+        $id_rol = isset($input['id_rol']) ? $input['id_rol'] : (isset($input['id']) ? $input['id'] : null);
+        $hora_entrada = isset($input['hora_entrada']) && $input['hora_entrada'] !== '' ? $input['hora_entrada'] : null;
+        $hora_salida = isset($input['hora_salida']) && $input['hora_salida'] !== '' ? $input['hora_salida'] : null;
+        
+        if (!$id_rol) respondError("ID de rol requerido");
+        
+        $stmt = $db->prepare("UPDATE roles SET hora_entrada = :entrada, hora_salida = :salida WHERE id = :id");
+        $stmt->execute([':entrada' => $hora_entrada, ':salida' => $hora_salida, ':id' => $id_rol]);
+        
+        respondSuccess(null, "Horario del rol actualizado exitosamente");
+    }
 }
 
 else if ($method === 'POST' && $accion === 'registrar_ausencia') {

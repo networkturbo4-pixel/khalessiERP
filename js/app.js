@@ -1598,40 +1598,47 @@ window.loadRolesHorarios = async function() {
         const data = await res.json();
         if (res.ok && data.status === 'success') {
             const roles = data.data || [];
-            tbody.innerHTML = roles.map(r => `
-                <tr>
-                    <td><strong>${r.nombre}</strong></td>
-                    <td><input type="time" class="form-control form-control-sm input-horario" data-id="${r.id}" data-field="hora_entrada" value="${r.hora_entrada}"></td>
-                    <td><input type="time" class="form-control form-control-sm input-horario" data-id="${r.id}" data-field="hora_salida" value="${r.hora_salida}"></td>
-                    <td><input type="number" class="form-control form-control-sm input-horario" data-id="${r.id}" data-field="tolerancia_minutos" value="${r.tolerancia_minutos}" min="0" max="60" style="width:70px;"></td>
-                    <td><input type="number" class="form-control form-control-sm input-horario" data-id="${r.id}" data-field="horas_semanales_pactadas" value="${r.horas_semanales_pactadas || 48}" min="1" max="72" style="width:70px;"></td>
-                    <td>
-                        <button class="btn btn-primary btn-sm" onclick="guardarHorarioRol(${r.id})"><i class="ph ph-floppy-disk"></i></button>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = roles.map(r => {
+                const entrada = r.hora_entrada ? r.hora_entrada.substring(0, 5) : '';
+                const salida = r.hora_salida ? r.hora_salida.substring(0, 5) : '';
+                return `
+                    <tr>
+                        <td class="fw-500"><strong>${r.nombre}</strong></td>
+                        <td><input type="time" id="rol_ent_${r.id}" class="form-control" value="${entrada}" style="width:130px;"></td>
+                        <td><input type="time" id="rol_sal_${r.id}" class="form-control" value="${salida}" style="width:130px;"></td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="guardarHorarioRol(${r.id})">
+                                <i class="ph ph-floppy-disk"></i> Guardar
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-danger">Error al cargar roles</td></tr>';
         }
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Error al cargar horarios de roles</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-danger">Error al cargar horarios de roles</td></tr>';
     }
 };
 
 window.guardarHorarioRol = async function(id) {
-    const inputs = document.querySelectorAll(`.input-horario[data-id="${id}"]`);
-    const payload = { id: id };
-    inputs.forEach(input => {
-        payload[input.dataset.field] = input.value;
-    });
+    const entrada = document.getElementById('rol_ent_' + id)?.value || '';
+    const salida = document.getElementById('rol_sal_' + id)?.value || '';
 
     try {
         const res = await fetch('/khalessierp/api/index.php?request=rrhh/roles_horarios', {
-            method: 'PUT',
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                id_rol: id,
+                hora_entrada: entrada,
+                hora_salida: salida
+            })
         });
         const data = await res.json();
         if (res.ok && data.status === 'success') {
-            showToast('Horario actualizado con éxito', 'success');
+            showToast('Horario del rol actualizado con éxito', 'success');
         } else {
             showToast(data.message || 'Error al guardar horario', 'error');
         }
@@ -1639,6 +1646,8 @@ window.guardarHorarioRol = async function(id) {
         showToast('Error de conexión', 'error');
     }
 };
+
+window.saveRolHorario = window.guardarHorarioRol;
 
 window.historialAsistenciaData = [];
 

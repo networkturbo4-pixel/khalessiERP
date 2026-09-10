@@ -243,6 +243,7 @@ else if ($method === 'POST' && $accion === 'marcar_salida') {
 // ==========================================
 else if ($method === 'GET' && $accion === 'turnos_activos') {
     $q = "SELECT a.id as id_asistencia, a.id_usuario, a.fecha_hora_entrada, a.condicion, a.minutos_tardanza,
+                 a.foto_entrada_url, a.foto_entrada_url as foto_entrada, a.latitud, a.longitud,
                  u.nombre, u.apellido, u.dni, u.foto_perfil, u.cargo,
                  r.nombre as rol_nombre,
                  IFNULL(u.hora_salida_asignada, r.hora_salida) as hora_salida_esperada,
@@ -779,11 +780,11 @@ else if ($method === 'GET' && $accion === 'historial') {
     $inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : null;
     $fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : null;
 
-    $query = "SELECT a.*, u.nombre, u.apellido, u.dni, u.foto_perfil,
+    $query = "SELECT a.*, a.foto_entrada_url as foto_entrada, u.nombre, u.apellido, u.dni, u.foto_perfil,
               IFNULL(u.hora_entrada_asignada, r.hora_entrada) as hora_entrada_asignada, 
               IFNULL(u.hora_salida_asignada, r.hora_salida) as hora_salida_asignada,
               TIMESTAMPDIFF(MINUTE, a.fecha_hora_entrada, a.fecha_hora_salida) as minutos_trabajados,
-              j.motivo as justificacion_motivo, j.estado as justificacion_estado
+              j.motivo as justificacion_motivo, j.estado as justificacion_estado, j.foto_evidencia_url as justificacion_foto_evidencia
               FROM rrhh_asistencias a
               JOIN usuarios u ON a.id_usuario = u.id
               JOIN roles r ON u.id_rol = r.id

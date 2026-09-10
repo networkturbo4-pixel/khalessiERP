@@ -1,17 +1,52 @@
 // Utilidades Globales
 
+window.getAppBase = function() {
+    return typeof window.APP_BASE === 'string' ? window.APP_BASE : (window.location.pathname.startsWith('/khalessierp') ? '/khalessierp' : '');
+};
+
+window.fixMediaUrl = function(url) {
+    if (!url || typeof url !== 'string') return '';
+    url = url.trim();
+    if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+    
+    const base = window.getAppBase();
+    
+    // Si la URL es absoluta con protocolo
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+    }
+    
+    // Caso 1: La URL fue guardada como '/khalessierp/uploads/...'
+    if (url.startsWith('/khalessierp/')) {
+        if (base === '') {
+            return url.replace('/khalessierp', ''); // En producción raíz: '/uploads/...'
+        } else if (base !== '/khalessierp') {
+            return url.replace('/khalessierp', base); // En otra subcarpeta: '/erp/uploads/...'
+        }
+        return url; // En XAMPP: '/khalessierp/uploads/...'
+    }
+    
+    // Caso 2: La URL es relativa 'uploads/...' o './uploads/...'
+    if (!url.startsWith('/')) {
+        url = url.replace(/^\.\//, '');
+        return (base ? base + '/' : '/') + url;
+    }
+    
+    // Caso 3: La URL empieza con '/' (ej. '/uploads/...') y estamos en subcarpeta (ej. '/khalessierp')
+    if (base !== '' && !url.startsWith(base + '/')) {
+        return base + url;
+    }
+    
+    return url;
+};
+
 window.AppConfig = {
     get: function(key) {
         try {
             const config = JSON.parse(localStorage.getItem('khalessi_config')) || {};
             let val = config[key] !== undefined ? config[key] : '';
-            if (typeof val === 'string' && val.startsWith('/khalessierp/uploads/')) {
-                const base = typeof window.getAppBase === 'function' ? window.getAppBase() : (typeof window.APP_BASE === 'string' ? window.APP_BASE : '');
-                if (base === '') {
-                    val = val.replace('/khalessierp', '');
-                } else if (base !== '/khalessierp') {
-                    val = val.replace('/khalessierp', base);
-                }
+            if (typeof val === 'string' && (val.includes('uploads/') || val.includes('/logos/'))) {
+                val = window.fixMediaUrl(val);
             }
             return val;
         } catch(e) { return ''; }
@@ -1641,7 +1676,8 @@ async function renderRRHH(container) {
 // ==========================================
 window.renderEmpleadoAvatar = function(nombre, apellido, fotoUrl, size = 36) {
     if (fotoUrl && typeof fotoUrl === 'string' && fotoUrl.trim() !== '') {
-        return `<img src="${fotoUrl}" class="emp-avatar-img" style="width:${size}px; height:${size}px; min-width:${size}px; min-height:${size}px;" alt="${nombre || 'Avatar'}">`;
+        const safeUrl = window.fixMediaUrl(fotoUrl);
+        return `<img src="${safeUrl}" class="emp-avatar-img" style="width:${size}px; height:${size}px; min-width:${size}px; min-height:${size}px; object-fit:cover; border-radius:50%;" alt="${nombre || 'Avatar'}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="emp-avatar-initials" style="display:none; width:${size}px; height:${size}px; min-width:${size}px; min-height:${size}px; font-size:${Math.round(size*0.38)}px; background:linear-gradient(135deg, #64748b 0%, #475569 100%); color:#fff; align-items:center; justify-content:center; font-weight:700; border-radius:50%;">${(nombre||'E').charAt(0).toUpperCase()}</div>`;
     }
     
     // Generar iniciales limpias (ej: "Luis Mendoza" -> "LM", "Admin" -> "AD")
@@ -1900,8 +1936,9 @@ window.loadHistorialAsistencia = async function() {
                 }
 
                 let fotoBtn = '';
-                if (item.foto_entrada) {
-                    fotoBtn = `<button class="btn-icon btn-sm" onclick="verFotoAsistencia('${item.foto_entrada}')" title="Ver Fotografía"><i class="ph ph-camera"></i></button>`;
+                const fotoUrl = item.foto_entrada_url || item.foto_entrada;
+                if (fotoUrl) {
+                    fotoBtn = `<button class="btn-icon btn-sm" onclick="verFotoAsistencia('${encodeURIComponent(fotoUrl)}')" title="Ver Fotografía de Evidencia" style="color:var(--primary);"><i class="ph ph-camera" style="font-size:17px;"></i></button>`;
                 }
                 let gpsBtn = '';
                 if (item.latitud && item.longitud) {
@@ -2289,7 +2326,7 @@ window.loadJustificaciones = async function(filtro = null) {
                 }
 
                 let evidenciaBtn = item.foto_evidencia_url 
-                    ? `<button class="btn-icon" onclick="window.open('${item.foto_evidencia_url}', '_blank')" title="Ver evidencia adjunta"><i class="ph ph-file-image" style="font-size:18px; color:var(--primary);"></i></button>`
+                    ? `<button class="btn-icon" onclick="verFotoJustificacion('${encodeURIComponent(item.foto_evidencia_url)}')" title="Ver evidencia adjunta"><i class="ph ph-file-image" style="font-size:18px; color:var(--primary);"></i></button>`
                     : '<span class="text-sec" style="font-size:11px;">Sin adjunto</span>';
 
                 let avatarHtml = window.renderEmpleadoAvatar(item.nombre, item.apellido, item.foto_perfil, 34);
@@ -2342,7 +2379,7 @@ window.abrirModalResolverJustificacion = function(id) {
     const imgCont = document.getElementById('res-just-img-container');
     const imgEl = document.getElementById('res-just-img');
     if (item.foto_evidencia_url) {
-        imgEl.src = item.foto_evidencia_url;
+        imgEl.src = window.fixMediaUrl(item.foto_evidencia_url);
         imgCont.classList.remove('hidden');
     } else {
         imgCont.classList.add('hidden');
@@ -4249,34 +4286,107 @@ window.enviarJustificacionTrabajador = async function() {
     }
 };
 
-window.verFotoAsistencia = function(url) {
-    const content = `<div style="text-align:center;"><img src="${url}" style="max-width: 100%; max-height: 70vh; border-radius: 8px;"></div>`;
-    showModal('Evidencia de Asistencia', content);
+window.verFotoAsistencia = function(rawUrl) {
+    if (!rawUrl || rawUrl === 'undefined' || rawUrl === 'null') {
+        showToast('No hay fotografía de evidencia disponible', 'warning');
+        return;
+    }
+    try { rawUrl = decodeURIComponent(rawUrl); } catch(e) {}
+    const url = window.fixMediaUrl(rawUrl);
+    
+    const content = `
+        <div style="text-align:center; padding: 6px 0;">
+            <div style="max-height: 70vh; overflow: hidden; border-radius: 14px; background: #0b0f19; display: inline-block; box-shadow: 0 6px 28px rgba(0,0,0,0.3); border: 2px solid var(--border-color); position: relative;">
+                <img src="${url}" alt="Evidencia Asistencia" style="max-width: 100%; max-height: 68vh; object-fit: contain; display: block;" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\\'padding:36px 20px; color:#94a3b8; text-align:center;\\'><i class=\\'ph ph-image-broken\\' style=\\'font-size:44px; color:var(--danger); display:block; margin-bottom:8px;\\'></i><strong style=\\'color:var(--text-main); font-size:15px;\\'>No se pudo cargar la fotografía</strong><p style=\\'margin-top:6px; font-size:12.5px; color:var(--text-sec);\\'>Verifica que el archivo exista en la carpeta uploads/asistencia/ del servidor.</p></div>';">
+            </div>
+            <div style="margin-top: 14px; display: flex; justify-content: center; gap: 10px;">
+                <a href="${url}" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+                    <i class="ph ph-arrow-square-out"></i> Abrir imagen en pestaña nueva
+                </a>
+            </div>
+        </div>
+    `;
+    showModal('Evidencia Fotográfica de Entrada', content);
     
     // Ocultar botón de confirmar ya que solo es vista
     const btnConfirm = document.getElementById('btn-confirm-modal');
     const btnCancel = document.getElementById('btn-cancel-modal');
     const btnClose = document.getElementById('btn-close-modal');
     
-    btnConfirm.style.display = 'none';
-    btnCancel.innerText = "Cerrar";
+    if (btnConfirm) btnConfirm.style.display = 'none';
+    if (btnCancel) btnCancel.innerText = "Cerrar";
     
     const restoreButtons = () => {
-        btnConfirm.style.display = 'inline-block';
-        btnCancel.innerText = "Cancelar";
+        if (btnConfirm) btnConfirm.style.display = 'inline-block';
+        if (btnCancel) btnCancel.innerText = "Cancelar";
     };
     
-    const originalCancel = btnCancel.onclick;
-    btnCancel.onclick = () => {
-        restoreButtons();
-        if(originalCancel) originalCancel();
+    if (btnCancel) {
+        const originalCancel = btnCancel.onclick;
+        btnCancel.onclick = () => {
+            restoreButtons();
+            if(originalCancel) originalCancel();
+        };
+    }
+    
+    if (btnClose) {
+        const originalClose = btnClose.onclick;
+        btnClose.onclick = () => {
+            restoreButtons();
+            if(originalClose) originalClose();
+        };
+    }
+};
+
+window.verFotoJustificacion = function(rawUrl) {
+    if (!rawUrl || rawUrl === 'undefined' || rawUrl === 'null') {
+        showToast('No hay archivo o evidencia adjunta', 'warning');
+        return;
+    }
+    try { rawUrl = decodeURIComponent(rawUrl); } catch(e) {}
+    const url = window.fixMediaUrl(rawUrl);
+    
+    const content = `
+        <div style="text-align:center; padding: 6px 0;">
+            <div style="max-height: 70vh; overflow: hidden; border-radius: 14px; background: #0b0f19; display: inline-block; box-shadow: 0 6px 28px rgba(0,0,0,0.3); border: 2px solid var(--border-color); position: relative;">
+                <img src="${url}" alt="Evidencia Justificación" style="max-width: 100%; max-height: 68vh; object-fit: contain; display: block;" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\\'padding:36px 20px; color:#94a3b8; text-align:center;\\'><i class=\\'ph ph-image-broken\\' style=\\'font-size:44px; color:var(--danger); display:block; margin-bottom:8px;\\'></i><strong style=\\'color:var(--text-main); font-size:15px;\\'>No se pudo cargar el archivo</strong><p style=\\'margin-top:6px; font-size:12.5px; color:var(--text-sec);\\'>Verifica que el archivo exista en uploads/justificaciones/</p></div>';">
+            </div>
+            <div style="margin-top: 14px; display: flex; justify-content: center; gap: 10px;">
+                <a href="${url}" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+                    <i class="ph ph-arrow-square-out"></i> Abrir imagen en pestaña nueva
+                </a>
+            </div>
+        </div>
+    `;
+    showModal('Evidencia de Justificación', content);
+    
+    const btnConfirm = document.getElementById('btn-confirm-modal');
+    const btnCancel = document.getElementById('btn-cancel-modal');
+    const btnClose = document.getElementById('btn-close-modal');
+    
+    if (btnConfirm) btnConfirm.style.display = 'none';
+    if (btnCancel) btnCancel.innerText = "Cerrar";
+    
+    const restoreButtons = () => {
+        if (btnConfirm) btnConfirm.style.display = 'inline-block';
+        if (btnCancel) btnCancel.innerText = "Cancelar";
     };
     
-    const originalClose = btnClose.onclick;
-    btnClose.onclick = () => {
-        restoreButtons();
-        if(originalClose) originalClose();
-    };
+    if (btnCancel) {
+        const originalCancel = btnCancel.onclick;
+        btnCancel.onclick = () => {
+            restoreButtons();
+            if(originalCancel) originalCancel();
+        };
+    }
+    
+    if (btnClose) {
+        const originalClose = btnClose.onclick;
+        btnClose.onclick = () => {
+            restoreButtons();
+            if(originalClose) originalClose();
+        };
+    }
 };
 
 async function loadInventarioData() {

@@ -220,9 +220,8 @@ function router() {
         // Renderizar vista CON Sidebar y Header
         if (!document.getElementById('app-layout')) {
             renderAppLayout(app, path);
-        } else {
-            updateSidebarActive(path);
         }
+        updateSidebarActive(path);
         
         const contentArea = document.getElementById('main-content-area');
         contentArea.innerHTML = '';
@@ -320,6 +319,11 @@ function renderAppLayout(container) {
 
             <!-- Main Content Wrapper -->
             <div class="main-wrapper">
+                <!-- Pull to Refresh Indicator -->
+                <div class="ptr-indicator" id="ptr-indicator">
+                    <i class="ph ph-arrows-clockwise"></i>
+                </div>
+
                 <!-- Header -->
                 <header class="topbar">
                     <div class="topbar-left">
@@ -329,6 +333,9 @@ function renderAppLayout(container) {
                         ${logoCollapsed ? `<img src="${logoCollapsed}" class="topbar-mobile-logo">` : ''}
                     </div>
                     <div class="topbar-right">
+                        <button class="btn-icon btn-kiosk" id="btn-toggle-kiosk" onclick="toggleModoKiosko()" title="Modo Pantalla Completa / Kiosko">
+                            <i class="ph ph-corners-out" style="font-size: 20px;"></i>
+                        </button>
                         <button class="btn-theme-capsule" onclick="toggleTheme()" title="Cambiar Tema">
                             <i class="ph ph-moon theme-icon-indicator" style="font-size: 20px;"></i>
                         </button>
@@ -344,15 +351,263 @@ function renderAppLayout(container) {
                     <!-- Las vistas se renderizan aquí -->
                 </main>
             </div>
+
+            <!-- Botón de Acción Flotante Móvil (FAB) -->
+            <button class="fab-btn" id="app-fab-btn" onclick="handleFabClick()" title="Acción rápida" style="display: none;">
+                <i class="ph ph-plus" id="fab-icon"></i>
+            </button>
+
+            <!-- Barra de Navegación Inferior Móvil (Bottom Navigation Bar) -->
+            <nav class="bottom-nav-bar" id="bottom-nav-bar">
+                <a href="javascript:navigate('/dashboard')" class="bottom-nav-item" data-path="/dashboard">
+                    <i class="ph ph-squares-four"></i>
+                    <span>Inicio</span>
+                </a>
+                <a href="javascript:navigate('/inventario')" class="bottom-nav-item" data-path="/inventario">
+                    <i class="ph ph-package"></i>
+                    <span>Stock</span>
+                </a>
+                <a href="javascript:navigate('/recetas')" class="bottom-nav-item" data-path="/recetas">
+                    <i class="ph ph-book-open"></i>
+                    <span>Recetas</span>
+                </a>
+                <a href="javascript:navigate('/rrhh')" class="bottom-nav-item" data-path="/rrhh">
+                    <i class="ph ph-clock-user"></i>
+                    <span>RRHH</span>
+                </a>
+                <a href="javascript:toggleSidebarMobile()" class="bottom-nav-item">
+                    <i class="ph ph-list"></i>
+                    <span>Más</span>
+                </a>
+            </nav>
         </div>
     `;
+
+    setTimeout(() => {
+        initPullToRefresh();
+        initModalTouchDismiss();
+    }, 100);
 }
 
 function updateSidebarActive(path) {
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     const activeEl = document.querySelector(`.nav-item[data-path="${path}"]`);
     if(activeEl) activeEl.classList.add('active');
+
+    // Sincronizar Bottom Navigation Bar
+    document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+    const activeBottomEl = document.querySelector(`.bottom-nav-item[data-path="${path}"]`);
+    if (activeBottomEl) activeBottomEl.classList.add('active');
+
+    // Actualizar FAB contextual
+    updateFabForPath(path);
 }
+
+// Haptic feedback táctil para celulares
+window.triggerHaptic = function(pattern = 15) {
+    if ('vibrate' in navigator) {
+        try {
+            navigator.vibrate(pattern);
+        } catch (e) {}
+    }
+};
+
+// Modo Kiosko / Pantalla completa para tablets de asistencia y puntos de control
+window.toggleModoKiosko = async function() {
+    triggerHaptic(30);
+    const body = document.body;
+    const btnIcon = document.querySelector('#btn-toggle-kiosk i');
+    const isKiosk = body.classList.toggle('kiosk-mode');
+
+    if (isKiosk) {
+        if (btnIcon) btnIcon.className = 'ph ph-corners-in';
+        try {
+            if (document.documentElement.requestFullscreen) {
+                await document.documentElement.requestFullscreen();
+            }
+        } catch (e) {}
+        try {
+            if ('wakeLock' in navigator) {
+                window._wakeLock = await navigator.wakeLock.request('screen');
+            }
+        } catch (e) {}
+        if (window.showToast) showToast('Modo Kiosko activado (Pantalla Completa)', 'info');
+    } else {
+        if (btnIcon) btnIcon.className = 'ph ph-corners-out';
+        try {
+            if (document.fullscreenElement && document.exitFullscreen) {
+                await document.exitFullscreen();
+            }
+        } catch (e) {}
+        try {
+            if (window._wakeLock) {
+                await window._wakeLock.release();
+                window._wakeLock = null;
+            }
+        } catch (e) {}
+        if (window.showToast) showToast('Modo Kiosko desactivado', 'info');
+    }
+};
+
+// FAB Contextual
+window.updateFabForPath = function(path) {
+    const fab = document.getElementById('app-fab-btn');
+    if (!fab) return;
+    const fabIcon = document.getElementById('fab-icon');
+
+    if (path === '/rrhh') {
+        fab.style.display = 'flex';
+        fab.title = 'Registrar Falta o Permiso';
+        if (fabIcon) fabIcon.className = 'ph ph-calendar-plus';
+    } else if (path === '/inventario') {
+        fab.style.display = 'flex';
+        fab.title = 'Nuevo Ingreso / Insumo';
+        if (fabIcon) fabIcon.className = 'ph ph-plus';
+    } else if (path === '/recetas') {
+        fab.style.display = 'flex';
+        fab.title = 'Nueva Receta';
+        if (fabIcon) fabIcon.className = 'ph ph-plus';
+    } else if (path === '/clientes') {
+        fab.style.display = 'flex';
+        fab.title = 'Nuevo Cliente';
+        if (fabIcon) fabIcon.className = 'ph ph-user-plus';
+    } else {
+        fab.style.display = 'none';
+    }
+};
+
+window.handleFabClick = function() {
+    triggerHaptic(25);
+    const path = window.location.pathname.replace('/khalessierp', '') || '/dashboard';
+    if (path === '/rrhh') {
+        if (typeof abrirModalAusencia === 'function') abrirModalAusencia();
+    } else if (path === '/inventario') {
+        if (typeof openModal === 'function') openModal('modal-ingreso');
+    } else if (path === '/recetas') {
+        if (typeof abrirModalReceta === 'function') abrirModalReceta();
+    } else if (path === '/clientes') {
+        if (typeof abrirModalCliente === 'function') abrirModalCliente();
+    }
+};
+
+// Pull to Refresh para móviles
+window.initPullToRefresh = function() {
+    const ptr = document.getElementById('ptr-indicator');
+    if (!ptr || window._ptrInitialized) return;
+    window._ptrInitialized = true;
+
+    let touchStartY = 0;
+    let touchDistance = 0;
+    let isPulling = false;
+
+    window.addEventListener('touchstart', (e) => {
+        if (window.scrollY <= 5 && e.touches.length === 1) {
+            touchStartY = e.touches[0].clientY;
+            isPulling = true;
+        }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!isPulling) return;
+        const currentY = e.touches[0].clientY;
+        touchDistance = currentY - touchStartY;
+        if (touchDistance > 10 && window.scrollY <= 5) {
+            const pullHeight = Math.min(touchDistance * 0.45, 65);
+            ptr.style.top = `${pullHeight}px`;
+            ptr.classList.add('visible');
+            if (touchDistance > 80) {
+                ptr.classList.add('refreshing');
+            } else {
+                ptr.classList.remove('refreshing');
+            }
+        }
+    }, { passive: true });
+
+    window.addEventListener('touchend', async () => {
+        if (!isPulling) return;
+        isPulling = false;
+        if (touchDistance > 80 && window.scrollY <= 5) {
+            triggerHaptic([30, 50, 30]);
+            ptr.classList.add('refreshing');
+            const path = window.location.pathname.replace('/khalessierp', '');
+            try {
+                if (path === '/rrhh' && typeof refrescarRRHHActual === 'function') {
+                    await refrescarRRHHActual();
+                } else if (path === '/inventario' && typeof loadInventario === 'function') {
+                    await loadInventario();
+                } else {
+                    router();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+            setTimeout(() => {
+                ptr.classList.remove('visible', 'refreshing');
+                ptr.style.top = '-60px';
+            }, 600);
+        } else {
+            ptr.classList.remove('visible', 'refreshing');
+            ptr.style.top = '-60px';
+        }
+        touchDistance = 0;
+    });
+};
+
+// Cierre táctil de modales tipo Bottom Sheet deslizando hacia abajo
+window.initModalTouchDismiss = function() {
+    if (window._modalTouchInitialized) return;
+    window._modalTouchInitialized = true;
+
+    let startY = 0;
+    let currentModalBackdrop = null;
+    
+    document.addEventListener('touchstart', (e) => {
+        if (window.innerWidth > 768) return;
+        const modalBackdrop = e.target.closest('.modal-backdrop.show');
+        if (!modalBackdrop) return;
+        const modal = modalBackdrop.querySelector('.modal');
+        if (!modal) return;
+        if (e.target.closest('.modal-header') || e.target === modal) {
+            startY = e.touches[0].clientY;
+            currentModalBackdrop = modalBackdrop;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!currentModalBackdrop) return;
+        const currentY = e.touches[0].clientY;
+        const diff = currentY - startY;
+        if (diff > 0) {
+            const modal = currentModalBackdrop.querySelector('.modal');
+            if (modal) {
+                modal.style.transform = `translateY(${diff}px)`;
+                modal.style.transition = 'none';
+            }
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        if (!currentModalBackdrop) return;
+        const modal = currentModalBackdrop.querySelector('.modal');
+        const endY = e.changedTouches[0].clientY;
+        const diff = endY - startY;
+        if (diff > 90) {
+            triggerHaptic(20);
+            currentModalBackdrop.classList.remove('show');
+            if (modal) {
+                modal.style.transform = '';
+                modal.style.transition = '';
+            }
+        } else {
+            if (modal) {
+                modal.style.transform = '';
+                modal.style.transition = 'transform 0.2s ease-out';
+                setTimeout(() => { if (modal) modal.style.transition = ''; }, 200);
+            }
+        }
+        currentModalBackdrop = null;
+    });
+};
 
 window.toggleSidebar = function() {
     if (window.innerWidth <= 768) {
@@ -447,7 +702,7 @@ function renderLogin(container) {
                     <div style="margin-bottom: 20px;">
                         <label class="form-label" style="font-weight: 600; margin-bottom: 6px;">Clave Google Authenticator</label>
                         <p class="text-sec text-small" style="margin-bottom: 10px;">Ingresa el código dinámico de 6 dígitos para autorizar tu acceso.</p>
-                        <input type="text" id="auth-totp-code" class="form-control" maxlength="6" placeholder="000 000" style="text-align: center; font-size: 26px; font-weight: 700; letter-spacing: 6px; height: 50px; border-radius: 12px;" autocomplete="one-time-code">
+                        <input type="text" id="auth-totp-code" class="form-control" maxlength="6" placeholder="000 000" style="text-align: center; font-size: 26px; font-weight: 700; letter-spacing: 6px; height: 50px; border-radius: 12px;" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
                     </div>
 
                     <button class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 600; border-radius: 14px; margin-bottom: 10px;" onclick="validarTotpYContinuar()">
@@ -703,6 +958,15 @@ async function renderRRHH(container) {
         <div id="rrhh-view-historial">
             <div class="card mb-3">
                 <div class="card-body">
+                    <!-- Quick Date Range Chips -->
+                    <div class="date-chips-wrap">
+                        <button type="button" class="date-chip active" id="chip-rango-hoy" onclick="setRangoFechaRRHH('hoy')">Hoy</button>
+                        <button type="button" class="date-chip" id="chip-rango-ayer" onclick="setRangoFechaRRHH('ayer')">Ayer</button>
+                        <button type="button" class="date-chip" id="chip-rango-semana" onclick="setRangoFechaRRHH('semana')">Esta Semana</button>
+                        <button type="button" class="date-chip" id="chip-rango-mes" onclick="setRangoFechaRRHH('mes')">Este Mes</button>
+                        <button type="button" class="date-chip" id="chip-rango-todos" onclick="setRangoFechaRRHH('todos')">Todos</button>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px;">
                         <div>
                             <label class="form-label font-bold" style="margin-bottom: 4px;">Desde</label>
@@ -730,7 +994,7 @@ async function renderRRHH(container) {
                         <table class="table" id="table-asistencia">
                             <thead>
                                 <tr>
-                                    <th>Empleado</th>
+                                    <th class="table-sticky-col">Empleado</th>
                                     <th>DNI</th>
                                     <th>Fecha y Entrada</th>
                                     <th>Salida y Total Horas</th>
@@ -851,7 +1115,7 @@ async function renderRRHH(container) {
                         <table class="table" id="table-fichas-personal">
                             <thead>
                                 <tr>
-                                    <th>Colaborador</th>
+                                    <th class="table-sticky-col">Colaborador</th>
                                     <th>Sueldo Configurado</th>
                                     <th>Horas Mes</th>
                                     <th>Horas Semana</th>
@@ -1162,19 +1426,19 @@ async function renderRRHH(container) {
 
                     <div class="form-group">
                         <label class="form-label font-bold">Sueldo Base Mensual (${moneda})</label>
-                        <input type="number" id="edit-sueldo-base" class="form-control" step="0.01" min="0" placeholder="Ej. 1500.00">
+                        <input type="number" id="edit-sueldo-base" class="form-control" step="0.01" min="0" placeholder="Ej. 1500.00" inputmode="decimal">
                         <p class="text-sec text-small" style="margin-top:4px;">Se usa como base mensual y para calcular tarifa hora de descuento.</p>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label font-bold">Tarifa por Hora (${moneda}/hora - Opcional)</label>
-                        <input type="number" id="edit-sueldo-hora" class="form-control" step="0.01" min="0" placeholder="Ej. 7.50">
+                        <input type="number" id="edit-sueldo-hora" class="form-control" step="0.01" min="0" placeholder="Ej. 7.50" inputmode="decimal">
                         <p class="text-sec text-small" style="margin-top:4px;">Si se deja en 0, se calcula automáticamente: (Sueldo Base / 240 hrs).</p>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label font-bold">Horas Semanales Pactadas</label>
-                        <input type="number" id="edit-sueldo-pactadas" class="form-control" min="1" max="72" value="48">
+                        <input type="number" id="edit-sueldo-pactadas" class="form-control" min="1" max="72" value="48" inputmode="numeric">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1193,6 +1457,9 @@ async function renderRRHH(container) {
                         <h3 style="font-size: 16px; margin: 0;">Ficha Laboral y Boleta de Pago</h3>
                     </div>
                     <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn btn-secondary btn-sm" style="color:#25D366; border-color:rgba(37,211,102,0.4);" onclick="enviarFichaPorWhatsAppActual()" title="Enviar resumen por WhatsApp">
+                            <i class="ph ph-whatsapp-logo" style="font-size:16px;"></i> <span class="mobile-hide">WhatsApp</span>
+                        </button>
                         <button class="btn btn-secondary btn-sm mobile-hide" onclick="imprimirFichaIndividual()"><i class="ph ph-printer"></i> Imprimir</button>
                         <button class="btn-icon" onclick="cerrarModalFichaIndividual()"><i class="ph ph-x"></i></button>
                     </div>
@@ -1200,9 +1467,14 @@ async function renderRRHH(container) {
                 <div class="modal-body" style="overflow-y:auto;" id="ficha-individual-printable">
                     <!-- Contenido inyectado por JS -->
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                     <button class="btn btn-secondary" onclick="cerrarModalFichaIndividual()">Cerrar</button>
-                    <button class="btn btn-primary" onclick="imprimirFichaIndividual()"><i class="ph ph-printer"></i> Imprimir Ficha</button>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-secondary" style="color:#25D366; border-color:rgba(37,211,102,0.4);" onclick="enviarFichaPorWhatsAppActual()">
+                            <i class="ph ph-whatsapp-logo" style="font-size:18px;"></i> Enviar WhatsApp
+                        </button>
+                        <button class="btn btn-primary" onclick="imprimirFichaIndividual()"><i class="ph ph-printer"></i> Imprimir Ficha</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1282,6 +1554,7 @@ window.refrescarRRHHActual = async function() {
 };
 
 window.switchRRHHTab = async function(tabName) {
+    triggerHaptic(15);
     window.currentRRHHTab = tabName;
     document.querySelectorAll('.rrhh-nav-tab').forEach(el => el.classList.remove('active'));
     const targetTab = document.querySelector('#tab-rrhh-' + tabName);
@@ -1319,57 +1592,100 @@ window.switchRRHHTab = async function(tabName) {
 window.loadRolesHorarios = async function() {
     const tbody = document.getElementById('tbody-rrhh-roles');
     if (!tbody) return;
+
     try {
-        const response = await fetch('/khalessierp/api/index.php?request=roles/list');
-        const data = await response.json();
-        if (data.status === 'success') {
-            tbody.innerHTML = '';
-            data.data.forEach(rol => {
-                const entrada = rol.hora_entrada ? rol.hora_entrada.substring(0,5) : '';
-                const salida = rol.hora_salida ? rol.hora_salida.substring(0,5) : '';
-                tbody.innerHTML += `
-                    <tr>
-                        <td class="fw-500">${rol.nombre}</td>
-                        <td><input type="time" id="rol_ent_${rol.id}" class="form-control" value="${entrada}" style="width:120px;"></td>
-                        <td><input type="time" id="rol_sal_${rol.id}" class="form-control" value="${salida}" style="width:120px;"></td>
-                        <td>
-                            <button class="btn btn-primary btn-sm" onclick="saveRolHorario(${rol.id})">Guardar</button>
-                        </td>
-                    </tr>
-                `;
-            });
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/roles_horarios');
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            const roles = data.data || [];
+            tbody.innerHTML = roles.map(r => `
+                <tr>
+                    <td><strong>${r.nombre}</strong></td>
+                    <td><input type="time" class="form-control form-control-sm input-horario" data-id="${r.id}" data-field="hora_entrada" value="${r.hora_entrada}"></td>
+                    <td><input type="time" class="form-control form-control-sm input-horario" data-id="${r.id}" data-field="hora_salida" value="${r.hora_salida}"></td>
+                    <td><input type="number" class="form-control form-control-sm input-horario" data-id="${r.id}" data-field="tolerancia_minutos" value="${r.tolerancia_minutos}" min="0" max="60" style="width:70px;"></td>
+                    <td><input type="number" class="form-control form-control-sm input-horario" data-id="${r.id}" data-field="horas_semanales_pactadas" value="${r.horas_semanales_pactadas || 48}" min="1" max="72" style="width:70px;"></td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="guardarHorarioRol(${r.id})"><i class="ph ph-floppy-disk"></i></button>
+                    </td>
+                </tr>
+            `).join('');
         }
-    } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-danger">Error cargando roles</td></tr>';
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Error al cargar horarios de roles</td></tr>';
     }
 };
 
-window.saveRolHorario = async function(id) {
-    const entrada = document.getElementById('rol_ent_' + id).value;
-    const salida = document.getElementById('rol_sal_' + id).value;
-    
+window.guardarHorarioRol = async function(id) {
+    const inputs = document.querySelectorAll(`.input-horario[data-id="${id}"]`);
+    const payload = { id: id };
+    inputs.forEach(input => {
+        payload[input.dataset.field] = input.value;
+    });
+
     try {
-        const response = await fetch('/khalessierp/api/index.php?request=rrhh/save_horario_rol', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id_rol: id,
-                hora_entrada: entrada,
-                hora_salida: salida
-            })
+        const res = await fetch('/khalessierp/api/index.php?request=rrhh/roles_horarios', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
-        const data = await response.json();
-        if (response.ok && data.status === 'success') {
-            showToast('Horario actualizado', 'success');
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast('Horario actualizado con éxito', 'success');
         } else {
-            showToast(data.message || 'Error al guardar', 'error');
+            showToast(data.message || 'Error al guardar horario', 'error');
         }
-    } catch(e) {
+    } catch (e) {
         showToast('Error de conexión', 'error');
     }
 };
 
 window.historialAsistenciaData = [];
+
+window.setRangoFechaRRHH = function(tipo) {
+    triggerHaptic(20);
+    const chips = document.querySelectorAll('.date-chips-wrap .date-chip');
+    chips.forEach(c => c.classList.remove('active'));
+    const activeChip = document.getElementById(`chip-rango-${tipo}`);
+    if (activeChip) activeChip.classList.add('active');
+
+    const inicioInput = document.getElementById('filtro-rrhh-inicio');
+    const finInput = document.getElementById('filtro-rrhh-fin');
+    if (!inicioInput || !finInput) return;
+
+    const now = new Date();
+    const toYMD = (d) => {
+        const temp = new Date(d);
+        temp.setMinutes(temp.getMinutes() - temp.getTimezoneOffset());
+        return temp.toISOString().split('T')[0];
+    };
+
+    if (tipo === 'hoy') {
+        inicioInput.value = toYMD(now);
+        finInput.value = toYMD(now);
+    } else if (tipo === 'ayer') {
+        const ayer = new Date(now);
+        ayer.setDate(ayer.getDate() - 1);
+        inicioInput.value = toYMD(ayer);
+        finInput.value = toYMD(ayer);
+    } else if (tipo === 'semana') {
+        const diaSemana = now.getDay();
+        const diffLunes = now.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1);
+        const lunes = new Date(now);
+        lunes.setDate(diffLunes);
+        inicioInput.value = toYMD(lunes);
+        finInput.value = toYMD(now);
+    } else if (tipo === 'mes') {
+        const primerDia = new Date(now.getFullYear(), now.getMonth(), 1);
+        inicioInput.value = toYMD(primerDia);
+        finInput.value = toYMD(now);
+    } else if (tipo === 'todos') {
+        inicioInput.value = '';
+        finInput.value = '';
+    }
+
+    loadHistorialAsistencia();
+};
 
 window.loadHistorialAsistencia = async function() {
     const inicio = document.getElementById('filtro-rrhh-inicio')?.value || '';
@@ -1377,7 +1693,32 @@ window.loadHistorialAsistencia = async function() {
     const tbody = document.querySelector('#table-asistencia tbody');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px;"><i class="ph ph-circle-notch ph-spin" style="font-size:24px;"></i><br>Cargando historial de asistencias...</td></tr>';
+    tbody.innerHTML = `
+        <tr>
+            <td class="table-sticky-col"><div class="skeleton skeleton-text" style="width:120px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:110px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:100px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-badge" style="width:85px; height:22px; border-radius:12px;"></div></td>
+            <td><div class="skeleton skeleton-button" style="width:48px; height:24px; border-radius:6px;"></div></td>
+        </tr>
+        <tr>
+            <td class="table-sticky-col"><div class="skeleton skeleton-text" style="width:140px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:100px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:90px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-badge" style="width:85px; height:22px; border-radius:12px;"></div></td>
+            <td><div class="skeleton skeleton-button" style="width:48px; height:24px; border-radius:6px;"></div></td>
+        </tr>
+        <tr>
+            <td class="table-sticky-col"><div class="skeleton skeleton-text" style="width:110px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:105px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:95px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-badge" style="width:85px; height:22px; border-radius:12px;"></div></td>
+            <td><div class="skeleton skeleton-button" style="width:48px; height:24px; border-radius:6px;"></div></td>
+        </tr>
+    `;
 
     try {
         let url = '/khalessierp/api/index.php?request=rrhh/historial';
@@ -1426,7 +1767,7 @@ window.loadHistorialAsistencia = async function() {
 
                 return `
                     <tr>
-                        <td>
+                        <td class="table-sticky-col">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 ${window.renderEmpleadoAvatar(item.nombre, item.apellido, item.foto_perfil, 32)}
                                 <div class="fw-500">${item.nombre} ${item.apellido || ''}</div>
@@ -1815,7 +2156,30 @@ window.loadFichasPersonal = async function() {
     const tbody = document.getElementById('tbody-fichas-personal');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:24px;"><i class="ph ph-circle-notch ph-spin" style="font-size:24px;"></i><br>Calculando horas, tardanzas y remuneraciones...</td></tr>';
+    tbody.innerHTML = `
+        <tr>
+            <td class="table-sticky-col"><div class="skeleton skeleton-text" style="width:130px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:80px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:80px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:60px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:80px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:90px; height:18px;"></div></td>
+            <td><div class="skeleton skeleton-button" style="width:80px; height:28px; border-radius:6px;"></div></td>
+        </tr>
+        <tr>
+            <td class="table-sticky-col"><div class="skeleton skeleton-text" style="width:150px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:80px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:70px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:80px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:60px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:80px; height:16px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width:90px; height:18px;"></div></td>
+            <td><div class="skeleton skeleton-button" style="width:80px; height:28px; border-radius:6px;"></div></td>
+        </tr>
+    `;
     
     try {
         const res = await fetch(`/khalessierp/api/index.php?request=rrhh/fichas_personal&mes=${mes}`);
@@ -1877,7 +2241,7 @@ window.loadFichasPersonal = async function() {
 
                 tbody.innerHTML += `
                     <tr>
-                        <td>
+                        <td class="table-sticky-col">
                             <div style="display:flex; align-items:center; gap:10px;">
                                 ${avatarHtml}
                                 <div>
@@ -1971,6 +2335,7 @@ window.guardarSueldoPersonal = async function() {
 };
 
 window.verFichaIndividualPersonal = function(id) {
+    window.currentFichaUsuarioId = id;
     const item = window.fichasPersonalData.find(x => x.usuario.id == id);
     if (!item) return;
 
@@ -2076,6 +2441,45 @@ window.cerrarModalFichaIndividual = function() {
 
 window.imprimirFichaIndividual = function() {
     window.print();
+};
+
+window.enviarFichaPorWhatsAppActual = function() {
+    triggerHaptic(30);
+    if (!window.currentFichaUsuarioId || !window.fichasPersonalData) return;
+    const item = window.fichasPersonalData.find(x => x.usuario.id == window.currentFichaUsuarioId);
+    if (!item) return;
+
+    const u = item.usuario;
+    const m = item.metricas;
+    const l = item.liquidacion;
+    const moneda = AppConfig.get('moneda') || 'S/';
+    const empresa = AppConfig.get('nombre_empresa') || 'Khalessi ERP';
+
+    let msg = `*${empresa}* - Resumen de Boleta / Ficha Laboral\n`;
+    msg += `Colaborador: *${u.nombre} ${u.apellido || ''}*\n`;
+    msg += `Período: *${m.mes}*\n\n`;
+    msg += `⏱ *Horas trabajadas:* ${m.horas_mes} hrs\n`;
+    msg += `⚠️ *Tardanzas:* ${m.tardanzas_conteo} (${m.tardanzas_minutos} min)\n`;
+    msg += `❌ *Inasistencias:* ${m.faltas_injustificadas + m.faltas_justificadas} días\n`;
+    msg += `💵 *Sueldo Base:* ${moneda} ${parseFloat(item.contrato.sueldo_base || 0).toFixed(2)}\n`;
+    if (l.descuento_tardanzas > 0) {
+        msg += `🔻 *Descuento Tardanzas:* -${moneda} ${l.descuento_tardanzas.toFixed(2)}\n`;
+    }
+    if (l.descuento_horas_perdidas > 0) {
+        msg += `🔻 *Descuento Inasistencias:* -${moneda} ${l.descuento_horas_perdidas.toFixed(2)}\n`;
+    }
+    if (l.bonificacion_horas_extra > 0) {
+        msg += `⭐ *Bonificación H. Extra:* +${moneda} ${l.bonificacion_horas_extra.toFixed(2)}\n`;
+    }
+    msg += `\n💰 *TOTAL NETO A COBRAR:* *${moneda} ${l.monto_total_cobrar.toFixed(2)}*\n\n`;
+    msg += `_Generado automáticamente desde ${empresa}_`;
+
+    const cleanTel = (u.telefono || '').replace(/[^0-9]/g, '');
+    const waUrl = cleanTel 
+        ? `https://api.whatsapp.com/send?phone=${cleanTel}&text=${encodeURIComponent(msg)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+
+    window.open(waUrl, '_blank');
 };
 
 // ==========================================

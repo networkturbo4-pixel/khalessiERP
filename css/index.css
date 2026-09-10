@@ -1417,44 +1417,72 @@ input:checked + .slider:before {
     }
 }
 
-/* 2. Modales Ultra-Amigables en Celular y Tablet */
+/* 2. Modales tipo Bottom Sheet Ultra-Amigables en Celular */
+@keyframes slideUpSheet {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
 @media (max-width: 768px) {
     .modal-backdrop {
-        padding: 10px !important;
+        padding: 0 !important;
+        align-items: flex-end !important; /* Bottom Sheet nativo */
     }
     
     .modal {
-        width: 96% !important;
-        max-width: 96% !important;
-        max-height: 94vh !important;
-        border-radius: 16px !important;
-        margin: auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: 90vh !important;
+        border-radius: 24px 24px 0 0 !important;
+        margin: 0 !important;
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25) !important;
+        border-left: none !important;
+        border-right: none !important;
+        border-bottom: none !important;
+        padding-bottom: env(safe-area-inset-bottom) !important;
+        animation: slideUpSheet 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+
+    /* Tirador táctil visual para Bottom Sheet */
+    .modal::before {
+        content: '';
+        display: block;
+        width: 42px;
+        height: 5px;
+        background: var(--border-color);
+        border-radius: 6px;
+        margin: 10px auto 4px auto;
+        flex-shrink: 0;
     }
 
     .modal-header {
-        padding: 12px 16px !important;
+        padding: 10px 18px 12px 18px !important;
+        border-bottom: 1px solid var(--border-color);
     }
 
     .modal-header h3 {
-        font-size: 15px !important;
+        font-size: 16px !important;
+        font-weight: 600;
     }
 
     .modal-body {
-        padding: 14px 16px !important;
+        padding: 16px 18px !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch;
-        max-height: calc(94vh - 120px) !important;
+        max-height: calc(88vh - 120px) !important;
     }
 
     .modal-footer {
-        padding: 12px 16px !important;
-        gap: 8px !important;
+        padding: 14px 18px !important;
+        gap: 10px !important;
         flex-wrap: wrap !important;
+        border-top: 1px solid var(--border-color);
+        background: var(--bg-panel);
     }
 
     .modal-footer button {
         flex: 1 1 auto !important;
-        min-height: 40px !important;
+        min-height: 44px !important; /* Ergonomía táctil >= 44px */
         font-size: 13px !important;
         justify-content: center !important;
     }
@@ -1669,6 +1697,326 @@ input:checked + .slider:before {
     max-width: 100%;
     height: 270px;
     box-sizing: border-box;
+}
+
+/* ===================================================
+   BARRA DE NAVEGACIÓN INFERIOR PARA MÓVIL (BOTTOM NAV)
+   =================================================== */
+.bottom-nav-bar {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .bottom-nav-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: var(--bg-panel);
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        z-index: 998;
+        padding-bottom: env(safe-area-inset-bottom);
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
+        backdrop-filter: blur(10px);
+    }
+
+    .bottom-nav-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-sec);
+        text-decoration: none;
+        font-size: 10.5px;
+        font-weight: 500;
+        gap: 2px;
+        transition: all 0.2s ease;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        user-select: none;
+        padding: 0;
+    }
+
+    .bottom-nav-item i {
+        font-size: 20px;
+        transition: transform 0.2s ease, color 0.2s ease;
+    }
+
+    .bottom-nav-item:active {
+        transform: scale(0.92);
+    }
+
+    .bottom-nav-item.active {
+        color: var(--primary) !important;
+        font-weight: 600;
+    }
+
+    .bottom-nav-item.active i {
+        color: var(--primary) !important;
+        transform: translateY(-2px);
+    }
+
+    /* Espaciado inferior para evitar solapamiento con la barra */
+    .content-area {
+        padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+    }
+}
+
+/* ===================================================
+   BOTÓN FLOTANTE DE ACCIÓN RÁPIDA (FAB)
+   =================================================== */
+.fab-btn {
+    position: fixed;
+    bottom: calc(74px + env(safe-area-inset-bottom));
+    right: 18px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.42);
+    border: none;
+    cursor: pointer;
+    z-index: 995;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.fab-btn:hover {
+    transform: scale(1.08) translateY(-2px);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.55);
+}
+
+.fab-btn:active {
+    transform: scale(0.92);
+}
+
+@media (min-width: 769px) {
+    .fab-btn {
+        display: none !important;
+    }
+}
+
+/* ===================================================
+   CHIPS RÁPIDOS DE FILTRADO DE FECHA
+   =================================================== */
+.date-chips-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+    margin-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+}
+.date-chips-wrap::-webkit-scrollbar { display: none; }
+
+.date-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    color: var(--text-sec);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.date-chip:hover {
+    color: var(--text-main);
+    border-color: var(--primary);
+}
+
+.date-chip.active {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--primary);
+    border-color: var(--primary);
+    font-weight: 600;
+}
+
+/* ===================================================
+   SKELETON LOADERS ANIMADOS
+   =================================================== */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.skeleton {
+    background: linear-gradient(90deg, var(--bg-main) 25%, var(--border-color) 50%, var(--bg-main) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+.skeleton-text {
+    height: 14px;
+    width: 100%;
+    margin-bottom: 6px;
+}
+
+.skeleton-circle {
+    border-radius: 50% !important;
+}
+
+/* ===================================================
+   PULL TO REFRESH INDICATOR
+   =================================================== */
+.ptr-indicator {
+    position: fixed;
+    top: 68px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    border-radius: 30px;
+    padding: 8px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-main);
+    z-index: 1020;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ptr-indicator.visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.ptr-indicator i.spinning {
+    animation: spinPtr 0.8s linear infinite;
+}
+
+@keyframes spinPtr {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ===================================================
+   INTERRUPTORES TÁCTILES TIPO IOS (TOGGLE SWITCHES)
+   =================================================== */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--border-color);
+    transition: 0.25s ease;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--primary);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* ===================================================
+   COLUMNAS STICKY PARA TABLAS EN TABLETS Y CELULARES
+   =================================================== */
+.table-sticky-col {
+    position: sticky;
+    left: 0;
+    background: var(--bg-panel) !important;
+    z-index: 2;
+}
+
+.table-sticky-col::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 4px;
+    box-shadow: inset -4px 0 4px -2px rgba(0,0,0,0.06);
+    pointer-events: none;
+}
+
+/* ===================================================
+   MODO KIOSKO Y BOTÓN PANTALLA COMPLETA
+   =================================================== */
+body.kiosk-mode .sidebar,
+body.kiosk-mode .topbar,
+body.kiosk-mode .bottom-nav-bar,
+body.kiosk-mode .fab-btn {
+    display: none !important;
+}
+
+body.kiosk-mode .content-area {
+    padding: 14px !important;
+    padding-bottom: 14px !important;
+}
+
+.btn-kiosk {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    color: var(--text-sec);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-kiosk:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    transform: scale(1.05);
 }
 
 

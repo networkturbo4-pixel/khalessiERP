@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khalessi-v10';
+const CACHE_NAME = 'khalessi-v11';
 const ASSETS = [
     './',
     './index.html',
@@ -61,7 +61,32 @@ self.addEventListener('fetch', event => {
     // NO llamamos a event.respondWith. De este modo el navegador realiza la petición por red de forma nativa sin errores.
     if (!hasCaches()) return;
 
-    // Estrategia Network First protegida
+    // Manejo específico para navegaciones SPA (HTML de rutas como /dashboard, /clientes, /asistencias)
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then(networkResponse => {
+                    if (hasCaches() && networkResponse && networkResponse.status === 200) {
+                        const clone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put('./index.html', clone)).catch(() => {});
+                    }
+                    return networkResponse;
+                })
+                .catch(async () => {
+                    if (hasCaches()) {
+                        const fallback = (await caches.match('./index.html')) || (await caches.match('./'));
+                        if (fallback) return fallback;
+                    }
+                    return new Response('Contenido no disponible sin conexión.', {
+                        status: 503,
+                        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+                    });
+                })
+        );
+        return;
+    }
+
+    // Recursos estáticos (CSS, JS, iconos, imágenes)
     event.respondWith(
         fetch(event.request)
             .then(networkResponse => {
@@ -73,16 +98,14 @@ self.addEventListener('fetch', event => {
                 }
                 return networkResponse;
             })
-            .catch(async (fetchError) => {
+            .catch(async () => {
                 if (hasCaches()) {
                     try {
                         const cached = await caches.match(event.request);
                         if (cached) return cached;
-                    } catch (cacheErr) {
-                        console.warn('SW cache match omitido:', cacheErr);
-                    }
+                    } catch (cacheErr) {}
                 }
-                throw fetchError;
+                return new Response('', { status: 408, statusText: 'Network Timeout' });
             })
     );
 });

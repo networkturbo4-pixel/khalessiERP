@@ -376,7 +376,11 @@ else if ($method === 'POST' && $accion === 'marcar_refrigerio_inicio') {
         respondError("No tienes un turno laboral activo abierto. Primero debes registrar tu ingreso.");
     }
     if (!empty($asist['inicio_refrigerio'])) {
-        respondError("Ya registraste el inicio de refrigerio para este turno.");
+        respondSuccess([
+            "inicio_refrigerio" => $asist['inicio_refrigerio'],
+            "asistencia_id" => $asist['id'],
+            "ya_registrado" => true
+        ], "El inicio de tu refrigerio ya fue registrado previamente a las " . date('h:i:s A', strtotime($asist['inicio_refrigerio'])) . ". ¡Buen provecho!");
     }
 
     $ahora = date('Y-m-d H:i:s');
@@ -406,7 +410,7 @@ else if ($method === 'POST' && $accion === 'marcar_refrigerio_fin') {
     $user = $stmtU->fetch(PDO::FETCH_ASSOC);
     if (!$user) respondError("Usuario no encontrado o inactivo");
 
-    $stmt = $db->prepare("SELECT id, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_user AND estado = 'abierto' ORDER BY id DESC LIMIT 1");
+    $stmt = $db->prepare("SELECT id, inicio_refrigerio, fin_refrigerio, minutos_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_user AND estado = 'abierto' ORDER BY id DESC LIMIT 1");
     $stmt->execute([':id_user' => $user['id']]);
     $asist = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -417,7 +421,12 @@ else if ($method === 'POST' && $accion === 'marcar_refrigerio_fin') {
         respondError("Primero debes registrar el inicio de tu refrigerio.");
     }
     if (!empty($asist['fin_refrigerio'])) {
-        respondError("Ya registraste la finalización de tu refrigerio.");
+        respondSuccess([
+            "fin_refrigerio" => $asist['fin_refrigerio'],
+            "minutos_refrigerio" => isset($asist['minutos_refrigerio']) ? (int)$asist['minutos_refrigerio'] : 0,
+            "asistencia_id" => $asist['id'],
+            "ya_registrado" => true
+        ], "El fin de tu refrigerio ya fue registrado a las " . date('h:i:s A', strtotime($asist['fin_refrigerio'])) . ". ¡A continuar con energía!");
     }
 
     $ahora = date('Y-m-d H:i:s');
@@ -516,7 +525,14 @@ else if ($method === 'POST' && $accion === 'marcar_salida') {
     $stmt = $db->prepare("SELECT id, fecha_hora_entrada, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto' ORDER BY id DESC LIMIT 1");
     $stmt->execute([':id_usuario' => $user['id']]);
     $asistencia = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$asistencia) respondError("No hay un turno abierto para este usuario");
+    if (!$asistencia) {
+        $stmtCerrado = $db->prepare("SELECT id FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND DATE(fecha_hora_entrada) = CURDATE() AND estado = 'cerrado' ORDER BY id DESC LIMIT 1");
+        $stmtCerrado->execute([':id_usuario' => $user['id']]);
+        if ($stmtCerrado->fetch()) {
+            respondSuccess(["ya_registrado" => true], "Tu salida ya fue registrada previamente.");
+        }
+        respondError("No hay un turno abierto para este usuario");
+    }
     
     $extraRefrig = "";
     if (!empty($asistencia['inicio_refrigerio']) && empty($asistencia['fin_refrigerio'])) {

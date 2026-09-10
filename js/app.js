@@ -1184,9 +1184,19 @@ function renderDashboardAttendanceMarks(data) {
     if (actionGroupEl) actionGroupEl.innerHTML = actionsHtml;
 }
 
+window._isProcessingRefrig = false;
+
 window.marcarRefrigerioInicio = async function() {
+    if (window._isProcessingRefrig) return;
     const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
     if (!user.id && !user.dni) return;
+
+    window._isProcessingRefrig = true;
+    const actionGroup = document.getElementById('dash-attendance-action-group');
+    const prevHtml = actionGroup ? actionGroup.innerHTML : '';
+    if (actionGroup) {
+        actionGroup.innerHTML = `<button class="btn-app-action btn-app-warning" disabled style="opacity:0.8;"><i class="ph ph-spinner ph-spin"></i> Registrando inicio...</button>`;
+    }
 
     if (typeof triggerHaptic === 'function') triggerHaptic(40);
     try {
@@ -1199,18 +1209,30 @@ window.marcarRefrigerioInicio = async function() {
         if (res.ok && json.status === 'success') {
             document.getElementById('floating-refrigerio-notice')?.remove();
             showToast(json.message || 'Inicio de refrigerio registrado', 'success');
-            window.refreshDashboardAttendance();
+            await window.refreshDashboardAttendance();
         } else {
             showToast(json.message || 'Error al iniciar refrigerio', 'error');
+            if (actionGroup && prevHtml) actionGroup.innerHTML = prevHtml;
         }
     } catch(e) {
         showToast('Error de conexión al marcar refrigerio', 'error');
+        if (actionGroup && prevHtml) actionGroup.innerHTML = prevHtml;
+    } finally {
+        window._isProcessingRefrig = false;
     }
 };
 
 window.marcarRefrigerioFin = async function() {
+    if (window._isProcessingRefrig) return;
     const user = JSON.parse(localStorage.getItem('khalessi_user') || '{}');
     if (!user.id && !user.dni) return;
+
+    window._isProcessingRefrig = true;
+    const actionGroup = document.getElementById('dash-attendance-action-group');
+    const prevHtml = actionGroup ? actionGroup.innerHTML : '';
+    if (actionGroup) {
+        actionGroup.innerHTML = `<button class="btn-app-action btn-app-warning" disabled style="opacity:0.8;"><i class="ph ph-spinner ph-spin"></i> Registrando retorno...</button>`;
+    }
 
     if (typeof triggerHaptic === 'function') triggerHaptic(40);
     try {
@@ -1223,12 +1245,16 @@ window.marcarRefrigerioFin = async function() {
         if (res.ok && json.status === 'success') {
             document.getElementById('floating-refrigerio-notice')?.remove();
             showToast(json.message || 'Fin de refrigerio registrado', 'success');
-            window.refreshDashboardAttendance();
+            await window.refreshDashboardAttendance();
         } else {
             showToast(json.message || 'Error al finalizar refrigerio', 'error');
+            if (actionGroup && prevHtml) actionGroup.innerHTML = prevHtml;
         }
     } catch(e) {
         showToast('Error de conexión al finalizar refrigerio', 'error');
+        if (actionGroup && prevHtml) actionGroup.innerHTML = prevHtml;
+    } finally {
+        window._isProcessingRefrig = false;
     }
 };
 
@@ -4714,10 +4740,14 @@ window.procesarDNI = async function() {
     }
 };
 
+window._isLoginRefrigBusy = false;
+
 window.marcarRefrigerioDesdeLogin = async function(dni) {
+    if (window._isLoginRefrigBusy) return;
     dni = dni || window.currentDniAsistencia || document.getElementById('auth-dni').value.trim();
     if (!dni) return;
 
+    window._isLoginRefrigBusy = true;
     try {
         const res = await fetch('/khalessierp/api/index.php?request=rrhh/marcar_refrigerio_inicio', {
             method: 'POST',
@@ -4743,13 +4773,17 @@ window.marcarRefrigerioDesdeLogin = async function(dni) {
         }
     } catch(e) {
         showToast('Error de conexión', 'error');
+    } finally {
+        window._isLoginRefrigBusy = false;
     }
 };
 
 window.marcarFinRefrigerioDesdeLogin = async function(dni) {
+    if (window._isLoginRefrigBusy) return;
     dni = dni || window.currentDniAsistencia || document.getElementById('auth-dni').value.trim();
     if (!dni) return;
 
+    window._isLoginRefrigBusy = true;
     try {
         const res = await fetch('/khalessierp/api/index.php?request=rrhh/marcar_refrigerio_fin', {
             method: 'POST',
@@ -4766,6 +4800,8 @@ window.marcarFinRefrigerioDesdeLogin = async function(dni) {
         }
     } catch(e) {
         showToast('Error de conexión', 'error');
+    } finally {
+        window._isLoginRefrigBusy = false;
     }
 };
 

@@ -1276,11 +1276,12 @@ input:checked + .slider:before {
 .sidebar-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 90;
+    background: rgba(0,0,0,0.55);
+    z-index: 1050;
     display: none;
     opacity: 0;
-    transition: opacity 0.3s;
+    backdrop-filter: blur(4px);
+    transition: opacity 0.3s ease;
 }
 
 @media (max-width: 768px) {
@@ -1288,10 +1289,19 @@ input:checked + .slider:before {
     
     .sidebar {
         position: fixed;
-        left: -250px;
+        left: -280px;
         top: 0;
         bottom: 0;
-        box-shadow: var(--shadow-md);
+        height: 100vh;
+        height: 100dvh;
+        width: 280px;
+        max-width: 85vw;
+        box-shadow: 6px 0 28px rgba(0, 0, 0, 0.3);
+        z-index: 1060;
+        display: flex;
+        flex-direction: column;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: var(--bg-panel);
     }
     
     .sidebar.show-mobile {
@@ -1301,6 +1311,38 @@ input:checked + .slider:before {
     .sidebar-overlay.show {
         display: block;
         opacity: 1;
+        pointer-events: auto;
+    }
+
+    .sidebar-nav {
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 24px;
+    }
+
+    .sidebar-footer {
+        padding: 16px 14px;
+        border-top: 1px solid var(--border-color);
+        background: var(--bg-panel);
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        flex-shrink: 0;
+        z-index: 2;
+    }
+
+    /* Evitar que la barra inferior móvil o el botón flotante tapen el menú o cerrar sesión */
+    .sidebar.show-mobile ~ .bottom-nav-bar {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transform: translateY(100%) !important;
+        transition: transform 0.25s ease, opacity 0.2s ease;
+    }
+
+    .sidebar.show-mobile ~ .fab-btn {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transform: scale(0.8) !important;
+        transition: transform 0.2s ease, opacity 0.2s ease;
     }
     
     .topbar-left {
@@ -1722,6 +1764,7 @@ input:checked + .slider:before {
         padding-bottom: env(safe-area-inset-bottom);
         box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
         backdrop-filter: blur(10px);
+        transition: transform 0.25s ease, opacity 0.2s ease;
     }
 
     .bottom-nav-item {
@@ -2134,4 +2177,9 @@ body.kiosk-mode .content-area {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }

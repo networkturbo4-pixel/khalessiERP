@@ -191,6 +191,15 @@ window.closeSidebarMobile = function() {
     if (overlay) overlay.classList.remove('show');
 };
 
+window.cerrarSesion = function() {
+    if (typeof triggerHaptic === 'function') triggerHaptic(30);
+    localStorage.removeItem('khalessi_token');
+    localStorage.removeItem('khalessi_user');
+    window.closeSidebarMobile();
+    window.navigate('/login');
+    if (typeof showToast === 'function') showToast('Sesión finalizada', 'info');
+};
+
 window.getAppBase = function() {
     return typeof window.APP_BASE === 'string' ? window.APP_BASE : (window.location.pathname.startsWith('/khalessierp') ? '/khalessierp' : '');
 };
@@ -336,8 +345,8 @@ function renderAppLayout(container) {
                 </nav>
                 
                 <div class="sidebar-footer">
-                    <a href="javascript:navigate('/login')" class="nav-item text-danger">
-                        <i class="ph ph-sign-out"></i>
+                    <a href="javascript:window.cerrarSesion()" class="nav-item text-danger" style="display: flex; align-items: center; gap: 12px; font-weight: 600; cursor: pointer;">
+                        <i class="ph ph-sign-out" style="font-size: 20px;"></i>
                         <span>Cerrar Sesión</span>
                     </a>
                 </div>
@@ -755,13 +764,20 @@ function renderLogin(container) {
                 </div>
 
                 <div id="auth-step-cam" class="hidden" style="text-align:center;">
-                    <h3 id="auth-nombre-user" style="margin-bottom:10px;"></h3>
-                    <p style="color:var(--text-sec); margin-bottom:15px;">Captura tu foto para iniciar tu jornada laboral</p>
-                    <div style="width: 100%; max-width: 300px; margin: 0 auto; border-radius: 8px; overflow: hidden; background: #000; position: relative;">
-                        <video id="asistencia-video" autoplay playsinline style="width: 100%; display: block;"></video>
+                    <h3 id="auth-nombre-user" style="margin-bottom:6px; font-size: 18px; font-weight: 700;"></h3>
+                    <p style="color:var(--text-sec); margin-bottom:14px; font-size: 13.5px;">Captura tu foto para registrar tu asistencia</p>
+                    <div style="width: 100%; max-width: 320px; min-height: 250px; margin: 0 auto; border-radius: 16px; overflow: hidden; background: #0b0f19; position: relative; box-shadow: 0 4px 24px rgba(0,0,0,0.18); border: 2px solid var(--border-color);">
+                        <!-- Spinner indicador de inicio de cámara -->
+                        <div id="asistencia-cam-loader" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b0f19; color: #94a3b8; gap: 12px; z-index: 3;">
+                            <div style="width: 42px; height: 42px; border-radius: 50%; border: 3px solid rgba(239,68,68,0.2); border-top-color: var(--primary); animation: spin 0.8s linear infinite;"></div>
+                            <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.2px;">Iniciando cámara rápida...</span>
+                        </div>
+                        <video id="asistencia-video" autoplay playsinline muted style="width: 100%; min-height: 250px; display: block; object-fit: cover; transform: scaleX(-1);"></video>
                         <canvas id="asistencia-canvas" style="display:none;"></canvas>
+                        <!-- Guía facial visual -->
+                        <div style="position: absolute; inset: 18px; border: 2px dashed rgba(255,255,255,0.26); border-radius: 50%; pointer-events: none; z-index: 2;"></div>
                     </div>
-                    <button class="btn btn-primary" style="margin-top:20px; width:100%; padding: 15px;" onclick="capturarYMarcarEntrada()">
+                    <button class="btn btn-primary" id="btn-capturar-entrada" style="margin-top:18px; width:100%; padding: 14px; font-size: 15px; font-weight: 600; border-radius: 12px;" onclick="capturarYMarcarEntrada()">
                         <i class="ph ph-camera"></i> Tomar Foto e Ingresar
                     </button>
                     <button class="btn btn-secondary" style="margin-top:10px; width:100%;" onclick="reiniciarAuth()">Cancelar</button>
@@ -3711,6 +3727,11 @@ window.procesarDNI = async function() {
         return;
     }
     
+    // Iniciar precarga de GPS en segundo plano para que esté listo al instante
+    if (typeof window.precargarGPS === 'function') {
+        window.precargarGPS();
+    }
+    
     // Primero, verificamos el estado de su turno (RRHH)
     try {
         const response = await fetch(`/khalessierp/api/index.php?request=rrhh/estado&dni=${dni}`);
@@ -3828,33 +3849,113 @@ window.ingresarAlSistema = async function() {
 };
 
 window.streamAsistencia = null;
+window.cachedPosition = null;
+
+// Precarga anticipada de GPS para marcar asistencia al instante (0ms de espera)
+window.precargarGPS = function() {
+    if (navigator.geolocation && !window.cachedPosition) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => { window.cachedPosition = pos; },
+            (err) => { console.warn('GPS precarga:', err); },
+            { timeout: 3500, maximumAge: 180000, enableHighAccuracy: false }
+        );
+    }
+};
 
 window.iniciarCamara = async function() {
+    const video = document.getElementById('asistencia-video');
+    const loader = document.getElementById('asistencia-cam-loader');
+    if (loader) loader.style.display = 'flex';
+    
+    // Iniciar precarga de GPS en paralelo
+    window.precargarGPS();
+
+    // Detener stream previo si existiera
+    window.detenerCamara();
+
+    // Constraints optimizadas para respuesta ultrarrápida del hardware móvil/desktop
+    const constraintsFast = {
+        video: {
+            facingMode: { ideal: "user" },
+            width: { ideal: 640, max: 1280 },
+            height: { ideal: 480, max: 720 },
+            frameRate: { ideal: 30, max: 30 }
+        },
+        audio: false
+    };
+
+    let stream = null;
     try {
-        window.streamAsistencia = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
-        const video = document.getElementById('asistencia-video');
-        video.srcObject = window.streamAsistencia;
-    } catch (err) {
-        showToast('No se pudo acceder a la cámara. Se requiere cámara para registrar entrada.', 'error');
+        stream = await navigator.mediaDevices.getUserMedia(constraintsFast);
+    } catch (e1) {
+        console.warn('Fallo constraints ideal, probando facingMode user básico:', e1);
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        } catch (e2) {
+            console.warn('Fallo facingMode, probando video genérico:', e2);
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            } catch (e3) {
+                console.error('Error accediendo a cámara:', e3);
+            }
+        }
+    }
+
+    if (!stream) {
+        if (loader) loader.style.display = 'none';
+        showToast('No se pudo acceder a la cámara. Asegúrate de otorgar permisos en tu navegador.', 'error');
         reiniciarAuth();
+        return;
+    }
+
+    window.streamAsistencia = stream;
+    if (video) {
+        video.srcObject = stream;
+        video.muted = true;
+        video.setAttribute('playsinline', '');
+
+        const hideLoader = () => {
+            if (loader) loader.style.display = 'none';
+        };
+
+        video.onloadedmetadata = () => {
+            video.play().then(hideLoader).catch(() => hideLoader());
+        };
+        video.onplaying = hideLoader;
+        video.onloadeddata = hideLoader;
+
+        // Quitar loader de seguridad
+        setTimeout(hideLoader, 1000);
     }
 };
 
 window.detenerCamara = function() {
     if (window.streamAsistencia) {
-        window.streamAsistencia.getTracks().forEach(track => track.stop());
+        try {
+            window.streamAsistencia.getTracks().forEach(track => track.stop());
+        } catch(e) {}
         window.streamAsistencia = null;
     }
+    const video = document.getElementById('asistencia-video');
+    if (video) video.srcObject = null;
+    const loader = document.getElementById('asistencia-cam-loader');
+    if (loader) loader.style.display = 'none';
 };
 
 window.capturarYMarcarEntrada = async function() {
     const video = document.getElementById('asistencia-video');
     const canvas = document.getElementById('asistencia-canvas');
+    const btn = document.getElementById('btn-capturar-entrada');
     const dni = window.currentDniAsistencia || document.getElementById('auth-dni').value.trim();
     
-    if (!video.videoWidth) {
-        showToast('Esperando a la cámara...', 'info');
+    if (!video || !video.videoWidth) {
+        showToast('Iniciando cámara, espera un momento...', 'info');
         return;
+    }
+    
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Procesando...';
     }
     
     const maxWidth = 640;
@@ -3862,17 +3963,30 @@ window.capturarYMarcarEntrada = async function() {
     canvas.width = video.videoWidth * scale;
     canvas.height = video.videoHeight * scale;
     const ctx = canvas.getContext('2d');
+    
+    // Invertir horizontalmente para efecto espejo natural
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const fotoData = canvas.toDataURL('image/jpeg', 0.6);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    
+    const fotoData = canvas.toDataURL('image/jpeg', 0.65);
     
     let latitud = '';
     let longitud = '';
     
-    if (navigator.geolocation) {
-        showToast('Obteniendo ubicación GPS...', 'info');
+    // Usar GPS precargado si ya está disponible (0ms de espera)
+    if (window.cachedPosition && window.cachedPosition.coords) {
+        latitud = window.cachedPosition.coords.latitude;
+        longitud = window.cachedPosition.coords.longitude;
+    } else if (navigator.geolocation) {
         try {
             const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+                navigator.geolocation.getCurrentPosition(resolve, reject, { 
+                    timeout: 2000, 
+                    maximumAge: 180000, 
+                    enableHighAccuracy: false 
+                });
             });
             latitud = position.coords.latitude;
             longitud = position.coords.longitude;
@@ -3902,9 +4016,17 @@ window.capturarYMarcarEntrada = async function() {
             ingresarAlSistema();
         } else {
             showToast(data.message || 'Error al marcar entrada', 'error');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph ph-camera"></i> Tomar Foto e Ingresar';
+            }
         }
     } catch (e) {
-        showToast('Error de conexión', 'error');
+        showToast('Error de conexión al marcar asistencia', 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-camera"></i> Tomar Foto e Ingresar';
+        }
     }
 };
 
@@ -4009,9 +4131,28 @@ window.buscarNombreJustificacion = async function() {
 
 window.activarCamaraJustificacion = async function() {
     try {
-        window.streamJustificacion = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        const constraints = {
+            video: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1280, max: 1920 },
+                height: { ideal: 720, max: 1080 }
+            },
+            audio: false
+        };
+        let stream = null;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch(e) {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+        window.streamJustificacion = stream;
         const video = document.getElementById('just-video');
-        video.srcObject = window.streamJustificacion;
+        if (video) {
+            video.srcObject = stream;
+            video.muted = true;
+            video.setAttribute('playsinline', '');
+            video.onloadedmetadata = () => video.play().catch(() => {});
+        }
         document.getElementById('just-cam-container')?.classList.remove('hidden');
     } catch (err) {
         showToast('No se pudo acceder a la cámara.', 'error');

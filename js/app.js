@@ -173,7 +173,15 @@ const routes = {
     '/perfil': { view: renderPerfil, layout: true }
 };
 
+window.closeSidebarMobile = function() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    if (sidebar) sidebar.classList.remove('show-mobile');
+    if (overlay) overlay.classList.remove('show');
+};
+
 window.navigate = function(path) {
+    window.closeSidebarMobile();
     window.history.pushState({}, path, `/khalessierp${path}`);
     router();
 };
@@ -390,6 +398,7 @@ function renderAppLayout(container) {
 }
 
 function updateSidebarActive(path) {
+    if (typeof window.closeSidebarMobile === 'function') window.closeSidebarMobile();
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     const activeEl = document.querySelector(`.nav-item[data-path="${path}"]`);
     if(activeEl) activeEl.classList.add('active');
@@ -623,9 +632,20 @@ window.toggleSidebarDesktop = function() {
 };
 
 window.toggleSidebarMobile = function() {
-    document.getElementById('sidebar').classList.toggle('show-mobile');
-    document.querySelector('.sidebar-overlay').classList.toggle('show');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    if (sidebar) sidebar.classList.toggle('show-mobile');
+    if (overlay) overlay.classList.toggle('show');
 };
+
+// Cerrar automáticamente el sidebar móvil al hacer clic en cualquier opción de navegación
+document.addEventListener('click', function(e) {
+    if (window.innerWidth <= 768) {
+        if (e.target.closest('#sidebar .nav-item') || e.target.closest('#sidebar a')) {
+            window.closeSidebarMobile();
+        }
+    }
+});
 
 // ===================================
 // LÓGICA DE SUBIDA DE IMÁGENES)

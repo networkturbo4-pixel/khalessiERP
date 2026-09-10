@@ -3295,4 +3295,127 @@ body.kiosk-mode .content-area {
     gap: 4px;
 }
 
+/* ===================================================
+   MÓDULO INVENTARIO: KPI EN 2 COLUMNAS EN MÓVIL
+   =================================================== */
+@media (max-width: 768px) {
+    #inv-prod-kpis {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+        margin-bottom: 16px !important;
+    }
+    #inv-prod-kpis .stat-card {
+        padding: 12px 14px !important;
+        gap: 10px !important;
+        border-radius: 12px !important;
+    }
+    #inv-prod-kpis .stat-icon {
+        width: 38px !important;
+        height: 38px !important;
+        font-size: 20px !important;
+        min-width: 38px !important;
+        border-radius: 10px !important;
+    }
+    #inv-prod-kpis .stat-value {
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
+    }
+    #inv-prod-kpis .stat-label {
+        font-size: 11px !important;
+        line-height: 1.2 !important;
+    }
+}
+
+/* ===================================================
+   MODAL PRODUCTO: 85% VH EN PC
+   =================================================== */
+@media (min-width: 769px) {
+    #modal-producto .modal {
+        height: 85vh !important;
+        max-height: 85vh !important;
+        width: 85% !important;
+        max-width: 780px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        border-radius: 20px !important;
+    }
+    #modal-producto .modal-header {
+        flex-shrink: 0 !important;
+        padding: 20px 28px !important;
+    }
+    #modal-producto .modal-body {
+        flex: 1 1 auto !important;
+        overflow-y: auto !important;
+        padding: 24px 28px !important;
+    }
+    #modal-producto .modal-footer {
+        flex-shrink: 0 !important;
+        padding: 16px 28px !important;
+    }
+}
+
+/* ===================================================
+   TARJETAS DESGLOSABLES DE PRODUCTOS (CARD-ROW)
+   =================================================== */
+.prod-card-row {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    margin-bottom: 10px;
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+
+.prod-card-row:hover {
+    border-color: rgba(239, 68, 68, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.prod-card-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease;
+}
+
+.prod-card-header:hover {
+    background: rgba(0, 0, 0, 0.015);
+}
+
+[data-theme="dark"] .prod-card-header:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.prod-chevron {
+    transition: transform 0.25s ease;
+    font-size: 18px;
+    color: var(--text-sec);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.prod-card-row.expanded .prod-chevron {
+    transform: rotate(180deg);
+}
+
+.prod-card-collapse {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s ease;
+    background: var(--bg-main);
+    border-top: 1px solid transparent;
+}
+
+.prod-card-row.expanded .prod-card-collapse {
+    max-height: 800px;
+    border-top-color: var(--border-color);
+    padding: 18px 20px;
+}
+
 

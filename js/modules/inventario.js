@@ -1,4 +1,4 @@
-// js/modules/inventario.js - Módulo de Inventario (Moderno y Sin Cabecera)
+// js/modules/inventario.js - Módulo de Inventario (Moderno, Sin Cabecera y con Cards Desglosables)
 
 (function() {
     'use strict';
@@ -6,6 +6,7 @@
     let productosData = [];
     let categoriasData = [];
     let activeTab = 'productos';
+    let expandedProductIds = new Set();
 
     // Función principal invocada por el enrutador
     window.renderInventario = function(container) {
@@ -24,8 +25,8 @@
 
                 <!-- 1. VISTA: PRODUCTOS -->
                 <div id="inv-view-productos" class="inv-tab-content">
-                    <!-- Tarjetas de Métricas Rápidas (KPIs) -->
-                    <div class="stats-grid mb-4" id="inv-prod-kpis">
+                    <!-- Tarjetas de Métricas Rápidas (KPIs - 2 Columnas en móvil) -->
+                    <div class="stats-grid mb-3" id="inv-prod-kpis">
                         <div class="stat-card">
                             <div class="stat-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--primary);">
                                 <i class="ph ph-package"></i>
@@ -66,7 +67,7 @@
 
                     <!-- Barra de Herramientas y Filtros -->
                     <div class="card mb-3" style="border-radius: 16px; border: 1px solid var(--border-color);">
-                        <div class="card-body" style="padding: 16px 20px;">
+                        <div class="card-body" style="padding: 14px 18px;">
                             <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
                                 
                                 <!-- Buscador y Selectores -->
@@ -99,76 +100,60 @@
                         </div>
                     </div>
 
-                    <!-- Tabla de Productos -->
-                    <div class="card" style="border-radius: 16px; border: 1px solid var(--border-color); overflow: hidden;">
-                        <div class="table-responsive">
-                            <table class="table" id="tabla-productos-inv" style="margin-bottom: 0;">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 50px;">Item</th>
-                                        <th>Producto</th>
-                                        <th>SKU / Código</th>
-                                        <th>Categoría</th>
-                                        <th style="text-align: right;">Precio Venta</th>
-                                        <th style="text-align: center;">Stock Actual</th>
-                                        <th style="text-align: center;">Stock Mín.</th>
-                                        <th style="text-align: center;">Estado</th>
-                                        <th style="text-align: center; width: 140px;">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tbody-productos-inv">
-                                    <tr>
-                                        <td colspan="9" style="text-align: center; padding: 40px; color: var(--text-sec);">
-                                            <i class="ph ph-spinner ph-spin" style="font-size: 28px; color: var(--primary); margin-bottom: 8px; display: block; margin-inline: auto;"></i>
-                                            Cargando productos...
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                    <!-- Contenedor de Filas en Card Desglosables -->
+                    <div id="contenedor-productos-cards">
+                        <div style="text-align: center; padding: 48px; color: var(--text-sec); background: var(--bg-panel); border-radius: 16px; border: 1px solid var(--border-color);">
+                            <i class="ph ph-spinner ph-spin" style="font-size: 28px; color: var(--primary); margin-bottom: 8px; display: block; margin-inline: auto;"></i>
+                            Cargando productos...
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- MODAL: CREAR / EDITAR PRODUCTO -->
-            <div id="modal-producto" class="modal-backdrop hidden">
-                <div class="modal" style="max-width: 620px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
+            <!-- MODAL: CREAR / EDITAR PRODUCTO (85% VH en PC) -->
+            <div id="modal-producto" class="modal-backdrop hidden" onclick="if(event.target === this) cerrarModalProducto()">
+                <div class="modal">
                     <div class="modal-header">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <i class="ph ph-package" style="font-size: 22px; color: var(--primary);"></i>
-                            <h3 id="modal-producto-titulo" style="margin: 0; font-size: 18px;">Nuevo Producto</h3>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(239, 68, 68, 0.1); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                                <i class="ph ph-package"></i>
+                            </div>
+                            <div>
+                                <h3 id="modal-producto-titulo" style="margin: 0; font-size: 17px; font-weight: 600;">Nuevo Producto</h3>
+                                <p style="margin: 0; font-size: 12px; color: var(--text-sec);">Completa los datos del ítem para el catálogo</p>
+                            </div>
                         </div>
                         <button class="btn-icon" onclick="cerrarModalProducto()"><i class="ph ph-x"></i></button>
                     </div>
-                    <div class="modal-body" style="overflow-y: auto; padding: 22px;">
+                    <div class="modal-body">
                         <form id="form-producto" onsubmit="event.preventDefault(); guardarProducto();">
                             <input type="hidden" id="prod-id" value="">
 
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 14px;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label class="form-label">Nombre del Producto <span class="text-danger">*</span></label>
+                                    <label class="form-label font-bold">Nombre del Producto <span class="text-danger">*</span></label>
                                     <input type="text" id="prod-nombre" class="form-control" placeholder="Ej. Pizza Americana Familiar" required>
                                 </div>
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label class="form-label">Categoría <span class="text-danger">*</span></label>
+                                    <label class="form-label font-bold">Categoría <span class="text-danger">*</span></label>
                                     <select id="prod-categoria" class="form-control" required>
                                         <option value="">Seleccione Categoría</option>
                                     </select>
                                 </div>
                             </div>
 
-                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px;">
+                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label class="form-label">Código SKU / Barras</label>
+                                    <label class="form-label font-bold">Código SKU / Barras</label>
                                     <div style="display: flex; gap: 6px;">
-                                        <input type="text" id="prod-sku" class="form-control" placeholder="Ej. PIZ-AME-001">
+                                        <input type="text" id="prod-sku" class="form-control" placeholder="Ej. PIZ-AME-001" style="font-family: monospace;">
                                         <button type="button" class="btn btn-secondary" onclick="generarSkuAutomatico()" title="Generar código automático">
-                                            <i class="ph ph-sparkle"></i>
+                                            <i class="ph ph-sparkle"></i> Auto
                                         </button>
                                     </div>
                                 </div>
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label class="form-label">Estado</label>
+                                    <label class="form-label font-bold">Estado</label>
                                     <select id="prod-estado" class="form-control">
                                         <option value="disponible">Disponible</option>
                                         <option value="agotado">Agotado</option>
@@ -177,31 +162,31 @@
                                 </div>
                             </div>
 
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px;">
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label class="form-label">Precio Venta (S/) <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.10" min="0" id="prod-precio" class="form-control" placeholder="0.00" required>
+                                    <label class="form-label font-bold">Precio Venta (S/) <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.10" min="0" id="prod-precio" class="form-control font-bold" placeholder="0.00" required>
                                 </div>
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label class="form-label">Stock Actual</label>
+                                    <label class="form-label font-bold">Stock Actual</label>
                                     <input type="number" step="1" min="0" id="prod-stock" class="form-control" placeholder="0">
                                 </div>
                                 <div class="form-group" style="margin-bottom: 0;">
-                                    <label class="form-label">Stock Mínimo</label>
+                                    <label class="form-label font-bold">Stock Mínimo</label>
                                     <input type="number" step="1" min="0" id="prod-stock-min" class="form-control" placeholder="5" value="5">
                                 </div>
                             </div>
 
-                            <div class="form-group" style="margin-bottom: 14px;">
-                                <label class="form-label">Descripción</label>
-                                <textarea id="prod-descripcion" class="form-control" rows="2" placeholder="Detalles de ingredientes, porciones o especificaciones..."></textarea>
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label class="form-label font-bold">Descripción / Detalles del Producto</label>
+                                <textarea id="prod-descripcion" class="form-control" rows="3" placeholder="Ingredientes, porciones, especificaciones o notas de venta..."></textarea>
                             </div>
 
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label">URL de Imagen (Opcional)</label>
+                                <label class="form-label font-bold">URL de Imagen (Opcional)</label>
                                 <div style="display: flex; gap: 8px;">
                                     <input type="url" id="prod-imagen" class="form-control" placeholder="https://ejemplo.com/foto.jpg">
-                                    <button type="button" class="btn btn-secondary" onclick="abrirGestorMediosParaProducto()" title="Seleccionar de galería">
+                                    <button type="button" class="btn btn-secondary" onclick="abrirGestorMediosParaProducto()" title="Seleccionar imagen">
                                         <i class="ph ph-image"></i>
                                     </button>
                                 </div>
@@ -218,42 +203,47 @@
             </div>
 
             <!-- MODAL: AJUSTE RÁPIDO DE STOCK -->
-            <div id="modal-ajustar-stock" class="modal-backdrop hidden">
-                <div class="modal" style="max-width: 440px; width: 100%;">
+            <div id="modal-ajustar-stock" class="modal-backdrop hidden" onclick="if(event.target === this) cerrarModalAjusteStock()">
+                <div class="modal" style="max-width: 450px; width: 90%;">
                     <div class="modal-header">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <i class="ph ph-scales" style="font-size: 22px; color: var(--primary);"></i>
-                            <h3 style="margin: 0; font-size: 18px;">Ajustar Existencias</h3>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(59, 130, 246, 0.1); color: var(--link); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                                <i class="ph ph-scales"></i>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; font-size: 17px; font-weight: 600;">Ajustar Existencias</h3>
+                                <p style="margin: 0; font-size: 12px; color: var(--text-sec);">Entrada, salida o cuadre físico</p>
+                            </div>
                         </div>
                         <button class="btn-icon" onclick="cerrarModalAjusteStock()"><i class="ph ph-x"></i></button>
                     </div>
-                    <div class="modal-body" style="padding: 20px;">
+                    <div class="modal-body" style="padding: 22px;">
                         <input type="hidden" id="ajuste-prod-id" value="">
                         
-                        <div style="background: var(--bg-main); padding: 12px 14px; border-radius: 10px; margin-bottom: 16px; border: 1px solid var(--border-color);">
+                        <div style="background: var(--bg-main); padding: 14px 16px; border-radius: 12px; margin-bottom: 18px; border: 1px solid var(--border-color);">
                             <div style="font-weight: 600; color: var(--text-main); font-size: 14px;" id="ajuste-prod-nombre">-</div>
-                            <div style="font-size: 12px; color: var(--text-sec); margin-top: 2px;">
-                                Stock actual registrado: <strong id="ajuste-prod-actual" class="text-primary" style="font-size: 14px;">0</strong> unidades
+                            <div style="font-size: 12.5px; color: var(--text-sec); margin-top: 4px;">
+                                Stock actual registrado: <strong id="ajuste-prod-actual" class="text-primary" style="font-size: 15px;">0</strong> unidades
                             </div>
                         </div>
 
                         <div class="form-group mb-3">
-                            <label class="form-label">Tipo de Operación</label>
+                            <label class="form-label font-bold">Tipo de Operación</label>
                             <select id="ajuste-tipo" class="form-control">
-                                <option value="entrada">+ Entrada de Mercadería (Compra / Abastecimiento)</option>
-                                <option value="salida">- Salida / Merma (Consumo interno o descarte)</option>
+                                <option value="entrada">+ Entrada (Compra / Abastecimiento)</option>
+                                <option value="salida">- Salida (Merma / Consumo / Venta)</option>
                                 <option value="ajuste">= Fijar Cantidad Exacta (Conteo Físico Real)</option>
                             </select>
                         </div>
 
                         <div class="form-group mb-3">
-                            <label class="form-label">Cantidad <span class="text-danger">*</span></label>
-                            <input type="number" step="1" min="0.1" id="ajuste-cantidad" class="form-control" placeholder="Ingresa cantidad" required>
+                            <label class="form-label font-bold">Cantidad de Unidades <span class="text-danger">*</span></label>
+                            <input type="number" step="1" min="0.1" id="ajuste-cantidad" class="form-control font-bold" placeholder="Ingresa cantidad" required>
                         </div>
 
                         <div class="form-group mb-0">
-                            <label class="form-label">Motivo o Justificación</label>
-                            <input type="text" id="ajuste-motivo" class="form-control" placeholder="Ej. Conteo físico de inicio de semana">
+                            <label class="form-label font-bold">Motivo o Justificación</label>
+                            <input type="text" id="ajuste-motivo" class="form-control" placeholder="Ej. Conteo físico semanal o merma">
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -266,7 +256,7 @@
             </div>
         `;
 
-        // Inicializar datos
+        // Cargar datos
         cargarCategoriasInventario();
         cargarProductosInventario();
     };
@@ -285,7 +275,7 @@
         if (typeof triggerHaptic === 'function') triggerHaptic(15);
     };
 
-    // Cargar lista de categorías
+    // Cargar categorías
     window.cargarCategoriasInventario = async function() {
         try {
             const res = await fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/list_categorias');
@@ -293,7 +283,6 @@
             if (data.status === 'success') {
                 categoriasData = data.data || [];
                 
-                // Llenar filtro de categorías
                 const filtroCat = document.getElementById('filtro-prod-categoria');
                 const modalCat = document.getElementById('prod-categoria');
                 
@@ -313,10 +302,10 @@
         }
     };
 
-    // Cargar lista de productos desde la API
+    // Cargar productos
     window.cargarProductosInventario = async function(manual = false) {
-        const tbody = document.getElementById('tbody-productos-inv');
-        if (!tbody) return;
+        const contenedor = document.getElementById('contenedor-productos-cards');
+        if (!contenedor) return;
 
         if (manual && typeof showToast === 'function') {
             showToast('Actualizando catálogo de productos...', 'info');
@@ -328,20 +317,20 @@
             if (data.status === 'success') {
                 productosData = data.data || [];
                 actualizarKpisProductos(productosData);
-                renderizarTablaProductos(productosData);
+                renderizarCardsProductos(productosData);
                 if (manual && typeof showToast === 'function') {
                     showToast('Catálogo de productos actualizado', 'success');
                 }
             } else {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--danger); padding:20px;">${data.message || 'Error al cargar productos'}</td></tr>`;
+                contenedor.innerHTML = `<div style="text-align:center; color:var(--danger); padding:24px;">${data.message || 'Error al cargar productos'}</div>`;
             }
         } catch (e) {
             console.error('Error cargando productos:', e);
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--danger); padding:20px;">Error de comunicación con el servidor</td></tr>`;
+            contenedor.innerHTML = `<div style="text-align:center; color:var(--danger); padding:24px;">Error de comunicación con el servidor</div>`;
         }
     };
 
-    // Actualizar métricas / KPIs
+    // Actualizar KPIs
     function actualizarKpisProductos(items) {
         const total = items.length;
         let disponibles = 0;
@@ -369,44 +358,67 @@
         if (kpiValor) kpiValor.innerText = `S/ ${valorTotal.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
-    // Renderizar filas de la tabla
-    function renderizarTablaProductos(items) {
-        const tbody = document.getElementById('tbody-productos-inv');
-        if (!tbody) return;
+    // Toggle de desglosable de cada producto
+    window.toggleProductoCard = function(id) {
+        const card = document.getElementById(`prod-card-${id}`);
+        if (!card) return;
+
+        if (card.classList.contains('expanded')) {
+            card.classList.remove('expanded');
+            expandedProductIds.delete(id);
+        } else {
+            card.classList.add('expanded');
+            expandedProductIds.add(id);
+        }
+        if (typeof triggerHaptic === 'function') triggerHaptic(10);
+    };
+
+    // Renderizar lista en cards desglosables
+    function renderizarCardsProductos(items) {
+        const contenedor = document.getElementById('contenedor-productos-cards');
+        if (!contenedor) return;
 
         if (items.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="9" style="text-align: center; padding: 48px 20px;">
-                        <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--bg-main); color: var(--text-sec); display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 12px;">
-                            <i class="ph ph-package"></i>
-                        </div>
-                        <h4 style="margin-bottom: 4px; font-weight: 600; color: var(--text-main);">No hay productos registrados</h4>
-                        <p style="color: var(--text-sec); font-size: 13px; margin-bottom: 16px;">Comienza registrando tu primer producto en el catálogo.</p>
-                        <button class="btn btn-primary" onclick="abrirModalProducto()" style="border-radius: 10px;">
-                            <i class="ph ph-plus"></i> Crear Mi Primer Producto
-                        </button>
-                    </td>
-                </tr>
+            contenedor.innerHTML = `
+                <div style="text-align: center; padding: 48px 20px; background: var(--bg-panel); border-radius: 16px; border: 1px solid var(--border-color);">
+                    <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--bg-main); color: var(--text-sec); display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 12px;">
+                        <i class="ph ph-package"></i>
+                    </div>
+                    <h4 style="margin-bottom: 4px; font-weight: 600; color: var(--text-main);">No hay productos registrados</h4>
+                    <p style="color: var(--text-sec); font-size: 13px; margin-bottom: 16px;">Comienza registrando tu primer producto en el catálogo.</p>
+                    <button class="btn btn-primary" onclick="abrirModalProducto()" style="border-radius: 10px;">
+                        <i class="ph ph-plus"></i> Crear Mi Primer Producto
+                    </button>
+                </div>
             `;
             return;
         }
 
         let html = '';
-        items.forEach((p, idx) => {
+        items.forEach((p) => {
             const stock = parseFloat(p.stock_actual) || 0;
             const stockMin = parseFloat(p.stock_minimo) || 0;
             const precio = parseFloat(p.precio_venta) || 0;
+            const valorTotalProd = stock * precio;
+            const isExpanded = expandedProductIds.has(p.id);
 
-            // Alertas de stock
-            let stockBadge = '<span class="badge badge-success" style="font-size:12px; font-weight:600; padding:4px 10px;">' + stock + ' unid.</span>';
+            // Alerta visual de stock
+            let stockColorClass = 'badge-success';
+            let stockEstadoTxt = 'Saludable';
             if (stock <= 0) {
-                stockBadge = '<span class="badge badge-danger" style="font-size:12px; font-weight:600; padding:4px 10px;">0 (Agotado)</span>';
+                stockColorClass = 'badge-danger';
+                stockEstadoTxt = 'Agotado';
             } else if (stock <= stockMin) {
-                stockBadge = '<span class="badge badge-warning" style="font-size:12px; font-weight:600; padding:4px 10px;">' + stock + ' (Crítico)</span>';
+                stockColorClass = 'badge-warning';
+                stockEstadoTxt = 'Crítico / Reabastecer';
             }
 
-            // Estado
+            // Barra de progreso de stock relativo al mínimo (100% si stock >= 2 * stockMin)
+            const targetMin = stockMin > 0 ? stockMin * 2 : 10;
+            const stockPorcentaje = Math.min(100, Math.round((stock / targetMin) * 100));
+            const barColor = stock <= 0 ? 'var(--danger)' : (stock <= stockMin ? '#F59E0B' : 'var(--success)');
+
+            // Estado Badge
             let estadoBadge = '<span class="badge badge-success" style="text-transform:capitalize;">Disponible</span>';
             if (p.estado === 'agotado' || stock <= 0) {
                 estadoBadge = '<span class="badge badge-danger" style="text-transform:capitalize;">Agotado</span>';
@@ -414,59 +426,144 @@
                 estadoBadge = '<span class="badge" style="background:var(--border-color); color:var(--text-sec); text-transform:capitalize;">Inactivo</span>';
             }
 
-            // Miniatura o fallback
+            // Imagen / Thumbnail
             const imgHtml = p.imagen_url 
-                ? `<img src="${p.imagen_url}" style="width: 36px; height: 36px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-color);">`
-                : `<div style="width: 36px; height: 36px; border-radius: 8px; background: var(--bg-main); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; color: var(--text-sec);"><i class="ph ph-package" style="font-size: 18px;"></i></div>`;
+                ? `<img src="${p.imagen_url}" style="width: 42px; height: 42px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border-color); flex-shrink: 0;">`
+                : `<div style="width: 42px; height: 42px; border-radius: 10px; background: var(--bg-main); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; color: var(--text-sec); flex-shrink: 0;"><i class="ph ph-package" style="font-size: 22px;"></i></div>`;
 
             html += `
-                <tr style="transition: background 0.15s ease;">
-                    <td style="text-align: center; color: var(--text-sec); font-size: 12px;">${idx + 1}</td>
-                    <td>
-                        <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="prod-card-row ${isExpanded ? 'expanded' : ''}" id="prod-card-${p.id}">
+                    <!-- Cabecera Principal de la Fila (Click para desglosar) -->
+                    <div class="prod-card-header" onclick="toggleProductoCard(${p.id})">
+                        <div style="display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0;">
                             ${imgHtml}
-                            <div>
-                                <strong style="color: var(--text-main); font-size: 13.5px; display: block;">${p.nombre}</strong>
-                                ${p.descripcion ? `<span style="font-size: 11.5px; color: var(--text-sec); display: block; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.descripcion}</span>` : ''}
+                            <div style="min-width: 0;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <strong style="color: var(--text-main); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.nombre}</strong>
+                                    <span style="font-family: monospace; font-size: 11px; background: var(--bg-main); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border-color);">${p.codigo_sku || 'S/N'}</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; margin-top: 3px; font-size: 12px; color: var(--text-sec);">
+                                    <span><i class="ph ph-tag" style="vertical-align: middle;"></i> ${p.categoria_nombre || 'General'}</span>
+                                    <span style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--border-color);"></span>
+                                    <span style="font-weight: 600; color: var(--text-main);">S/ ${precio.toFixed(2)}</span>
+                                </div>
                             </div>
                         </div>
-                    </td>
-                    <td>
-                        <span style="font-family: monospace; font-size: 12px; background: var(--bg-main); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color);">${p.codigo_sku || '-'}</span>
-                    </td>
-                    <td>
-                        <span style="font-size: 12.5px; color: var(--text-sec);">${p.categoria_nombre || 'Sin categoría'}</span>
-                    </td>
-                    <td style="text-align: right; font-weight: 600; color: var(--text-main);">
-                        S/ ${precio.toFixed(2)}
-                    </td>
-                    <td style="text-align: center;">${stockBadge}</td>
-                    <td style="text-align: center; color: var(--text-sec); font-size: 12.5px;">${stockMin} unid.</td>
-                    <td style="text-align: center;">${estadoBadge}</td>
-                    <td style="text-align: center;">
-                        <div style="display: inline-flex; gap: 6px;">
-                            <button class="btn-icon" style="color: var(--primary);" title="Ajustar existencias" onclick="abrirModalAjusteStock(${p.id}, '${p.nombre.replace(/'/g, "\\'")}', ${stock})">
-                                <i class="ph ph-scales"></i>
+
+                        <!-- Lado Derecho: Stock, Estado y Acciones Rápidas -->
+                        <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;" onclick="event.stopPropagation()">
+                            <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end;">
+                                <span class="badge ${stockColorClass}" style="font-size: 12px; font-weight: 600; padding: 4px 10px;">
+                                    ${stock} unid.
+                                </span>
+                                <span style="font-size: 11px; color: var(--text-sec); margin-top: 2px;">Mín: ${stockMin}</span>
+                            </div>
+
+                            <div style="display: none; align-items: center;" class="d-md-flex">
+                                ${estadoBadge}
+                            </div>
+
+                            <div style="display: inline-flex; gap: 4px; align-items: center;">
+                                <button class="btn-icon" style="color: var(--primary);" title="Ajustar existencias" onclick="abrirModalAjusteStock(${p.id}, '${p.nombre.replace(/'/g, "\\'")}', ${stock})">
+                                    <i class="ph ph-scales"></i>
+                                </button>
+                                <button class="btn-icon" style="color: var(--link);" title="Editar producto" onclick="abrirModalProducto(${p.id})">
+                                    <i class="ph ph-pencil-simple"></i>
+                                </button>
+                                <button class="btn-icon" style="color: var(--danger);" title="Eliminar producto" onclick="eliminarProducto(${p.id}, '${p.nombre.replace(/'/g, "\\'")}')">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+
+                            <!-- Icono Flecha Desglosable -->
+                            <div class="prod-chevron" onclick="toggleProductoCard(${p.id})" title="Ver más detalles">
+                                <i class="ph ph-caret-down"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel Desglosable con Información Extendida (Accordion) -->
+                    <div class="prod-card-collapse">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                            
+                            <!-- 1. Estado y Salud de Stock -->
+                            <div style="background: var(--bg-panel); padding: 14px; border-radius: 12px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-sec); margin-bottom: 8px;">
+                                    <i class="ph ph-chart-bar"></i> Control de Existencias
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                                    <span style="font-size: 13px; color: var(--text-main);">Nivel de Inventario:</span>
+                                    <strong style="color: ${barColor}; font-size: 13px;">${stockEstadoTxt}</strong>
+                                </div>
+                                <div style="width: 100%; height: 7px; background: var(--bg-main); border-radius: 6px; overflow: hidden; margin-bottom: 8px; border: 1px solid var(--border-color);">
+                                    <div style="width: ${stockPorcentaje}%; height: 100%; background: ${barColor}; border-radius: 6px; transition: width 0.3s ease;"></div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-sec);">
+                                    <span>Stock Actual: <strong>${stock}</strong></span>
+                                    <span>Alerta Mínima: <strong>${stockMin}</strong></span>
+                                </div>
+                            </div>
+
+                            <!-- 2. Información Comercial y Financiera -->
+                            <div style="background: var(--bg-panel); padding: 14px; border-radius: 12px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-sec); margin-bottom: 8px;">
+                                    <i class="ph ph-currency-dollar"></i> Finanzas del Producto
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px;">
+                                    <span style="color: var(--text-sec);">Precio de Venta Unitario:</span>
+                                    <strong style="color: var(--text-main);">S/ ${precio.toFixed(2)}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px;">
+                                    <span style="color: var(--text-sec);">Capital Inmovilizado:</span>
+                                    <strong style="color: #3B82F6;">S/ ${valorTotalProd.toFixed(2)}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                                    <span style="color: var(--text-sec);">Estado en Catálogo:</span>
+                                    <span>${estadoBadge}</span>
+                                </div>
+                            </div>
+
+                            <!-- 3. Especificaciones y Receta -->
+                            <div style="background: var(--bg-panel); padding: 14px; border-radius: 12px; border: 1px solid var(--border-color);">
+                                <div style="font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-sec); margin-bottom: 8px;">
+                                    <i class="ph ph-file-text"></i> Detalles y Producción
+                                </div>
+                                <div style="font-size: 12.5px; color: var(--text-main); margin-bottom: 6px;">
+                                    <strong>SKU:</strong> <code style="background: var(--bg-main); padding: 1px 5px; border-radius: 4px;">${p.codigo_sku || 'No asignado'}</code>
+                                </div>
+                                <div style="font-size: 12.5px; color: var(--text-main); margin-bottom: 6px;">
+                                    <strong>Receta Vinculada:</strong> ${p.receta_nombre ? `<span class="badge badge-info"><i class="ph ph-cooking-pot"></i> ${p.receta_nombre}</span>` : '<span style="color:var(--text-sec);">Ninguna</span>'}
+                                </div>
+                                <div style="font-size: 12px; color: var(--text-sec); line-height: 1.4;">
+                                    ${p.descripcion ? p.descripcion : '<em>Sin descripción adicional registrada.</em>'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Barra de Acciones Directas desde el Drawer -->
+                        <div style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; padding-top: 8px; border-top: 1px dashed var(--border-color);">
+                            <button class="btn btn-secondary btn-sm" onclick="abrirModalAjusteStock(${p.id}, '${p.nombre.replace(/'/g, "\\'")}', ${stock})">
+                                <i class="ph ph-scales"></i> Registrar Movimiento / Ajuste
                             </button>
-                            <button class="btn-icon" style="color: var(--link);" title="Editar producto" onclick="abrirModalProducto(${p.id})">
-                                <i class="ph ph-pencil-simple"></i>
+                            <button class="btn btn-secondary btn-sm" onclick="abrirModalProducto(${p.id})">
+                                <i class="ph ph-pencil-simple"></i> Editar Información
                             </button>
-                            <button class="btn-icon" style="color: var(--danger);" title="Eliminar producto" onclick="eliminarProducto(${p.id}, '${p.nombre.replace(/'/g, "\\'")}')">
-                                <i class="ph ph-trash"></i>
+                            <button class="btn btn-secondary btn-sm text-danger" onclick="eliminarProducto(${p.id}, '${p.nombre.replace(/'/g, "\\'")}')">
+                                <i class="ph ph-trash"></i> Eliminar
                             </button>
                         </div>
-                    </td>
-                </tr>
+                    </div>
+                </div>
             `;
         });
 
-        tbody.innerHTML = html;
+        contenedor.innerHTML = html;
         if (typeof window.renderPhosphorIcons === 'function') {
-            window.renderPhosphorIcons(tbody);
+            window.renderPhosphorIcons(contenedor);
         }
     }
 
-    // Filtrar productos dinámicamente en memoria
+    // Filtrar productos
     window.filtrarProductosInventario = function() {
         const query = (document.getElementById('filtro-prod-buscar')?.value || '').toLowerCase().trim();
         const categoriaId = document.getElementById('filtro-prod-categoria')?.value || '';
@@ -484,10 +581,10 @@
             return matchQ && matchCat && matchEst;
         });
 
-        renderizarTablaProductos(filtrados);
+        renderizarCardsProductos(filtrados);
     };
 
-    // Abrir Modal de Creación / Edición
+    // Abrir Modal de Producto (con .show y .hidden manejados con precisión)
     window.abrirModalProducto = function(id = null) {
         const modal = document.getElementById('modal-producto');
         const titulo = document.getElementById('modal-producto-titulo');
@@ -520,6 +617,8 @@
         }
 
         modal.classList.remove('hidden');
+        requestAnimationFrame(() => modal.classList.add('show'));
+        
         if (typeof window.renderPhosphorIcons === 'function') {
             window.renderPhosphorIcons(modal);
         }
@@ -527,17 +626,19 @@
 
     window.cerrarModalProducto = function() {
         const modal = document.getElementById('modal-producto');
-        if (modal) modal.classList.add('hidden');
+        if (!modal) return;
+        modal.classList.remove('show');
+        setTimeout(() => modal.classList.add('hidden'), 200);
     };
 
-    // Generar SKU aleatorio inteligente
+    // Generar SKU aleatorio
     window.generarSkuAutomatico = function() {
         const num = Math.floor(1000 + Math.random() * 9000);
         const skuInput = document.getElementById('prod-sku');
         if (skuInput) skuInput.value = `PROD-${num}`;
     };
 
-    // Guardar Producto (POST)
+    // Guardar Producto
     window.guardarProducto = async function() {
         const btn = document.getElementById('btn-guardar-producto');
         const id = document.getElementById('prod-id').value;
@@ -603,7 +704,7 @@
         }
     };
 
-    // Abrir Modal de Ajuste Rápido de Stock
+    // Abrir Modal de Ajuste de Stock
     window.abrirModalAjusteStock = function(id, nombre, stockActual) {
         const modal = document.getElementById('modal-ajustar-stock');
         if (!modal) return;
@@ -616,6 +717,8 @@
         document.getElementById('ajuste-tipo').value = 'entrada';
 
         modal.classList.remove('hidden');
+        requestAnimationFrame(() => modal.classList.add('show'));
+        
         if (typeof window.renderPhosphorIcons === 'function') {
             window.renderPhosphorIcons(modal);
         }
@@ -623,7 +726,9 @@
 
     window.cerrarModalAjusteStock = function() {
         const modal = document.getElementById('modal-ajustar-stock');
-        if (modal) modal.classList.add('hidden');
+        if (!modal) return;
+        modal.classList.remove('show');
+        setTimeout(() => modal.classList.add('hidden'), 200);
     };
 
     // Guardar Ajuste de Stock

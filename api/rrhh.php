@@ -1,5 +1,6 @@
 <?php
 // api/rrhh.php - Módulo integral de Recursos Humanos, Asistencias, Justificaciones y Sueldos
+date_default_timezone_set('America/Lima');
 
 require_once __DIR__ . '/totp.php';
 
@@ -40,6 +41,12 @@ if ($method === 'GET' && $accion === 'estado') {
     $stmt = $db->prepare("SELECT id, fecha_hora_entrada, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto' LIMIT 1");
     $stmt->execute([':id_usuario' => $user['id']]);
     $asistencia = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Auto-sanar horario adelantado si fue registrado con zona horaria incorrecta del servidor
+    if ($asistencia && !empty($asistencia['inicio_refrigerio']) && strtotime($asistencia['inicio_refrigerio']) > time()) {
+        $db->prepare("UPDATE rrhh_asistencias SET inicio_refrigerio = NOW() WHERE id = :id")->execute([':id' => $asistencia['id']]);
+        $asistencia['inicio_refrigerio'] = date('Y-m-d H:i:s');
+    }
     
     // Obtener tolerancia y horario de refrigerio configurado
     $stmtCfg = $db->query("SELECT clave, valor FROM configuracion WHERE clave IN ('rrhh_tolerancia_tardanza_minutos', 'rrhh_refrigerio_inicio', 'rrhh_refrigerio_fin', 'rrhh_refrigerio_minutos')");
@@ -144,6 +151,16 @@ else if ($method === 'GET' && $accion === 'mi_asistencia_hoy') {
                            ORDER BY a.id DESC LIMIT 1");
     $stmtA->execute([':id_user' => $user['id']]);
     $asistencia = $stmtA->fetch(PDO::FETCH_ASSOC);
+
+    // Auto-corregir registros con desfase horario previo del servidor
+    if ($asistencia && $asistencia['estado'] === 'abierto') {
+        $ahoraTs = time();
+        if (!empty($asistencia['inicio_refrigerio']) && strtotime($asistencia['inicio_refrigerio']) > $ahoraTs) {
+            $db->prepare("UPDATE rrhh_asistencias SET inicio_refrigerio = NOW() WHERE id = :id")->execute([':id' => $asistencia['id']]);
+            $asistencia['inicio_refrigerio'] = date('Y-m-d H:i:s');
+            $asistencia['minutos_transcurridos_refrigerio'] = 0;
+        }
+    }
 
     // Determinar banderas booleanas de marcación
     $marcado_ingreso = !empty($asistencia['fecha_hora_entrada']);

@@ -123,6 +123,10 @@ class Database {
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
             ]);
+            // Sincronizar zona horaria de MySQL con la del negocio (Perú UTC-5)
+            try {
+                $this->conn->exec("SET time_zone = '-05:00'");
+            } catch (Exception $tzEx) {}
         } catch(PDOException $exception) {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(["status" => "error", "message" => "Error de conexión: " . $exception->getMessage()]);

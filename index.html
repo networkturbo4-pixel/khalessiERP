@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Khalessi ERP</title>
+    
+    <!-- PWA -->
+    <link rel="manifest" href="/khalessierp/manifest.json">
+    <meta name="theme-color" content="#EF4444">
+    <link rel="apple-touch-icon" href="/khalessierp/img/icon-192.png">
+
+    <!-- Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Icons (Phosphor Icons - clean and modern) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- HTML5-QRCode -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <!-- Global CSS -->
+    <link rel="stylesheet" href="/khalessierp/css/index.css">
+</head>
+<body>
+    
+    <!-- Contenedor Principal (Inyectaremos las vistas aquí por JS) -->
+    <div id="app"></div>
+
+    <!-- Contenedor para los Toasts -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Modales Globales -->
+    <div id="modal-container" class="modal-backdrop hidden">
+        <div class="modal" id="global-modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Título</h3>
+                <button class="btn-icon" id="btn-close-modal"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                Contenido
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button class="btn btn-secondary" id="btn-cancel-modal">Cancelar</button>
+                <button class="btn btn-primary" id="btn-confirm-modal">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanner Modal -->
+    <div id="scanner-modal" class="modal-backdrop hidden">
+        <div class="modal" style="width: 100%; max-width: 500px;">
+            <div class="modal-header">
+                <h3>Escáner</h3>
+                <button class="btn-icon" onclick="closeScannerModal()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 0; background: #000; text-align: center;">
+                <div id="scanner-reader" style="width: 100%; height: 300px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeScannerModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media Manager Modal -->
+    <div id="media-modal" class="modal-backdrop hidden">
+        <div class="modal" style="width: 90%; max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3>Gestor de Archivos de Medios</h3>
+                <button class="btn-icon" onclick="closeMediaModal()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px;">
+                
+                <div class="media-upload-area" id="media-upload-area" onclick="document.getElementById('media-upload-input').click()">
+                    <i class="ph ph-upload-simple" style="font-size: 32px; color: var(--primary);"></i>
+                    <p>Haz clic o arrastra una imagen aquí para subir</p>
+                    <input type="file" id="media-upload-input" style="display: none;" accept="image/*" onchange="handleMediaUpload(this)">
+                </div>
+
+                <div class="media-grid" id="media-grid">
+                    <!-- Media items will be injected here -->
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- Justificación de Inasistencia Modal -->
+    <div id="modal-justificacion" class="modal-backdrop hidden">
+        <div class="modal" style="width: 100%; max-width: 540px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i class="ph ph-calendar-x text-danger" style="font-size: 22px;"></i>
+                    <h3 style="font-size: 17px; margin: 0;">¿Hoy no laborarás? Envía tu justificación</h3>
+                </div>
+                <button class="btn-icon" onclick="cerrarModalJustificacion()"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body" style="overflow-y: auto; padding: 20px;">
+                <p class="text-sec text-small mb-3">Registra tu motivo de inasistencia o solicitud de permiso. Recursos Humanos revisará tu justificativo y documentación adjunta.</p>
+                
+                <div class="form-group">
+                    <label class="form-label">DNI del Trabajador <span class="text-danger">*</span></label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="just-dni" class="form-control" placeholder="Ingresa tu DNI" maxlength="12" oninput="buscarNombreJustificacion()">
+                        <button type="button" class="btn btn-secondary" onclick="buscarNombreJustificacion()"><i class="ph ph-magnifying-glass"></i></button>
+                    </div>
+                    <div id="just-nombre-preview" style="font-size: 12px; font-weight: 600; color: var(--success); margin-top: 4px; min-height: 16px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Fecha de Inasistencia / Permiso <span class="text-danger">*</span></label>
+                    <input type="date" id="just-fecha" class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Motivo <span class="text-danger">*</span></label>
+                    <select id="just-motivo" class="form-control">
+                        <option value="">-- Selecciona un motivo --</option>
+                        <option value="Salud / Cita Médica">Salud / Cita Médica / Descanso Médico</option>
+                        <option value="Emergencia Familiar">Emergencia Familiar</option>
+                        <option value="Trámite Personal / Judicial">Trámite Personal o Documentario</option>
+                        <option value="Problemas de Transporte">Problemas de Transporte / Fuerza Mayor</option>
+                        <option value="Permiso Previamente Acordado">Permiso Previamente Acordado</option>
+                        <option value="Calamidad Doméstica">Calamidad Doméstica</option>
+                        <option value="Otro">Otro Motivo</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Descripción detallada <span class="text-danger">*</span></label>
+                    <textarea id="just-desc" class="form-control" rows="3" placeholder="Explica detalladamente la razón de tu ausencia..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Evidencia o Comprobante (Opcional pero recomendado)</label>
+                    <div style="display:flex; gap:10px; margin-bottom: 12px;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="activarCamaraJustificacion()"><i class="ph ph-camera"></i> Tomar Foto</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('just-file-input').click()"><i class="ph ph-upload-simple"></i> Subir Imagen</button>
+                        <input type="file" id="just-file-input" accept="image/*" style="display:none;" onchange="handleJustFile(this)">
+                    </div>
+
+                    <!-- Contenedor Cámara Web -->
+                    <div id="just-cam-container" class="hidden" style="margin-bottom:12px; border-radius: 8px; overflow: hidden; background: #000; text-align: center;">
+                        <video id="just-video" autoplay playsinline style="width: 100%; max-height: 220px; display: block;"></video>
+                        <canvas id="just-canvas" style="display:none;"></canvas>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.8); display: flex; gap: 8px; justify-content: center;">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="capturarFotoJustificacion()"><i class="ph ph-camera"></i> Capturar</button>
+                            <button type="button" class="btn btn-ghost btn-sm" style="color:#fff;" onclick="detenerCamaraJustificacion()">Cancelar Cámara</button>
+                        </div>
+                    </div>
+
+                    <!-- Preview de la foto capturada o subida -->
+                    <div id="just-preview-container" class="hidden" style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); max-height: 200px; text-align: center; background: var(--bg-main);">
+                        <img id="just-preview-img" src="" style="max-height: 190px; max-width: 100%; object-fit: contain; margin: 0 auto; display: block;">
+                        <button type="button" class="btn-icon" style="position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.6); color: #fff;" onclick="quitarFotoJustificacion()" title="Quitar imagen"><i class="ph ph-trash"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModalJustificacion()">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="enviarJustificacionTrabajador()" id="btn-enviar-just"><i class="ph ph-paper-plane-tilt"></i> Enviar Justificación</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/khalessierp/js/modules/inventario.js"></script>
+    <script src="/khalessierp/js/modules/recetas.js"></script>
+    <script src="/khalessierp/js/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/khalessierp/sw.js')
+                .then(reg => console.log('SW Registrado'))
+                .catch(err => console.error('Error SW', err));
+        }
+    </script>
+</body>
+</html>

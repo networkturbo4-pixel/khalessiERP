@@ -1,0 +1,14 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /khalessierp/
+
+    # Si la petición es para /api/, enviarlo al enrutador PHP
+    RewriteRule ^api/(.*)$ api/index.php?request=$1 [QSA,NC,L]
+
+    # Si el archivo o directorio existe físicamente, servirlo directamente
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Si no existe, enviar todo al Frontend (SPA Container)
+    RewriteRule ^(.*)$ index.html [QSA,L]
+</IfModule>

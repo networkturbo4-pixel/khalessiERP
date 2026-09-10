@@ -1,0 +1,7 @@
+ALTER TABLE ingredientes
+ADD COLUMN foto_url VARCHAR(255) NULL,
+ADD COLUMN fecha_vencimiento DATE NULL,
+ADD COLUMN fecha_produccion DATE NULL,
+ADD COLUMN codigo_barras VARCHAR(100) NULL,
+ADD COLUMN stock DECIMAL(10,4) DEFAULT 0,
+ADD COLUMN stock_critico DECIMAL(10,4) DEFAULT 0;

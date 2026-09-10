@@ -1,0 +1,21 @@
+# Khalessi ERP .gitignore
+
+# Subidas temporales o privadas de usuarios/empleados
+uploads/asistencia/*
+!uploads/asistencia/.gitkeep
+uploads/justificaciones/*
+!uploads/justificaciones/.gitkeep
+
+# Entornos y logs locales
+.env
+*.log
+.DS_Store
+Thumbs.db
+
+# IDEs y editores
+.vscode/
+.idea/
+
+# Carpetas de agentes o temporales
+.system_generated/
+scratch/

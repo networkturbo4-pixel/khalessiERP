@@ -42,11 +42,6 @@
     box-sizing: border-box;
 }
 
-html {
-    overscroll-behavior-y: none;
-    overscroll-behavior: none;
-}
-
 body {
     font-family: var(--font-family);
     font-size: 13px;
@@ -55,8 +50,6 @@ body {
     line-height: 1.5;
     transition: background-color 0.3s, color 0.3s;
     overflow-x: hidden;
-    overscroll-behavior-y: none;
-    overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
 }
 

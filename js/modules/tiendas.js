@@ -15,6 +15,7 @@
     let leafletMapInstance = null;
     let leafletMarkerInstance = null;
     let activeTabTienda = 'info';
+    let expandedTiendaIds = new Set();
 
     const DEPARTAMENTOS_PERU = [
         'Amazonas', 'Áncash', 'Apurímac', 'Arequipa', 'Ayacucho',
@@ -32,109 +33,79 @@
         if (!container) return;
 
         container.innerHTML = `
-            <div class="tiendas-module-view">
-                <!-- Barra Superior de Título y Acción Principal -->
-                <div class="tiendas-header-bar">
-                    <div>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div class="tiendas-header-icon">
-                                <i class="ph ph-storefront"></i>
-                            </div>
-                            <div>
-                                <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px;">
-                                    Tiendas y Sedes
-                                </h1>
-                                <p style="margin: 3px 0 0 0; font-size: 13px; color: var(--text-sec);">
-                                    Administra locales físicos, áreas de delivery, coordenadas GPS, avisos de recojo y métodos de pago
-                                </p>
-                            </div>
+            <div class="inventario-wrapper" style="padding-top: 4px;">
+                <!-- Pestañas de Navegación del Módulo (idéntico a inventario) -->
+                <div class="nav-tabs" id="tiendas-nav-tabs">
+                    <div class="nav-tab active" id="tab-tiendas-sedes">
+                        <i class="ph ph-storefront"></i>
+                        <span>Tiendas y Sedes</span>
+                    </div>
+                </div>
+
+                <!-- Tarjetas de Métricas Rápidas (KPIs - Exacto a inventario: 2 Columnas compactas en móvil) -->
+                <div class="stats-grid mb-3" id="tiendas-kpis">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--primary);">
+                            <i class="ph ph-storefront"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value" id="kpi-total-tiendas">0</div>
+                            <div class="stat-label">Total Sedes</div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="abrirModalTienda()" style="border-radius: 12px; font-weight: 700; padding: 10px 18px; display: inline-flex; align-items: center; gap: 8px;">
-                            <i class="ph ph-plus" style="font-size: 17px;"></i>
-                            <span>+ Nueva Tienda</span>
+
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                            <i class="ph ph-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value" id="kpi-tiendas-activas">0</div>
+                            <div class="stat-label">Sedes Activas</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(59, 130, 246, 0.1); color: #3B82F6;">
+                            <i class="ph ph-motorcycle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value" id="kpi-delivery-activo">0</div>
+                            <div class="stat-label">Delivery Activo</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(139, 92, 246, 0.1); color: #8B5CF6;">
+                            <i class="ph ph-wallet"></i>
+                        </div>
+                        <div>
+                            <div class="stat-value" id="kpi-total-metodos">0</div>
+                            <div class="stat-label">Métodos Pago</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra de Búsqueda y Acciones Responsiva (Idéntica a inventario) -->
+                <div class="inv-toolbar-container">
+                    <div class="inv-search-wrapper">
+                        <div style="position: relative; flex: 1;">
+                            <i class="ph ph-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-sec); font-size: 16px;"></i>
+                            <input type="text" id="filtro-tiendas-buscar" class="form-control" placeholder="Buscar tienda por nombre, dirección o slug..." style="padding-left: 38px; border-radius: 12px; height: 42px;" oninput="filtrarTiendasUI()">
+                        </div>
+                        <button class="btn btn-secondary btn-icon" style="height: 42px; width: 42px; border-radius: 12px; flex-shrink: 0;" title="Recargar sedes" onclick="cargarTiendas(true)">
+                            <i class="ph ph-arrows-clockwise"></i>
+                        </button>
+                    </div>
+                    <div class="inv-toolbar-actions single-action">
+                        <button class="btn btn-primary btn-toolbar-action" onclick="abrirModalTienda()">
+                            <i class="ph ph-plus"></i> <span>+ Nueva Tienda</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Tarjetas de Métricas / KPIs del Módulo -->
-                <div class="tiendas-kpis-grid">
-                    <div class="card kpi-card">
-                        <div class="card-body" style="padding: 16px 20px;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                <div>
-                                    <div style="font-size: 11.5px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.5px;">Total Sedes</div>
-                                    <div id="kpi-total-tiendas" style="font-size: 26px; font-weight: 800; color: var(--text-main); margin-top: 4px;">0</div>
-                                </div>
-                                <div class="kpi-icon-pill" style="background: rgba(239, 68, 68, 0.1); color: var(--primary);">
-                                    <i class="ph ph-storefront"></i>
-                                </div>
-                            </div>
-                            <div style="font-size: 12px; color: var(--text-sec); margin-top: 8px;">Locales registrados en el ERP</div>
-                        </div>
-                    </div>
-
-                    <div class="card kpi-card">
-                        <div class="card-body" style="padding: 16px 20px;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                <div>
-                                    <div style="font-size: 11.5px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.5px;">Sedes Activas</div>
-                                    <div id="kpi-tiendas-activas" style="font-size: 26px; font-weight: 800; color: #10B981; margin-top: 4px;">0</div>
-                                </div>
-                                <div class="kpi-icon-pill" style="background: rgba(16, 185, 129, 0.1); color: #10B981;">
-                                    <i class="ph ph-check-circle"></i>
-                                </div>
-                            </div>
-                            <div style="font-size: 12px; color: var(--text-sec); margin-top: 8px;">Visibles y recibiendo pedidos</div>
-                        </div>
-                    </div>
-
-                    <div class="card kpi-card">
-                        <div class="card-body" style="padding: 16px 20px;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                <div>
-                                    <div style="font-size: 11.5px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.5px;">Delivery Activo</div>
-                                    <div id="kpi-delivery-activo" style="font-size: 26px; font-weight: 800; color: #3B82F6; margin-top: 4px;">0</div>
-                                </div>
-                                <div class="kpi-icon-pill" style="background: rgba(59, 130, 246, 0.1); color: #2563EB;">
-                                    <i class="ph ph-motorcycle"></i>
-                                </div>
-                            </div>
-                            <div style="font-size: 12px; color: var(--text-sec); margin-top: 8px;">Con cálculo de envío por distancia</div>
-                        </div>
-                    </div>
-
-                    <div class="card kpi-card">
-                        <div class="card-body" style="padding: 16px 20px;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                <div>
-                                    <div style="font-size: 11.5px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.5px;">Métodos de Pago</div>
-                                    <div id="kpi-total-metodos" style="font-size: 26px; font-weight: 800; color: #8B5CF6; margin-top: 4px;">0</div>
-                                </div>
-                                <div class="kpi-icon-pill" style="background: rgba(139, 92, 246, 0.1); color: #8B5CF6;">
-                                    <i class="ph ph-wallet"></i>
-                                </div>
-                            </div>
-                            <div style="font-size: 12px; color: var(--text-sec); margin-top: 8px;">Opciones de pago habilitadas</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Barra de Búsqueda y Filtros -->
-                <div class="tiendas-toolbar">
-                    <div style="position: relative; flex: 1; min-width: 260px;">
-                        <i class="ph ph-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-sec); font-size: 16px;"></i>
-                        <input type="text" id="filtro-tiendas-buscar" class="form-control" placeholder="Buscar tienda por nombre, dirección o slug..." style="padding-left: 40px; border-radius: 12px; height: 42px;" oninput="filtrarTiendasUI()">
-                    </div>
-                    <button type="button" class="btn btn-secondary btn-icon" style="height: 42px; width: 42px; border-radius: 12px; flex-shrink: 0;" title="Recargar sedes" onclick="cargarTiendas(true)">
-                        <i class="ph ph-arrows-clockwise"></i>
-                    </button>
-                </div>
-
-                <!-- Contenedor Principal: Tarjetas de Tiendas -->
-                <div id="contenedor-tiendas-grid" class="tiendas-cards-grid">
-                    <div style="grid-column: 1 / -1; text-align: center; padding: 48px; color: var(--text-sec); background: var(--bg-panel); border-radius: 16px; border: 1px solid var(--border-color);">
+                <!-- Contenedor Principal: Dual PC (Grid) y Móvil (Cards Ordenadas) -->
+                <div id="contenedor-tiendas-grid">
+                    <div style="text-align: center; padding: 48px; color: var(--text-sec); background: var(--bg-panel); border-radius: 16px; border: 1px solid var(--border-color);">
                         <i class="ph ph-spinner ph-spin" style="font-size: 28px; color: var(--primary); margin-bottom: 8px; display: block; margin-inline: auto;"></i>
                         Cargando tiendas...
                     </div>
@@ -662,7 +633,10 @@
             return;
         }
 
-        grid.innerHTML = filtradas.map(t => {
+        let desktopCardsHtml = `<div class="tiendas-desktop-grid">`;
+        let mobileCardsHtml = `<div class="tiendas-mobile-cards">`;
+
+        filtradas.forEach(t => {
             const estadoBadge = t.estado === 'activo'
                 ? `<span class="badge badge-success"><i class="ph ph-circle-fill" style="font-size: 8px;"></i> Activa</span>`
                 : (t.estado === 'mantenimiento'
@@ -673,13 +647,18 @@
                 ? `<img src="${t.imagen_url}" class="tienda-card-banner-img" alt="${t.nombre}">`
                 : `<div class="tienda-card-banner-fallback"><i class="ph ph-storefront"></i></div>`;
 
+            const thumbImg = t.imagen_url
+                ? `<img src="${t.imagen_url}" class="tienda-mobile-thumb" alt="${t.nombre}">`
+                : `<div class="tienda-mobile-thumb"><i class="ph ph-storefront"></i></div>`;
+
             const totalTramos = Array.isArray(t.tramos_distancia) ? t.tramos_distancia.length : 0;
             const totalDepts = Array.isArray(t.departamentos_cobertura) ? t.departamentos_cobertura.length : 0;
             const cleanWa = (t.whatsapp || '').replace(/[^0-9]/g, '');
+            const isExpanded = expandedTiendaIds.has(t.id);
 
-            return `
+            // 1. Tarjeta para Desktop (PC / Laptop)
+            desktopCardsHtml += `
                 <div class="tienda-card" id="tienda-card-${t.id}">
-                    <!-- Banner de Portada de la Tienda -->
                     <div class="tienda-card-banner">
                         ${portadaHtml}
                         <div class="tienda-card-status-badge">
@@ -687,13 +666,11 @@
                         </div>
                     </div>
 
-                    <!-- Contenido de la Tienda -->
                     <div class="tienda-card-body">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px;">
                             <h3 class="tienda-card-title" title="${t.nombre}">${t.nombre}</h3>
                         </div>
 
-                        <!-- Slug / Enlace Público -->
                         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
                             <span class="tienda-slug-badge" title="Slug identificador">/${t.slug}</span>
                             <button type="button" class="btn-icon" style="width: 26px; height: 26px; font-size: 13px;" title="Copiar enlace" onclick="copiarSlugTienda('${t.slug}')">
@@ -701,7 +678,6 @@
                             </button>
                         </div>
 
-                        <!-- Dirección -->
                         <div style="font-size: 12.5px; color: var(--text-sec); display: flex; align-items: flex-start; gap: 6px; margin-bottom: 8px; min-height: 36px;">
                             <i class="ph ph-map-pin" style="color: var(--primary); font-size: 16px; flex-shrink: 0; margin-top: 1px;"></i>
                             <span style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
@@ -709,7 +685,6 @@
                             </span>
                         </div>
 
-                        <!-- WhatsApp y Teléfono -->
                         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
                             <div style="font-size: 12px; color: var(--text-main); font-weight: 600; display: flex; align-items: center; gap: 5px;">
                                 <i class="ph ph-whatsapp-logo" style="color: #10B981; font-size: 16px;"></i>
@@ -722,7 +697,6 @@
                             ` : ''}
                         </div>
 
-                        <!-- Métricas Clave de la Tienda (Delivery, Tramos y Métodos de Pago) -->
                         <div class="tienda-card-stats-row">
                             <div class="tienda-card-stat-item">
                                 <span class="stat-label">Radio Delivery</span>
@@ -738,7 +712,6 @@
                             </div>
                         </div>
 
-                        <!-- Botones de Acción de la Tarjeta -->
                         <div class="tienda-card-actions">
                             <button type="button" class="btn btn-secondary btn-sm" onclick="abrirModalTienda(${t.id}, 'mapa')" title="Ver ubicación en mapa">
                                 <i class="ph ph-map-pin"></i> GPS
@@ -753,11 +726,127 @@
                     </div>
                 </div>
             `;
-        }).join('');
+
+            // 2. Tarjeta para Móvil (Ordenada, 2 columnas, idéntica a Inventario)
+            mobileCardsHtml += `
+                <div class="tienda-mobile-card ${isExpanded ? 'expanded' : ''}" id="tienda-mcard-${t.id}">
+                    <div class="tienda-mobile-top">
+                        ${thumbImg}
+                        <div class="tienda-mobile-header-info">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 2px;">
+                                <div class="tienda-mobile-title" title="${t.nombre}">${t.nombre}</div>
+                                <div style="flex-shrink: 0;">${estadoBadge}</div>
+                            </div>
+                            <div class="tienda-mobile-badges">
+                                <span class="tienda-slug-badge" title="Slug identificador">/${t.slug}</span>
+                                ${cleanWa ? `
+                                    <span class="badge" style="background: rgba(16, 185, 129, 0.08); color: #059669; font-size: 10.5px; font-weight: 600; white-space: nowrap; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                        <i class="ph ph-whatsapp-logo"></i> ${t.whatsapp}
+                                    </span>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tienda-mobile-stats">
+                        <div class="tienda-stat-col">
+                            <span class="tienda-stat-title">Radio Delivery</span>
+                            <div class="tienda-stat-val">
+                                <span class="badge badge-info" style="font-size: 11.5px; font-weight: 700; padding: 2px 7px; display: inline-block;">
+                                    ${t.radio_entrega_km} km
+                                </span>
+                            </div>
+                            <div style="font-size: 10px; color: var(--text-sec); margin-top: 2px; white-space: nowrap;">
+                                ${t.tarifas_distancia_activas ? `${totalTramos} tramos` : 'Tarifa Fija'}
+                            </div>
+                        </div>
+
+                        <div class="tienda-stat-col" style="text-align: right;">
+                            <span class="tienda-stat-title" style="text-align: right;">Métodos Pago</span>
+                            <div class="tienda-stat-val" style="text-align: right;">
+                                <span style="font-weight: 700; color: var(--primary); font-size: 13.5px;">
+                                    ${t.total_metodos_activos || 0} activos
+                                </span>
+                            </div>
+                            <div style="font-size: 10px; color: var(--text-sec); text-align: right; margin-top: 2px; white-space: nowrap;">
+                                ${t.tipo_cobertura_dept === 'todos' ? 'Todo el Perú' : `${totalDepts} depts.`}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tienda-mobile-actions">
+                        <div class="tienda-mobile-btns">
+                            <button class="btn btn-secondary btn-sm" onclick="abrirModalTienda(${t.id}, 'mapa')" title="Ver ubicación GPS">
+                                <i class="ph ph-map-pin"></i> GPS
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="abrirModalTienda(${t.id})" title="Configurar tienda">
+                                <i class="ph ph-pencil-simple"></i> Editar
+                            </button>
+                            <button class="btn btn-secondary btn-sm text-danger btn-icon" onclick="eliminarTienda(${t.id}, '${t.nombre.replace(/'/g, "\\'")}')" title="Eliminar">
+                                <i class="ph ph-trash"></i>
+                            </button>
+                        </div>
+
+                        <div class="tienda-chevron" onclick="toggleTiendaDetalle(${t.id})" title="Ver detalles extendidos">
+                            <i class="ph ph-caret-down"></i>
+                        </div>
+                    </div>
+
+                    <div class="tienda-mobile-collapse">
+                        <div style="font-size: 12px; color: var(--text-main); margin-bottom: 6px; display: flex; align-items: flex-start; gap: 6px;">
+                            <i class="ph ph-map-pin" style="color: var(--primary); font-size: 15px; margin-top: 1px; flex-shrink: 0;"></i>
+                            <span><strong>Dirección:</strong> ${t.direccion || 'Sin dirección registrada'}</span>
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-main); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+                            <span><strong>WhatsApp:</strong> ${t.whatsapp || 'No registrado'}</span>
+                            ${cleanWa ? `
+                                <a href="https://wa.me/${cleanWa}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-xs" style="color: #10B981; font-weight: 700; border-radius: 6px;">
+                                    Abrir Chat
+                                </a>
+                            ` : ''}
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-main); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+                            <span><strong>Enlace Público:</strong> /${t.slug}</span>
+                            <button type="button" class="btn btn-secondary btn-xs" onclick="copiarSlugTienda('${t.slug}')" style="border-radius: 6px; font-weight: 600;">
+                                Copiar Enlace
+                            </button>
+                        </div>
+                        ${t.aviso_recojo ? `
+                            <div style="font-size: 11.5px; color: #D97706; background: rgba(245, 158, 11, 0.08); padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.2); margin-top: 6px;">
+                                <strong>Aviso Recojo:</strong> ${t.aviso_recojo}
+                            </div>
+                        ` : ''}
+                        ${t.descripcion ? `
+                            <div style="font-size: 11.5px; color: var(--text-sec); border-top: 1px dashed var(--border-color); padding-top: 6px; margin-top: 8px;">
+                                ${t.descripcion}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        desktopCardsHtml += `</div>`;
+        mobileCardsHtml += `</div>`;
+
+        grid.innerHTML = desktopCardsHtml + mobileCardsHtml;
 
         if (typeof window.renderPhosphorIcons === 'function') {
             window.renderPhosphorIcons(grid);
         }
+    };
+
+    window.toggleTiendaDetalle = function(id) {
+        if (expandedTiendaIds.has(id)) {
+            expandedTiendaIds.delete(id);
+        } else {
+            expandedTiendaIds.add(id);
+        }
+        const mobileCard = document.getElementById(`tienda-mcard-${id}`);
+        if (mobileCard) {
+            mobileCard.classList.toggle('expanded', expandedTiendaIds.has(id));
+        }
+        if (typeof triggerHaptic === 'function') triggerHaptic(10);
     };
 
     window.copiarSlugTienda = function(slug) {

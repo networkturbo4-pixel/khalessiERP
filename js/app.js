@@ -726,10 +726,6 @@ window.updateFabForPath = function(path) {
         fab.style.display = 'flex';
         fab.title = 'Nuevo Cliente';
         if (fabIcon) fabIcon.className = 'ph ph-user-plus';
-    } else if (path === '/tiendas') {
-        fab.style.display = 'flex';
-        fab.title = 'Nueva Tienda';
-        if (fabIcon) fabIcon.className = 'ph ph-plus';
     } else {
         fab.style.display = 'none';
     }

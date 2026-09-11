@@ -3325,34 +3325,40 @@ body.kiosk-mode .content-area {
 }
 
 @media (max-width: 768px) {
-    /* Ocultar pestaña única redundante [ 📦 Productos ] en móvil para ganar 55px de alto */
-    #inventario-nav-tabs {
+    /* Ocultar pestaña única redundante [ 📦 Productos ] / [ 🏬 Tiendas ] en móvil para ganar 55px de alto */
+    #inventario-nav-tabs,
+    #tiendas-nav-tabs {
         display: none !important;
     }
 
-    #inv-prod-kpis {
+    #inv-prod-kpis,
+    #tiendas-kpis {
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 10px !important;
         margin-bottom: 14px !important;
     }
-    #inv-prod-kpis .stat-card {
+    #inv-prod-kpis .stat-card,
+    #tiendas-kpis .stat-card {
         padding: 12px 14px !important;
         gap: 10px !important;
         border-radius: 12px !important;
     }
-    #inv-prod-kpis .stat-icon {
+    #inv-prod-kpis .stat-icon,
+    #tiendas-kpis .stat-icon {
         width: 38px !important;
         height: 38px !important;
         font-size: 20px !important;
         min-width: 38px !important;
         border-radius: 10px !important;
     }
-    #inv-prod-kpis .stat-value {
+    #inv-prod-kpis .stat-value,
+    #tiendas-kpis .stat-value {
         font-size: 17px !important;
         font-weight: 700 !important;
         line-height: 1.2 !important;
     }
-    #inv-prod-kpis .stat-label {
+    #inv-prod-kpis .stat-label,
+    #tiendas-kpis .stat-label {
         font-size: 11px !important;
         line-height: 1.2 !important;
     }
@@ -3373,6 +3379,9 @@ body.kiosk-mode .content-area {
         grid-template-columns: 1fr 1fr !important;
         gap: 8px !important;
         width: 100% !important;
+    }
+    .inv-toolbar-actions.single-action {
+        grid-template-columns: 1fr !important;
     }
     .btn-toolbar-action {
         width: 100% !important;
@@ -4955,3 +4964,198 @@ body.kiosk-mode .content-area {
         min-width: 100%;
     }
 }
+
+/* ===================================================
+   TIENDAS: CATÁLOGO DUAL (DESKTOP GRID / MOBILE CARDS)
+   =================================================== */
+
+.tiendas-desktop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+}
+
+/* En Escritorio (PC / Laptop): Mostrar Grid Desktop, Ocultar Cards Móvil */
+@media (min-width: 769px) {
+    .tiendas-desktop-grid {
+        display: grid !important;
+    }
+    .tiendas-mobile-cards {
+        display: none !important;
+    }
+}
+
+/* En Móviles (Celular / Tablet pequeña): Mostrar Cards Móvil, Ocultar Grid Desktop */
+@media (max-width: 768px) {
+    .tiendas-desktop-grid {
+        display: none !important;
+    }
+    .tiendas-mobile-cards {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+    }
+}
+
+/* Tarjeta Móvil Compacta para Tiendas (Idéntica al patrón de Inventario) */
+.tienda-mobile-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tienda-mobile-card:hover {
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.tienda-mobile-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.tienda-mobile-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 1px solid var(--border-color);
+    flex-shrink: 0;
+    background: var(--bg-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-sec);
+    font-size: 22px;
+}
+
+.tienda-mobile-header-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.tienda-mobile-title {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.3;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tienda-mobile-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* Grid de Datos Clave en 2 Columnas para Móvil */
+.tienda-mobile-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+}
+
+.tienda-stat-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.tienda-stat-title {
+    font-size: 11px;
+    color: var(--text-sec);
+    font-weight: 500;
+    margin-bottom: 2px;
+    white-space: nowrap;
+}
+
+.tienda-stat-val {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Barra de Acciones Táctiles en Móvil */
+.tienda-mobile-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border-color);
+}
+
+.tienda-mobile-btns {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.tienda-mobile-collapse {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--bg-main);
+    border-radius: 12px;
+    margin-top: 0;
+    border: 1px solid transparent;
+}
+
+.tienda-mobile-card.expanded .tienda-mobile-collapse {
+    max-height: 600px;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-color: var(--border-color);
+}
+
+.tienda-mobile-card.expanded .tienda-chevron {
+    transform: rotate(180deg);
+}
+
+.tienda-chevron {
+    transition: transform 0.25s ease;
+    font-size: 18px;
+    color: var(--text-sec);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+}
+
+.tienda-chevron:hover {
+    background: var(--bg-main);
+    color: var(--text-main);
+}
+
+/* Adaptación Dark Mode para Cards Móviles de Tiendas */
+[data-theme="dark"] .tienda-mobile-card {
+    background: #141414;
+    border-color: #27272A;
+}
+
+[data-theme="dark"] .tienda-mobile-stats,
+[data-theme="dark"] .tienda-mobile-collapse {
+    background: #0A0A0A;
+    border-color: #27272A;
+}
+

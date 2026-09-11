@@ -331,6 +331,7 @@ const routes = {
     '/dashboard': { view: renderDashboard, layout: true },
     '/inventario': { view: renderInventario, layout: true },
     '/recetas': { view: window.renderRecetas || (() => '<h2>Cargando Módulo de Recetas...</h2>'), layout: true },
+    '/tiendas': { view: (c) => window.renderTiendas ? window.renderTiendas(c) : '<h2>Cargando Tiendas...</h2>', layout: true },
     '/usuarios': { view: renderUsuarios, layout: true },
     '/clientes': { view: renderClientes, layout: true },
     '/rrhh': { view: renderRRHH, layout: true },
@@ -512,6 +513,12 @@ function renderAppLayout(container) {
                     <a href="javascript:navigate('/recetas')" class="nav-item" data-path="/recetas">
                         <i class="ph ph-book-open"></i>
                         <span>Recetas y Producción</span>
+                    </a>` : ''}
+
+                    ${(isAdministrador || (user.permisos && user.permisos.find(x => x.modulo === 'tiendas' && x.puede_ver == 1))) ? `
+                    <a href="javascript:navigate('/tiendas')" class="nav-item" data-path="/tiendas">
+                        <i class="ph ph-storefront"></i>
+                        <span>Tiendas</span>
                     </a>` : ''}
                     
                     ${(isAdministrador || (user.permisos && user.permisos.find(x => x.modulo === 'clientes' && x.puede_ver == 1))) ? `
@@ -719,6 +726,10 @@ window.updateFabForPath = function(path) {
         fab.style.display = 'flex';
         fab.title = 'Nuevo Cliente';
         if (fabIcon) fabIcon.className = 'ph ph-user-plus';
+    } else if (path === '/tiendas') {
+        fab.style.display = 'flex';
+        fab.title = 'Nueva Tienda';
+        if (fabIcon) fabIcon.className = 'ph ph-plus';
     } else {
         fab.style.display = 'none';
     }
@@ -734,6 +745,8 @@ window.handleFabClick = function() {
         if (typeof abrirModalReceta === 'function') abrirModalReceta();
     } else if (path === '/clientes') {
         if (typeof abrirModalCliente === 'function') abrirModalCliente();
+    } else if (path === '/tiendas') {
+        if (typeof window.abrirModalTienda === 'function') window.abrirModalTienda();
     }
 };
 

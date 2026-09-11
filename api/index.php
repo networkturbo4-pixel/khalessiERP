@@ -486,8 +486,9 @@ try {
         // ==========================================
         // MÓDULO LOCALES, INGREDIENTES Y RECETAS
         // ==========================================
+        case 'tiendas':
         case 'locales':
-            require_once 'locales.php';
+            require_once 'tiendas.php';
             break;
         case 'ingredientes':
             require_once 'ingredientes.php';

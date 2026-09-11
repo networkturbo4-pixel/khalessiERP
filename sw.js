@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khalessi-v19';
+const CACHE_NAME = 'khalessi-v20';
 const ASSETS = [
     './',
     './index.html',
@@ -7,6 +7,7 @@ const ASSETS = [
     './js/app.js',
     './js/modules/inventario.js',
     './js/modules/recetas.js',
+    './js/modules/tiendas.js',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap'
 ];
 

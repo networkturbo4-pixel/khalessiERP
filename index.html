@@ -45,7 +45,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Icons (Phosphor SVG Universal - 100% Local, Offline & Apple Lockdown Mode Compatible) -->
-    <script src="js/phosphor-svg.js?v=2.7.5"></script>
+    <script src="js/phosphor-svg.js?v=2.7.6"></script>
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -53,8 +53,12 @@
     <!-- HTML5-QRCode -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
+    <!-- Leaflet OpenStreetMap (Mapas GPS interactivos para Sedes y Cobertura) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <!-- Global CSS -->
-    <link rel="stylesheet" href="css/index.css?v=2.8.3">
+    <link rel="stylesheet" href="css/index.css?v=2.8.4">
 </head>
 <body>
     
@@ -230,7 +234,8 @@
     <!-- Scripts -->
     <script src="js/modules/inventario.js?v=2.5.5"></script>
     <script src="js/modules/recetas.js?v=2.2.0"></script>
-    <script src="js/app.js?v=2.7.6"></script>
+    <script src="js/modules/tiendas.js?v=1.0.0"></script>
+    <script src="js/app.js?v=2.7.7"></script>
     <script>
         if ('serviceWorker' in navigator) {
             // Comprobación segura de Cache API (Safari en Modo Hermético / Lockdown Mode deshabilita caches)
@@ -249,7 +254,7 @@
                     }
                 }).catch(function() {});
             } else {
-                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.6';
+                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.7';
                 navigator.serviceWorker.register(swPath)
                     .then(function(reg) {
                         reg.update();

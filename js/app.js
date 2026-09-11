@@ -329,6 +329,7 @@ const routes = {
     '/boleta': { view: (c) => window.renderBoletaPublica(c), layout: false },
     '/boleta-publica': { view: (c) => window.renderBoletaPublica(c), layout: false },
     '/dashboard': { view: renderDashboard, layout: true },
+    '/pedidos': { view: (c) => window.renderPedidos ? window.renderPedidos(c) : '<h2>Cargando Pedidos...</h2>', layout: true },
     '/inventario': { view: renderInventario, layout: true },
     '/recetas': { view: window.renderRecetas || (() => '<h2>Cargando Módulo de Recetas...</h2>'), layout: true },
     '/tiendas': { view: (c) => window.renderTiendas ? window.renderTiendas(c) : '<h2>Cargando Tiendas...</h2>', layout: true },
@@ -502,6 +503,13 @@ function renderAppLayout(container) {
                         <i class="ph ph-squares-four"></i>
                         <span>Dashboard</span>
                     </a>` : ''}
+
+                    ${(isAdministrador || (user.permisos && user.permisos.find(x => x.modulo === 'pedidos' && x.puede_ver == 1))) ? `
+                    <a href="javascript:navigate('/pedidos')" class="nav-item" data-path="/pedidos" style="position:relative;">
+                        <i class="ph ph-shopping-bag-open"></i>
+                        <span>Pedidos Online</span>
+                        <span id="sidebar-pedidos-badge" style="display:none; margin-left:auto; background:var(--danger); color:#fff; font-size:11px; font-weight:700; padding:2px 7px; border-radius:12px;">0</span>
+                    </a>` : ''}
                     
                     ${(isAdministrador || (user.permisos && user.permisos.find(x => x.modulo === 'inventario' && x.puede_ver == 1))) ? `
                     <a href="javascript:navigate('/inventario')" class="nav-item" data-path="/inventario">
@@ -660,6 +668,10 @@ function updateSidebarActive(path) {
 
     // Actualizar FAB contextual
     updateFabForPath(path);
+
+    if (typeof window.cargarStatsPedidos === 'function') {
+        window.cargarStatsPedidos();
+    }
 }
 
 // Haptic feedback táctil para celulares

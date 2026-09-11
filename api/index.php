@@ -138,16 +138,35 @@ try {
             break;
 
         // ==========================================
-        // MÓDULO DASHBOARD (Estadísticas mockeadas desde BD)
+        // MÓDULO DASHBOARD (Estadísticas reales desde BD)
         // ==========================================
         case 'dashboard':
             if ($method === 'GET' && $accion === 'stats') {
-                // Aquí se calcularían sumatorias reales de la BD, por ahora enviamos datos iniciales
-                respondSuccess([
-                    "ventas_dia" => 4520.00,
-                    "pedidos_completados" => 24,
-                    "pedidos_pendientes" => 3
-                ]);
+                try {
+                    $hoy = date('Y-m-d');
+                    $sVentas = $db->prepare("SELECT COALESCE(SUM(total), 0) FROM pedidos WHERE DATE(fecha_creacion) = :hoy AND estado != 'cancelado'");
+                    $sVentas->execute([':hoy' => $hoy]);
+                    $ventas_dia = (float)$sVentas->fetchColumn();
+
+                    $sComp = $db->prepare("SELECT COUNT(*) FROM pedidos WHERE DATE(fecha_creacion) = :hoy AND estado = 'entregado'");
+                    $sComp->execute([':hoy' => $hoy]);
+                    $pedidos_completados = (int)$sComp->fetchColumn();
+
+                    $sPend = $db->query("SELECT COUNT(*) FROM pedidos WHERE estado IN ('pendiente', 'confirmado', 'en_preparacion')");
+                    $pedidos_pendientes = (int)$sPend->fetchColumn();
+
+                    respondSuccess([
+                        "ventas_dia" => $ventas_dia,
+                        "pedidos_completados" => $pedidos_completados,
+                        "pedidos_pendientes" => $pedidos_pendientes
+                    ]);
+                } catch (Exception $e) {
+                    respondSuccess([
+                        "ventas_dia" => 0.00,
+                        "pedidos_completados" => 0,
+                        "pedidos_pendientes" => 0
+                    ]);
+                }
             }
             break;
 
@@ -501,6 +520,9 @@ try {
             break;
         case 'sistema':
             require_once 'sistema.php';
+            break;
+        case 'pedidos':
+            require_once 'pedidos.php';
             break;
 
         default:

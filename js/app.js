@@ -4974,7 +4974,10 @@ window.procesarDNI = async function() {
                 return;
             }
 
-            if (data.data.estado === 'cerrado') {
+            const yaMarcoHoy = data.data.ya_marco_hoy || false;
+            const esTurnoCerrado = data.data.estado === 'turno_cerrado';
+
+            if (!yaMarcoHoy && data.data.estado === 'cerrado') {
                 if (data.data.es_tardanza) {
                     // ESCENARIO TARDANZA: Notificar y solicitar Google Authenticator
                     document.getElementById('tardanza-mensaje').innerText = `Hola ${user.nombre}, has superado la tolerancia de entrada de ${data.data.tolerancia_minutos} min.`;
@@ -4995,7 +4998,7 @@ window.procesarDNI = async function() {
                     iniciarCamara();
                 }
             } else {
-                // ESCENARIO B: Ya tiene turno abierto -> Opciones inteligentes (Refrigerio o ERP)
+                // ESCENARIO B: Ya marcó asistencia hoy (Turno en curso o turno ya completado)
                 document.getElementById('auth-nombre-opciones').innerText = `Hola de nuevo, ${user.nombre}`;
                 
                 const avatarContainer = document.getElementById('auth-opciones-avatar-container');
@@ -5009,82 +5012,115 @@ window.procesarDNI = async function() {
                 const refContainer = document.getElementById('auth-refrigerio-container');
                 const normalOpciones = document.getElementById('auth-opciones-normales');
                 const subTitle = document.getElementById('auth-subtitulo-opciones');
+                const horaEntradaStr = data.data.hora_entrada_hoy ? formatHoraConSegundos(data.data.hora_entrada_hoy) : '';
 
-                if (ref && (ref.en_curso || ref.horario_activo)) {
-                    if (ref.en_curso) {
-                        if (subTitle) subTitle.innerText = 'Actualmente te encuentras en tu horario de refrigerio.';
-                        if (refContainer) {
-                            refContainer.style.display = 'block';
-                            refContainer.innerHTML = `
-                                <div class="refrigerio-banner-card warning">
-                                    <div class="refrigerio-banner-header">
-                                        <span class="refrigerio-banner-badge">
-                                            <i class="ph ph-fork-knife"></i> En Refrigerio
-                                        </span>
-                                        <span class="refrigerio-banner-time">Llevas ${ref.minutos_en_refrigerio} min</span>
+                if (esTurnoCerrado) {
+                    // El usuario ya marcó ingreso hoy y su turno ya finalizó (o auto-checkout)
+                    if (subTitle) {
+                        subTitle.innerHTML = `<span style="color:var(--text-sec);">Ya registraste tu ingreso hoy${horaEntradaStr ? ` (<strong>${horaEntradaStr}</strong>)` : ''}.</span><br><span class="badge badge-success" style="margin-top:6px; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="ph ph-check-circle"></i> Asistencia del día registrada</span>`;
+                    }
+                    if (refContainer) {
+                        refContainer.style.display = 'none';
+                        refContainer.innerHTML = '';
+                    }
+                    if (normalOpciones) {
+                        normalOpciones.style.display = 'block';
+                        normalOpciones.innerHTML = `
+                            <button class="btn btn-black" style="width:100%; padding: 15px; margin-bottom: 12px; font-size: 15px; border-radius: 14px; font-weight: 600;" onclick="ingresarAlSistema()">
+                                <i class="ph ph-squares-four"></i> Entrar al ERP
+                            </button>
+                        `;
+                    }
+                } else {
+                    // Turno en curso
+                    if (normalOpciones) {
+                        normalOpciones.innerHTML = `
+                            <button class="btn btn-black" style="width:100%; padding: 15px; margin-bottom: 12px; font-size: 15px; border-radius: 14px; font-weight: 600;" onclick="ingresarAlSistema()">
+                                <i class="ph ph-squares-four"></i> Entrar al ERP
+                            </button>
+                            <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--danger); width: 100%; padding: 15px; font-size: 15px; border-radius: 14px; font-weight: 600;" onclick="marcarSalida()">
+                                <i class="ph ph-sign-out"></i> Finalizar mi Turno
+                            </button>
+                        `;
+                    }
+
+                    const turnoTxt = `Tienes un turno laboral en curso${horaEntradaStr ? ` (Ingreso: ${horaEntradaStr})` : ''}.`;
+
+                    if (ref && (ref.en_curso || ref.horario_activo)) {
+                        if (ref.en_curso) {
+                            if (subTitle) subTitle.innerText = 'Actualmente te encuentras en tu horario de refrigerio.';
+                            if (refContainer) {
+                                refContainer.style.display = 'block';
+                                refContainer.innerHTML = `
+                                    <div class="refrigerio-banner-card warning">
+                                        <div class="refrigerio-banner-header">
+                                            <span class="refrigerio-banner-badge">
+                                                <i class="ph ph-fork-knife"></i> En Refrigerio
+                                            </span>
+                                            <span class="refrigerio-banner-time">Llevas ${ref.minutos_en_refrigerio} min</span>
+                                        </div>
+                                        <div class="refrigerio-banner-title">¿Terminaste de almorzar?</div>
+                                        <div class="refrigerio-banner-desc">Registra el retorno a tus labores o accede al sistema si necesitas consultar algo mientras sigues en almuerzo.</div>
+                                        <div class="refrigerio-banner-actions">
+                                            <button class="btn btn-warning refrigerio-action-btn primary" onclick="marcarFinRefrigerioDesdeLogin('${dni}')">
+                                                <i class="ph ph-check-circle"></i> Marcar Fin de Refrigerio y Trabajar
+                                            </button>
+                                            <button class="btn btn-secondary refrigerio-action-btn" onclick="ingresarAlSistema()">
+                                                <i class="ph ph-squares-four"></i> Entrar al ERP (Sigo en Almuerzo)
+                                            </button>
+                                            <button class="btn btn-ghost refrigerio-action-btn" style="color:var(--danger);" onclick="marcarSalida()">
+                                                <i class="ph ph-sign-out"></i> Finalizar Turno de Hoy
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div class="refrigerio-banner-title">¿Terminaste de almorzar?</div>
-                                    <div class="refrigerio-banner-desc">Registra el retorno a tus labores o accede al sistema si necesitas consultar algo mientras sigues en almuerzo.</div>
-                                    <div class="refrigerio-banner-actions">
-                                        <button class="btn btn-warning refrigerio-action-btn primary" onclick="marcarFinRefrigerioDesdeLogin('${dni}')">
-                                            <i class="ph ph-check-circle"></i> Marcar Fin de Refrigerio y Trabajar
-                                        </button>
-                                        <button class="btn btn-secondary refrigerio-action-btn" onclick="ingresarAlSistema()">
-                                            <i class="ph ph-squares-four"></i> Entrar al ERP (Sigo en Almuerzo)
-                                        </button>
-                                        <button class="btn btn-ghost refrigerio-action-btn" style="color:var(--danger);" onclick="marcarSalida()">
-                                            <i class="ph ph-sign-out"></i> Finalizar Turno de Hoy
-                                        </button>
+                                `;
+                            }
+                            if (normalOpciones) normalOpciones.style.display = 'none';
+                        } else if (ref.horario_activo && !ref.inicio_marcado) {
+                            if (subTitle) subTitle.innerText = `Horario oficial de almuerzo (${ref.hora_inicio} - ${ref.hora_fin})`;
+                            if (refContainer) {
+                                refContainer.style.display = 'block';
+                                refContainer.innerHTML = `
+                                    <div class="refrigerio-banner-card info">
+                                        <div class="refrigerio-banner-header">
+                                            <span class="refrigerio-banner-badge">
+                                                <i class="ph ph-coffee"></i> Hora de Almuerzo
+                                            </span>
+                                            <span class="refrigerio-banner-time">${ref.hora_inicio} - ${ref.hora_fin}</span>
+                                        </div>
+                                        <div class="refrigerio-banner-title">¿Vas a salir a tu refrigerio?</div>
+                                        <div class="refrigerio-banner-desc">Puedes registrar tu salida al almuerzo (${ref.duracion_minutos} min estándar) o continuar hacia el sistema si aún no vas a almorzar.</div>
+                                        <div class="refrigerio-banner-actions">
+                                            <button class="btn btn-warning refrigerio-action-btn primary" onclick="marcarRefrigerioDesdeLogin('${dni}')">
+                                                <i class="ph ph-coffee"></i> Marcar Salida a Refrigerio
+                                            </button>
+                                            <button class="btn btn-black refrigerio-action-btn" onclick="ingresarAlSistema()">
+                                                <i class="ph ph-squares-four"></i> Entrar al ERP (Aún no almuerzo)
+                                            </button>
+                                            <button class="btn btn-ghost refrigerio-action-btn" style="color:var(--danger);" onclick="marcarSalida()">
+                                                <i class="ph ph-sign-out"></i> Finalizar Turno de Hoy
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            `;
+                                `;
+                            }
+                            if (normalOpciones) normalOpciones.style.display = 'none';
+                        } else {
+                            if (refContainer) {
+                                refContainer.style.display = 'none';
+                                refContainer.innerHTML = '';
+                            }
+                            if (normalOpciones) normalOpciones.style.display = 'block';
+                            if (subTitle) subTitle.innerText = turnoTxt;
                         }
-                        if (normalOpciones) normalOpciones.style.display = 'none';
-                    } else if (ref.horario_activo && !ref.inicio_marcado) {
-                        if (subTitle) subTitle.innerText = `Horario oficial de almuerzo (${ref.hora_inicio} - ${ref.hora_fin})`;
-                        if (refContainer) {
-                            refContainer.style.display = 'block';
-                            refContainer.innerHTML = `
-                                <div class="refrigerio-banner-card info">
-                                    <div class="refrigerio-banner-header">
-                                        <span class="refrigerio-banner-badge">
-                                            <i class="ph ph-coffee"></i> Hora de Almuerzo
-                                        </span>
-                                        <span class="refrigerio-banner-time">${ref.hora_inicio} - ${ref.hora_fin}</span>
-                                    </div>
-                                    <div class="refrigerio-banner-title">¿Vas a salir a tu refrigerio?</div>
-                                    <div class="refrigerio-banner-desc">Puedes registrar tu salida al almuerzo (${ref.duracion_minutos} min estándar) o continuar hacia el sistema si aún no vas a almorzar.</div>
-                                    <div class="refrigerio-banner-actions">
-                                        <button class="btn btn-warning refrigerio-action-btn primary" onclick="marcarRefrigerioDesdeLogin('${dni}')">
-                                            <i class="ph ph-coffee"></i> Marcar Salida a Refrigerio
-                                        </button>
-                                        <button class="btn btn-black refrigerio-action-btn" onclick="ingresarAlSistema()">
-                                            <i class="ph ph-squares-four"></i> Entrar al ERP (Aún no almuerzo)
-                                        </button>
-                                        <button class="btn btn-ghost refrigerio-action-btn" style="color:var(--danger);" onclick="marcarSalida()">
-                                            <i class="ph ph-sign-out"></i> Finalizar Turno de Hoy
-                                        </button>
-                                    </div>
-                                </div>
-                            `;
-                        }
-                        if (normalOpciones) normalOpciones.style.display = 'none';
                     } else {
-                        // Horario activo pero ya marcó inicio y fin, o no aplica
                         if (refContainer) {
                             refContainer.style.display = 'none';
                             refContainer.innerHTML = '';
                         }
                         if (normalOpciones) normalOpciones.style.display = 'block';
-                        if (subTitle) subTitle.innerText = 'Tienes un turno laboral en curso.';
+                        if (subTitle) subTitle.innerText = turnoTxt;
                     }
-                } else {
-                    if (refContainer) {
-                        refContainer.style.display = 'none';
-                        refContainer.innerHTML = '';
-                    }
-                    if (normalOpciones) normalOpciones.style.display = 'block';
-                    if (subTitle) subTitle.innerText = 'Tienes un turno laboral en curso.';
                 }
 
                 document.getElementById('auth-step-opciones').classList.remove('hidden');
@@ -5503,7 +5539,17 @@ window.reiniciarAuth = function() {
         refContainer.style.display = 'none';
     }
     const opcNormales = document.getElementById('auth-opciones-normales');
-    if (opcNormales) opcNormales.style.display = 'block';
+    if (opcNormales) {
+        opcNormales.style.display = 'block';
+        opcNormales.innerHTML = `
+            <button class="btn btn-black" style="width:100%; padding: 15px; margin-bottom: 12px; font-size: 15px; border-radius: 14px; font-weight: 600;" onclick="ingresarAlSistema()">
+                <i class="ph ph-squares-four"></i> Entrar al ERP
+            </button>
+            <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--danger); width: 100%; padding: 15px; font-size: 15px; border-radius: 14px; font-weight: 600;" onclick="marcarSalida()">
+                <i class="ph ph-sign-out"></i> Finalizar mi Turno
+            </button>
+        `;
+    }
 
     // Resetear texto de despedida a su valor por defecto
     const desp = document.getElementById('auth-step-despedida');

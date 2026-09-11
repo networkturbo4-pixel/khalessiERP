@@ -76,10 +76,18 @@ if ($method === 'GET' && $accion === 'estado') {
         ], "Usuario con sanción disciplinaria activa");
     }
     
-    // Verificar si ya tiene un turno abierto hoy
+    // 1. Verificar si ya tiene un turno abierto actualmente
     $stmt = $db->prepare("SELECT id, fecha_hora_entrada, inicio_refrigerio, fin_refrigerio FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto' LIMIT 1");
     $stmt->execute([':id_usuario' => $user['id']]);
     $asistencia = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // 2. Verificar si el usuario ya registró asistencia hoy (abierta o cerrada)
+    $stmtHoy = $db->prepare("SELECT id, fecha_hora_entrada, fecha_hora_salida, estado, inicio_refrigerio, fin_refrigerio, condicion, minutos_tardanza 
+                            FROM rrhh_asistencias 
+                            WHERE id_usuario = :id_usuario AND DATE(fecha_hora_entrada) = CURDATE() 
+                            ORDER BY id DESC LIMIT 1");
+    $stmtHoy->execute([':id_usuario' => $user['id']]);
+    $asistenciaHoy = $stmtHoy->fetch(PDO::FETCH_ASSOC);
 
     // Auto-sanar horario adelantado si fue registrado con zona horaria incorrecta del servidor
     if ($asistencia && !empty($asistencia['inicio_refrigerio']) && strtotime($asistencia['inicio_refrigerio']) > time()) {
@@ -96,13 +104,13 @@ if ($method === 'GET' && $accion === 'estado') {
     $ref_fin = !empty($cfgs['rrhh_refrigerio_fin']) ? $cfgs['rrhh_refrigerio_fin'] : '15:00';
     $ref_minutos = !empty($cfgs['rrhh_refrigerio_minutos']) ? (int)$cfgs['rrhh_refrigerio_minutos'] : 60;
     
-    // Evaluar horario de entrada
+    // Evaluar horario de entrada ÚNICAMENTE si no ha registrado asistencia hoy
     $hora_evaluar = !empty($user['hora_entrada_asignada']) ? $user['hora_entrada_asignada'] : $user['rol_hora_entrada'];
     $es_tardanza = false;
     $minutos_tardanza = 0;
     $hora_actual = date('H:i');
     
-    if (!$asistencia && !empty($hora_evaluar)) {
+    if (!$asistenciaHoy && !empty($hora_evaluar)) {
         $hora_esperada_ts = strtotime(date('Y-m-d') . ' ' . $hora_evaluar);
         $limite_tolerancia_ts = $hora_esperada_ts + ($tolerancia * 60);
         $ahora_ts = time();
@@ -111,6 +119,14 @@ if ($method === 'GET' && $accion === 'estado') {
             $es_tardanza = true;
             $minutos_tardanza = max(1, round(($ahora_ts - $hora_esperada_ts) / 60));
         }
+    }
+
+    // Determinar estado de la jornada hoy
+    $estado_jornada = 'cerrado';
+    if ($asistencia) {
+        $estado_jornada = 'abierto';
+    } else if ($asistenciaHoy) {
+        $estado_jornada = 'turno_cerrado';
     }
 
     // Evaluar estado del refrigerio
@@ -128,8 +144,11 @@ if ($method === 'GET' && $accion === 'estado') {
 
     respondSuccess([
         "user" => $user,
-        "estado" => $asistencia ? 'abierto' : 'cerrado',
-        "asistencia_id" => $asistencia ? $asistencia['id'] : null,
+        "estado" => $estado_jornada,
+        "ya_marco_hoy" => !empty($asistenciaHoy),
+        "hora_entrada_hoy" => $asistenciaHoy ? $asistenciaHoy['fecha_hora_entrada'] : null,
+        "hora_salida_hoy" => $asistenciaHoy ? $asistenciaHoy['fecha_hora_salida'] : null,
+        "asistencia_id" => $asistencia ? $asistencia['id'] : ($asistenciaHoy ? $asistenciaHoy['id'] : null),
         "es_tardanza" => $es_tardanza,
         "minutos_tardanza" => $minutos_tardanza,
         "hora_esperada" => $hora_evaluar ? substr($hora_evaluar, 0, 5) : null,
@@ -144,8 +163,8 @@ if ($method === 'GET' && $accion === 'estado') {
             "inicio_marcado" => $inicio_refrigerio_marcado,
             "fin_marcado" => $fin_refrigerio_marcado,
             "en_curso" => $en_refrigerio,
-            "hora_inicio_marcada" => $asistencia ? $asistencia['inicio_refrigerio'] : null,
-            "hora_fin_marcada" => $asistencia ? $asistencia['fin_refrigerio'] : null,
+            "hora_inicio_marcada" => $asistencia ? $asistencia['inicio_refrigerio'] : ($asistenciaHoy ? $asistenciaHoy['inicio_refrigerio'] : null),
+            "hora_fin_marcada" => $asistencia ? $asistencia['fin_refrigerio'] : ($asistenciaHoy ? $asistenciaHoy['fin_refrigerio'] : null),
             "minutos_en_refrigerio" => $minutos_en_refrigerio
         ]
     ]);
@@ -337,6 +356,15 @@ else if ($method === 'POST' && $accion === 'marcar_entrada') {
     $stmt = $db->prepare("SELECT id FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto'");
     $stmt->execute([':id_usuario' => $user['id']]);
     if ($stmt->rowCount() > 0) respondError("El usuario ya tiene un turno abierto");
+
+    // Verificar si ya registró entrada hoy (evitar duplicar asistencia)
+    $stmtHoy = $db->prepare("SELECT id, fecha_hora_entrada FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND DATE(fecha_hora_entrada) = CURDATE() LIMIT 1");
+    $stmtHoy->execute([':id_usuario' => $user['id']]);
+    if ($stmtHoy->rowCount() > 0) {
+        $reg = $stmtHoy->fetch(PDO::FETCH_ASSOC);
+        $horaFmt = date('h:i A', strtotime($reg['fecha_hora_entrada']));
+        respondError("Ya registraste tu hora de entrada el día de hoy a las {$horaFmt}. No es necesario volver a marcar.", 400);
+    }
     
     // Evaluar tardanza
     $stmtTol = $db->prepare("SELECT valor FROM configuracion WHERE clave = 'rrhh_tolerancia_tardanza_minutos' LIMIT 1");
@@ -534,6 +562,15 @@ else if ($method === 'POST' && $accion === 'marcar_ingreso_rapido') {
     $stmt = $db->prepare("SELECT id FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND estado = 'abierto'");
     $stmt->execute([':id_usuario' => $user['id']]);
     if ($stmt->rowCount() > 0) respondError("Ya tienes un turno de trabajo abierto.");
+
+    // Verificar si ya registró entrada hoy
+    $stmtHoy = $db->prepare("SELECT id, fecha_hora_entrada FROM rrhh_asistencias WHERE id_usuario = :id_usuario AND DATE(fecha_hora_entrada) = CURDATE() LIMIT 1");
+    $stmtHoy->execute([':id_usuario' => $user['id']]);
+    if ($stmtHoy->rowCount() > 0) {
+        $reg = $stmtHoy->fetch(PDO::FETCH_ASSOC);
+        $horaFmt = date('h:i A', strtotime($reg['fecha_hora_entrada']));
+        respondError("Ya registraste tu hora de entrada el día de hoy a las {$horaFmt}.", 400);
+    }
 
     // Evaluar tardanza
     $stmtTol = $db->prepare("SELECT valor FROM configuracion WHERE clave = 'rrhh_tolerancia_tardanza_minutos' LIMIT 1");

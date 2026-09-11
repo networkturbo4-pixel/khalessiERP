@@ -235,7 +235,7 @@
     <script src="js/modules/inventario.js?v=2.5.5"></script>
     <script src="js/modules/recetas.js?v=2.2.0"></script>
     <script src="js/modules/tiendas.js?v=1.0.1"></script>
-    <script src="js/app.js?v=2.7.8"></script>
+    <script src="js/app.js?v=2.7.9"></script>
     <script>
         if ('serviceWorker' in navigator) {
             // Comprobación segura de Cache API (Safari en Modo Hermético / Lockdown Mode deshabilita caches)
@@ -254,7 +254,7 @@
                     }
                 }).catch(function() {});
             } else {
-                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.8';
+                var swPath = (window.APP_BASE || '') + '/sw.js?v=2.7.9';
                 navigator.serviceWorker.register(swPath)
                     .then(function(reg) {
                         reg.update();

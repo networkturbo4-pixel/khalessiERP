@@ -1,9 +1,23 @@
 // js/modules/pedidos.js - Módulo de Pedidos Online & Ventas para Khalessi ERP
 (function() {
     let pedidosData = [];
+    let listaFiltradaActual = [];
     let filtroEstado = 'activos';
     let busquedaTexto = '';
     let autoRefreshTimer = null;
+    let modoVista = localStorage.getItem('khalessi_pedidos_vista') || 'cards';
+    let paginaActual = 1;
+    let itemsPorPagina = (modoVista === 'tabla') ? 25 : 12;
+
+    const estadoBadges = {
+        'pendiente': { label: 'Pendiente', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)', icon: 'ph-bell' },
+        'confirmado': { label: 'Confirmado', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.12)', icon: 'ph-check-circle' },
+        'en_preparacion': { label: 'En Cocina', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)', icon: 'ph-cooking-pot' },
+        'listo': { label: 'Listo', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)', icon: 'ph-package' },
+        'en_camino': { label: 'En Camino', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.12)', icon: 'ph-motorcycle' },
+        'entregado': { label: 'Entregado', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)', icon: 'ph-check-fat' },
+        'cancelado': { label: 'Cancelado', color: '#6B7280', bg: 'rgba(107, 114, 128, 0.12)', icon: 'ph-x-circle' }
+    };
 
     window.renderPedidos = async function(container) {
         container.innerHTML = `
@@ -70,7 +84,7 @@
                 </div>
             </div>
 
-            <!-- Barra de Filtros Segmented Pill y Búsqueda -->
+            <!-- Barra de Filtros Segmented Pill, Búsqueda y Selector de Vista -->
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:24px;">
                 <nav class="nav-tabs" style="margin-bottom:0;">
                     <button class="nav-tab active" id="filter-activos" onclick="window.filtrarPedidosEstado('activos')">
@@ -99,18 +113,34 @@
                     </button>
                 </nav>
 
-                <div style="position:relative; min-width:260px;">
-                    <input type="text" id="pedidos-search-input" class="form-control" style="padding-left:36px; height:42px; border-radius:12px; font-size:13.5px;" placeholder="Buscar cliente, código, teléfono..." oninput="window.buscarPedidos(this.value)">
-                    <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:17px; color:var(--text-sec);"></i>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <div style="position:relative; min-width:240px;">
+                        <input type="text" id="pedidos-search-input" class="form-control" style="padding-left:36px; height:42px; border-radius:12px; font-size:13.5px;" placeholder="Buscar cliente, código, teléfono..." oninput="window.buscarPedidos(this.value)">
+                        <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:17px; color:var(--text-sec);"></i>
+                    </div>
+
+                    <!-- Selector Vista Tarjetas (Cocina) vs Tabla Compacta (Gran Volumen) -->
+                    <div style="display:inline-flex; background:var(--bg-panel); border:1px solid var(--border-color); border-radius:12px; padding:3px; box-shadow:var(--shadow-sm);">
+                        <button id="btn-view-cards" onclick="window.cambiarModoVista('cards')" class="btn-icon" style="width:36px; height:36px; border-radius:9px;" title="Vista Tarjetas (Cocina)">
+                            <i class="ph ph-squares-four" style="font-size:18px;"></i>
+                        </button>
+                        <button id="btn-view-table" onclick="window.cambiarModoVista('tabla')" class="btn-icon" style="width:36px; height:36px; border-radius:9px;" title="Vista Tabla Compacta (Gran Volumen / Historial)">
+                            <i class="ph ph-list" style="font-size:18px;"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Contenedor de Tarjetas de Pedidos -->
-            <div id="pedidos-cards-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:18px;">
-                <div style="text-align:center; padding:50px; color:var(--text-sec); grid-column: 1 / -1;">
+            <!-- Contenedor de Tarjetas / Tabla de Pedidos -->
+            <div id="pedidos-cards-container">
+                <div style="text-align:center; padding:50px; color:var(--text-sec);">
                     <i class="ph ph-spinner ph-spin" style="font-size:32px; color:var(--primary);"></i>
                     <p style="margin-top:12px; font-size:14px;">Cargando pedidos en tiempo real...</p>
                 </div>
+            </div>
+
+            <!-- Controles de Paginación Inteligente -->
+            <div id="pedidos-pagination-container">
             </div>
 
             <!-- Modal de Detalle / Ticket de Pedido -->
@@ -133,6 +163,8 @@
                 </div>
             </div>
         `;
+
+        actualizarBotonesModoVista();
 
         // Auto-sincronizar con Tienda Roma en segundo plano
         window.sincronizarTiendaRoma(true);
@@ -253,13 +285,60 @@
         }
     };
 
+    window.cambiarModoVista = function(nuevoModo) {
+        modoVista = nuevoModo;
+        localStorage.setItem('khalessi_pedidos_vista', nuevoModo);
+        itemsPorPagina = (nuevoModo === 'tabla') ? 25 : 12;
+        paginaActual = 1;
+        actualizarBotonesModoVista();
+        window.renderizarSegunModo();
+    };
+
+    function actualizarBotonesModoVista() {
+        const btnCards = document.getElementById('btn-view-cards');
+        const btnTable = document.getElementById('btn-view-table');
+        if (btnCards && btnTable) {
+            if (modoVista === 'cards') {
+                btnCards.style.background = 'var(--primary)';
+                btnCards.style.color = '#fff';
+                btnTable.style.background = 'transparent';
+                btnTable.style.color = 'var(--text-sec)';
+            } else {
+                btnTable.style.background = 'var(--primary)';
+                btnTable.style.color = '#fff';
+                btnCards.style.background = 'transparent';
+                btnCards.style.color = 'var(--text-sec)';
+            }
+        }
+    }
+
+    window.cambiarPagina = function(nuevaPagina) {
+        paginaActual = nuevaPagina;
+        window.renderizarSegunModo();
+        window.scrollTo({ top: 120, behavior: 'smooth' });
+    };
+
+    window.cambiarItemsPorPagina = function(cantidad) {
+        itemsPorPagina = parseInt(cantidad, 10) || 12;
+        paginaActual = 1;
+        window.renderizarSegunModo();
+    };
+
     window.renderizarListaPedidos = function(pedidos) {
+        listaFiltradaActual = pedidos || [];
+        actualizarBotonesModoVista();
+        window.renderizarSegunModo();
+    };
+
+    window.renderizarSegunModo = function() {
         const container = document.getElementById('pedidos-cards-container');
+        const paginador = document.getElementById('pedidos-pagination-container');
         if (!container) return;
 
-        if (!pedidos || pedidos.length === 0) {
+        if (!listaFiltradaActual || listaFiltradaActual.length === 0) {
+            container.style.display = 'block';
             container.innerHTML = `
-                <div style="text-align:center; padding:70px 20px; color:var(--text-sec); grid-column: 1 / -1;">
+                <div style="text-align:center; padding:70px 20px; color:var(--text-sec);">
                     <div style="width:70px; height:70px; border-radius:50%; background:var(--bg-panel); border:1px solid var(--border-color); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; box-shadow:var(--shadow-sm);">
                         <i class="ph ph-tray" style="font-size:34px; color:var(--text-sec);"></i>
                     </div>
@@ -267,20 +346,70 @@
                     <p style="font-size:14px; margin:0; color:var(--text-sec);">Los pedidos que ingresen desde el catálogo o Tienda Roma se mostrarán aquí al instante.</p>
                 </div>
             `;
+            if (paginador) paginador.innerHTML = '';
             return;
         }
 
-        const estadoBadges = {
-            'pendiente': { label: 'Pendiente', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)', icon: 'ph-bell' },
-            'confirmado': { label: 'Confirmado', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.12)', icon: 'ph-check-circle' },
-            'en_preparacion': { label: 'En Cocina', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)', icon: 'ph-cooking-pot' },
-            'listo': { label: 'Listo', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)', icon: 'ph-package' },
-            'en_camino': { label: 'En Camino', color: '#06B6D4', bg: 'rgba(6, 182, 212, 0.12)', icon: 'ph-motorcycle' },
-            'entregado': { label: 'Entregado', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)', icon: 'ph-check-fat' },
-            'cancelado': { label: 'Cancelado', color: '#6B7280', bg: 'rgba(107, 114, 128, 0.12)', icon: 'ph-x-circle' }
-        };
+        const totalItems = listaFiltradaActual.length;
+        const totalPaginas = Math.ceil(totalItems / itemsPorPagina) || 1;
+        if (paginaActual > totalPaginas) paginaActual = totalPaginas;
+        if (paginaActual < 1) paginaActual = 1;
 
-        const html = pedidos.map(p => {
+        const inicio = (paginaActual - 1) * itemsPorPagina;
+        const fin = inicio + itemsPorPagina;
+        const pedidosPagina = listaFiltradaActual.slice(inicio, fin);
+
+        if (modoVista === 'cards') {
+            container.style.display = 'grid';
+            container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(350px, 1fr))';
+            container.style.gap = '18px';
+            container.innerHTML = generarHtmlCards(pedidosPagina);
+        } else {
+            container.style.display = 'block';
+            container.innerHTML = generarHtmlTabla(pedidosPagina);
+        }
+
+        // Renderizado del Paginador Inteligente
+        if (paginador) {
+            if (totalItems <= itemsPorPagina && totalItems <= 12) {
+                paginador.innerHTML = `
+                    <div style="font-size:13px; color:var(--text-sec);">
+                        Total: <b>${totalItems}</b> pedido${totalItems === 1 ? '' : 's'}
+                    </div>
+                `;
+            } else {
+                paginador.innerHTML = `
+                    <div style="font-size:13px; color:var(--text-sec); display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <span>Mostrando <b>${inicio + 1} - ${Math.min(fin, totalItems)}</b> de <b>${totalItems}</b> pedidos</span>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="font-size:12px;">Por página:</span>
+                            <select class="form-control" style="height:32px; padding:2px 8px; font-size:12px; width:auto; border-radius:8px;" onchange="window.cambiarItemsPorPagina(this.value)">
+                                <option value="12" ${itemsPorPagina === 12 ? 'selected' : ''}>12</option>
+                                <option value="24" ${itemsPorPagina === 24 ? 'selected' : ''}>24</option>
+                                <option value="48" ${itemsPorPagina === 48 ? 'selected' : ''}>48</option>
+                                <option value="100" ${itemsPorPagina === 100 ? 'selected' : ''}>100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <button class="btn btn-secondary btn-sm" ${paginaActual <= 1 ? 'disabled style="opacity:0.4; pointer-events:none;"' : ''} onclick="window.cambiarPagina(${paginaActual - 1})">
+                            &laquo; Anterior
+                        </button>
+                        <span style="font-size:13px; font-weight:600; padding:0 8px; color:var(--text-main);">
+                            Página ${paginaActual} de ${totalPaginas}
+                        </span>
+                        <button class="btn btn-secondary btn-sm" ${paginaActual >= totalPaginas ? 'disabled style="opacity:0.4; pointer-events:none;"' : ''} onclick="window.cambiarPagina(${paginaActual + 1})">
+                            Siguiente &raquo;
+                        </button>
+                    </div>
+                `;
+            }
+        }
+    };
+
+    function generarHtmlCards(pedidos) {
+        return pedidos.map(p => {
             const badge = estadoBadges[p.estado] || { label: p.estado, color: '#6B7280', bg: 'rgba(0,0,0,0.05)', icon: 'ph-receipt' };
             const fechaFmt = new Date(p.fecha_creacion).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + new Date(p.fecha_creacion).toLocaleDateString();
             
@@ -391,9 +520,100 @@
                 </div>
             `;
         }).join('');
+    }
 
-        container.innerHTML = html;
-    };
+    function generarHtmlTabla(pedidos) {
+        return `
+            <div class="card" style="padding:0; overflow:hidden; border-radius:var(--radius); border:1px solid var(--border-color); background:var(--bg-panel); box-shadow:var(--shadow-sm); width:100%;">
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
+                        <thead>
+                            <tr style="background:var(--bg-main); border-bottom:1px solid var(--border-color); color:var(--text-sec); font-size:11.5px; text-transform:uppercase; letter-spacing:0.5px;">
+                                <th style="padding:14px 16px;">Pedido</th>
+                                <th style="padding:14px 16px;">Fecha / Hora</th>
+                                <th style="padding:14px 16px;">Cliente</th>
+                                <th style="padding:14px 16px;">Entrega / Dirección</th>
+                                <th style="padding:14px 16px;">Productos</th>
+                                <th style="padding:14px 16px;">Método Pago</th>
+                                <th style="padding:14px 16px;">Total</th>
+                                <th style="padding:14px 16px;">Estado</th>
+                                <th style="padding:14px 16px; text-align:right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pedidos.map(p => {
+                                const badge = estadoBadges[p.estado] || { label: p.estado, color: '#6B7280', bg: 'rgba(0,0,0,0.05)', icon: 'ph-receipt' };
+                                const fechaFmt = new Date(p.fecha_creacion).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '<br><span style="font-size:11px; color:var(--text-sec);">' + new Date(p.fecha_creacion).toLocaleDateString() + '</span>';
+                                
+                                let cleanPhone = (p.cliente_telefono || '').replace(/\D/g, '');
+                                let waLink = '';
+                                if (cleanPhone) {
+                                    if (cleanPhone.length === 9) cleanPhone = '51' + cleanPhone;
+                                    waLink = `<a href="https://wa.me/${cleanPhone}?text=Hola%20${encodeURIComponent(p.cliente_nombre)},%20te%20escribimos%20de%20Khalessi%20por%20tu%20pedido%20${p.codigo_pedido}" target="_blank" style="color:#25D366; font-size:16px; margin-left:6px; vertical-align:middle;" title="WhatsApp"><i class="ph ph-whatsapp-logo"></i></a>`;
+                                }
+
+                                const itemsResumen = (p.items || []).map(it => 
+                                    `<div style="margin-bottom:2px;"><b>${Number(it.cantidad)}x</b> ${escapeHtml(it.producto_nombre)}</div>`
+                                ).join('');
+
+                                let accionBtn = '';
+                                if (p.estado === 'pendiente') {
+                                    accionBtn = `<button class="btn btn-sm btn-primary" style="padding:4px 10px; font-size:12px; border-radius:8px;" onclick="window.actualizarEstadoPedido(${p.id}, 'en_preparacion')" title="Pasar a Cocina"><i class="ph ph-cooking-pot"></i> Cocina</button>`;
+                                } else if (p.estado === 'en_preparacion') {
+                                    accionBtn = `<button class="btn btn-sm" style="padding:4px 10px; font-size:12px; background:#8B5CF6; color:#fff; border-radius:8px;" onclick="window.actualizarEstadoPedido(${p.id}, 'listo')" title="Marcar Listo"><i class="ph ph-check"></i> Listo</button>`;
+                                } else if (p.estado === 'listo' || p.estado === 'en_camino') {
+                                    accionBtn = `<button class="btn btn-sm" style="padding:4px 10px; font-size:12px; background:#10B981; color:#fff; border-radius:8px;" onclick="window.actualizarEstadoPedido(${p.id}, 'entregado')" title="Marcar Entregado"><i class="ph ph-check-fat"></i> Entregar</button>`;
+                                }
+
+                                return `
+                                    <tr style="border-bottom:1px solid var(--border-color); transition:background 0.15s;">
+                                        <td style="padding:12px 16px; font-weight:700; color:var(--text-main); white-space:nowrap;">
+                                            ${escapeHtml(p.codigo_pedido)}
+                                            ${p.origen === 'tienda_roma' ? '<span style="display:block; font-size:10px; color:var(--primary); font-weight:700;">ONLINE</span>' : ''}
+                                        </td>
+                                        <td style="padding:12px 16px; white-space:nowrap; line-height:1.3;">
+                                            ${fechaFmt}
+                                        </td>
+                                        <td style="padding:12px 16px; white-space:nowrap;">
+                                            <div style="font-weight:600; color:var(--text-main); display:flex; align-items:center;">
+                                                ${escapeHtml(p.cliente_nombre)} ${waLink}
+                                            </div>
+                                            <div style="font-size:11.5px; color:var(--text-sec);">${escapeHtml(p.cliente_telefono || '-')}</div>
+                                        </td>
+                                        <td style="padding:12px 16px; max-width:220px; line-height:1.3;">
+                                            <span style="text-transform:capitalize; font-weight:600; color:var(--text-main);">${escapeHtml(p.tipo_entrega)}</span>
+                                            ${p.cliente_direccion ? `<div style="font-size:11.5px; color:var(--text-sec); word-break:break-word; margin-top:2px;">${escapeHtml(p.cliente_direccion)}</div>` : ''}
+                                        </td>
+                                        <td style="padding:12px 16px; font-size:12px; max-width:240px; line-height:1.4;">
+                                            ${itemsResumen}
+                                        </td>
+                                        <td style="padding:12px 16px; font-weight:600; color:var(--text-main); white-space:nowrap;">
+                                            ${escapeHtml(formatMetodoPago(p.metodo_pago))}
+                                        </td>
+                                        <td style="padding:12px 16px; font-weight:800; color:var(--primary); font-size:14px; white-space:nowrap;">
+                                            S/ ${Number(p.total).toFixed(2)}
+                                        </td>
+                                        <td style="padding:12px 16px; white-space:nowrap;">
+                                            <span style="font-size:11.5px; font-weight:600; padding:4px 9px; border-radius:16px; background:${badge.bg}; color:${badge.color}; display:inline-flex; align-items:center; gap:4px;">
+                                                <i class="ph ${badge.icon}"></i> ${badge.label}
+                                            </span>
+                                        </td>
+                                        <td style="padding:12px 16px; text-align:right; white-space:nowrap;">
+                                            <div style="display:inline-flex; gap:6px; align-items:center;">
+                                                ${accionBtn}
+                                                <button class="btn-icon" style="width:30px; height:30px; border-radius:8px;" onclick="window.abrirModalPedidoDetalle(${p.id})" title="Ver Ticket"><i class="ph ph-eye"></i></button>
+                                                ${p.estado !== 'cancelado' && p.estado !== 'entregado' ? `<button class="btn-icon" style="width:30px; height:30px; border-radius:8px; color:var(--danger);" onclick="window.cancelarPedido(${p.id})" title="Cancelar"><i class="ph ph-x"></i></button>` : ''}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
 
     window.filtrarPedidosEstado = function(estado) {
         filtroEstado = estado;

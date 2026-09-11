@@ -474,7 +474,79 @@ else if ($method === 'POST' && ($accion === 'cambiar_estado' || $accion === 'upd
     $stmt = $db->prepare("UPDATE pedidos SET estado = :est WHERE id = :id");
     $stmt->execute([':est' => $nuevo_estado, ':id' => $id]);
 
-    respondSuccess(['id' => $id, 'nuevo_estado' => $nuevo_estado], "Estado de pedido actualizado");
+    // Sincronizar bidireccionalmente hacia Tienda Roma si el pedido provino de la tienda online
+    $tiendaActualizada = false;
+    try {
+        $sInfo = $db->prepare("SELECT origen, id_pedido_externo FROM pedidos WHERE id = :id LIMIT 1");
+        $sInfo->execute([':id' => $id]);
+        $pInfo = $sInfo->fetch(PDO::FETCH_ASSOC);
+
+        if ($pInfo && $pInfo['origen'] === 'tienda_roma' && !empty($pInfo['id_pedido_externo'])) {
+            $idExterno = $pInfo['id_pedido_externo'];
+            $mapErpToRoma = [
+                'pendiente' => 'pending',
+                'confirmado' => 'confirmed',
+                'en_preparacion' => 'preparing',
+                'listo' => 'ready',
+                'en_camino' => 'shipped',
+                'entregado' => 'delivered',
+                'cancelado' => 'cancelled'
+            ];
+            $estadoRoma = $mapErpToRoma[$nuevo_estado] ?? 'pending';
+
+            // 1. Intentar actualizar vía endpoint sync_khalessi.php de Tienda Roma
+            $isLocal = in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1']);
+            $tiendaUrl = $isLocal 
+                ? 'http://localhost/TIENDAROMA/api/sync_khalessi.php?action=update_status'
+                : 'https://pizzakhalessi.com/api/sync_khalessi.php?action=update_status';
+
+            $ch = curl_init($tiendaUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                'order_id' => $idExterno,
+                'status' => $estadoRoma
+            ]));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'X-API-KEY: kh_sec_roma_2026_pizzakhalessi'
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT_MS, 2500);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            $resp = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($code === 200) {
+                $tiendaActualizada = true;
+            } else {
+                // 2. Fallback directo a base de datos si comparten el mismo servidor MySQL
+                try {
+                    $dbNameTienda = $isLocal ? 'tiendaroma' : 'pizzjkyq_tiendaroma';
+                    $configFile = __DIR__ . '/config.prod.php';
+                    $dbHost = 'localhost';
+                    $dbUser = 'root';
+                    $dbPass = '';
+                    if (file_exists($configFile)) {
+                        $cfg = include $configFile;
+                        $dbHost = $cfg['DB_HOST'] ?? 'localhost';
+                        $dbUser = $cfg['DB_USER'] ?? 'root';
+                        $dbPass = $cfg['DB_PASS'] ?? '';
+                    }
+                    $pdoT = new PDO("mysql:host={$dbHost};dbname={$dbNameTienda};charset=utf8mb4", $dbUser, $dbPass);
+                    $uT = $pdoT->prepare("UPDATE orders SET status = :st, updated_at = NOW() WHERE id = :id");
+                    $uT->execute([':st' => $estadoRoma, ':id' => $idExterno]);
+                    $tiendaActualizada = true;
+                } catch (Exception $exT) {}
+            }
+        }
+    } catch (Exception $eSync) {}
+
+    respondSuccess([
+        'id' => $id, 
+        'nuevo_estado' => $nuevo_estado,
+        'tienda_roma_sincronizada' => $tiendaActualizada
+    ], "Estado de pedido actualizado" . ($tiendaActualizada ? " y sincronizado con Tienda Roma" : ""));
 }
 
 // Estadísticas de Pedidos (Para dashboard o monitor en tiempo real)
@@ -512,11 +584,27 @@ else if ($method === 'GET' && $accion === 'stats') {
 else if ($accion === 'sincronizar_tienda' || $accion === 'sync') {
     $apiKey = 'kh_sec_roma_2026_pizzakhalessi';
     
-    // 1. Determinar URL de Tienda Roma
+    // 1. Determinar URL de Tienda Roma y filtro por store_id si aplica
     $isLocal = in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1']);
     $urlSync = $isLocal 
         ? 'http://localhost/TIENDAROMA/api/sync_khalessi.php' 
         : 'https://pizzakhalessi.com/api/sync_khalessi.php';
+
+    // Obtener store_id configurado (para evitar cruces si Tienda Roma tiene varias tiendas)
+    $storeIdFiltro = null;
+    if (!empty($_GET['store_id'])) {
+        $storeIdFiltro = intval($_GET['store_id']);
+    } else {
+        try {
+            $sConfStore = $db->query("SELECT valor FROM configuracion WHERE clave = 'tienda_roma_store_id' LIMIT 1");
+            $vStore = $sConfStore->fetchColumn();
+            if (!empty($vStore)) $storeIdFiltro = intval($vStore);
+        } catch (Exception $eConf) {}
+    }
+
+    if ($storeIdFiltro) {
+        $urlSync .= '?store_id=' . $storeIdFiltro;
+    }
 
     $pedidosTienda = [];
 
@@ -556,15 +644,20 @@ else if ($accion === 'sincronizar_tienda' || $accion === 'sync') {
             }
 
             $pdoTienda = new PDO("mysql:host={$dbHost};dbname={$dbNameTienda};charset=utf8mb4", $dbUser, $dbPass);
-            $stmtT = $pdoTienda->query("
+            $sqlT = "
                 SELECT o.*, 
                 COALESCE(spm.title, o.payment_method) as metodo_pago_nombre,
                 COALESCE(s.name, o.store_name) as tienda_nombre 
                 FROM orders o 
                 LEFT JOIN store_payment_methods spm ON (spm.id = CAST(o.payment_method AS SIGNED) OR o.payment_method = spm.type COLLATE utf8mb4_unicode_ci)
                 LEFT JOIN stores s ON o.store_id = s.id 
-                ORDER BY o.id DESC LIMIT 60
-            ");
+                WHERE 1=1";
+            if ($storeIdFiltro) {
+                $sqlT .= " AND o.store_id = " . intval($storeIdFiltro);
+            }
+            $sqlT .= " ORDER BY o.id DESC LIMIT 60";
+            
+            $stmtT = $pdoTienda->query($sqlT);
             $pedidosTienda = $stmtT->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($pedidosTienda as &$pt) {

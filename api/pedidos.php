@@ -105,6 +105,17 @@ function verificarTablasPedidos($db) {
             $db->exec($sql);
         } catch (Exception $ex) {}
     }
+
+    // Auto-migración: Normalizar métodos de pago numéricos si existen
+    try {
+        $db->exec("
+            UPDATE pedidos SET metodo_pago = 'Yape' WHERE metodo_pago = '1';
+            UPDATE pedidos SET metodo_pago = 'Plin' WHERE metodo_pago = '2';
+            UPDATE pedidos SET metodo_pago = 'Efectivo' WHERE metodo_pago = '3';
+            UPDATE pedidos SET metodo_pago = 'Tarjeta' WHERE metodo_pago = '4';
+            UPDATE pedidos SET metodo_pago = 'Transferencia' WHERE metodo_pago = '5';
+        ");
+    } catch (Exception $ex) {}
 }
 
 verificarTablasPedidos($db);
@@ -236,7 +247,17 @@ else if ($method === 'POST' && ($accion === 'crear' || $accion === 'save' || $ac
     $cliente_telefono = trim($input['cliente_telefono'] ?? $input['customer_phone'] ?? '');
     $cliente_direccion = trim($input['cliente_direccion'] ?? $input['delivery_address'] ?? '');
     $tipo_entrega = trim($input['tipo_entrega'] ?? $input['delivery_method'] ?? 'pickup');
-    $metodo_pago = trim($input['metodo_pago'] ?? $input['payment_method'] ?? 'Efectivo');
+    $metodo_pago = trim($input['metodo_pago_nombre'] ?? $input['payment_method_nombre'] ?? $input['metodo_pago'] ?? $input['payment_method'] ?? 'Efectivo');
+    if (is_numeric($metodo_pago)) {
+        $mapMetodos = [
+            '1' => 'Yape',
+            '2' => 'Plin',
+            '3' => 'Efectivo',
+            '4' => 'Tarjeta',
+            '5' => 'Transferencia'
+        ];
+        $metodo_pago = $mapMetodos[$metodo_pago] ?? ('Método #' . $metodo_pago);
+    }
     $subtotal = floatval($input['subtotal'] ?? 0);
     $descuento = floatval($input['descuento'] ?? $input['discount'] ?? 0);
     $costo_envio = floatval($input['costo_envio'] ?? $input['delivery_fee'] ?? 0);
@@ -535,7 +556,15 @@ else if ($accion === 'sincronizar_tienda' || $accion === 'sync') {
             }
 
             $pdoTienda = new PDO("mysql:host={$dbHost};dbname={$dbNameTienda};charset=utf8mb4", $dbUser, $dbPass);
-            $stmtT = $pdoTienda->query("SELECT * FROM orders ORDER BY id DESC LIMIT 60");
+            $stmtT = $pdoTienda->query("
+                SELECT o.*, 
+                COALESCE(spm.title, o.payment_method) as metodo_pago_nombre,
+                COALESCE(s.name, o.store_name) as tienda_nombre 
+                FROM orders o 
+                LEFT JOIN store_payment_methods spm ON (spm.id = CAST(o.payment_method AS SIGNED) OR o.payment_method = spm.type COLLATE utf8mb4_unicode_ci)
+                LEFT JOIN stores s ON o.store_id = s.id 
+                ORDER BY o.id DESC LIMIT 60
+            ");
             $pedidosTienda = $stmtT->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($pedidosTienda as &$pt) {
@@ -575,7 +604,17 @@ else if ($accion === 'sincronizar_tienda' || $accion === 'sync') {
         $clienteTel = trim($pt['customer_phone'] ?? '');
         $clienteDir = trim($pt['delivery_address'] ?? '');
         $tipoEntrega = in_array($pt['delivery_method'] ?? '', ['delivery', 'pickup', 'mesa']) ? $pt['delivery_method'] : 'pickup';
-        $metodoPago = trim($pt['payment_method'] ?? 'Efectivo');
+        $metodoPago = trim($pt['metodo_pago_nombre'] ?? $pt['payment_method_nombre'] ?? $pt['payment_method'] ?? 'Efectivo');
+        if (is_numeric($metodoPago)) {
+            $mapMetodos = [
+                '1' => 'Yape',
+                '2' => 'Plin',
+                '3' => 'Efectivo',
+                '4' => 'Tarjeta',
+                '5' => 'Transferencia'
+            ];
+            $metodoPago = $mapMetodos[$metodoPago] ?? ('Método #' . $metodoPago);
+        }
         $fechaCreacion = !empty($pt['created_at']) ? $pt['created_at'] : date('Y-m-d H:i:s');
 
         // Chequear si ya existe en pedidos
@@ -584,12 +623,16 @@ else if ($accion === 'sincronizar_tienda' || $accion === 'sync') {
         $existente = $check->fetch(PDO::FETCH_ASSOC);
 
         if ($existente) {
-            // Si el estado cambió en Tienda Roma, actualizar en el ERP
-            if ($existente['estado'] !== $estadoMapeado) {
-                $u = $db->prepare("UPDATE pedidos SET estado = :est WHERE id = :id");
-                $u->execute([':est' => $estadoMapeado, ':id' => $existente['id']]);
-                $actualizados++;
-            }
+            // Actualizar estado y método de pago en el ERP
+            $u = $db->prepare("UPDATE pedidos SET estado = :est, metodo_pago = :mp, total = :tot, cliente_direccion = COALESCE(NULLIF(:dir, ''), cliente_direccion) WHERE id = :id");
+            $u->execute([
+                ':est' => $estadoMapeado,
+                ':mp' => $metodoPago,
+                ':tot' => $total,
+                ':dir' => $clienteDir,
+                ':id' => $existente['id']
+            ]);
+            $actualizados++;
         } else {
             // Insertar nuevo pedido importado
             $prefijo = 'PED-ROMA-' . str_pad($idExterno, 4, '0', STR_PAD_LEFT);

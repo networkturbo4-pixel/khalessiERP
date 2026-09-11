@@ -312,13 +312,15 @@
                 `;
             }
 
-            // Items listados resumidos
+            // Items listados resumidos con extras/promos formateados
             const itemsHtml = (p.items || []).map(it => `
-                <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px; color:var(--text-main);">
-                    <span><b style="color:var(--primary);">${Number(it.cantidad)}x</b> ${escapeHtml(it.producto_nombre)}</span>
-                    <span style="font-weight:600;">S/ ${Number(it.subtotal).toFixed(2)}</span>
+                <div style="margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--text-main);">
+                        <span><b style="color:var(--primary); font-weight:700;">${Number(it.cantidad)}x</b> ${escapeHtml(it.producto_nombre)}</span>
+                        <span style="font-weight:600;">S/ ${Number(it.subtotal).toFixed(2)}</span>
+                    </div>
+                    ${it.notas ? formatNotasOExtras(it.notas, false) : ''}
                 </div>
-                ${it.notas ? `<div style="font-size:11.5px; color:var(--text-sec); margin-bottom:5px; padding-left:8px; font-style:italic;">↳ ${escapeHtml(it.notas)}</div>` : ''}
             `).join('');
 
             // Link WhatsApp directo
@@ -352,13 +354,16 @@
                                 ${waLink}
                             </div>
                             ${p.cliente_telefono ? `<div style="font-size:12px; color:var(--text-sec); margin-top:3px;"><i class="ph ph-identification-card" style="vertical-align:middle;"></i> ${escapeHtml(p.cliente_telefono)}</div>` : ''}
-                            <div style="font-size:12px; color:var(--text-sec); margin-top:5px; display:flex; align-items:center; gap:6px;">
-                                <i class="ph ${p.tipo_entrega === 'delivery' ? 'ph-motorcycle' : 'ph-storefront'}" style="color:var(--primary); font-size:15px;"></i> 
-                                <span style="text-transform:capitalize; font-weight:600; color:var(--text-main);">${p.tipo_entrega}</span>
-                                ${p.cliente_direccion ? `<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">· ${escapeHtml(p.cliente_direccion)}</span>` : ''}
+                            <div style="font-size:12px; color:var(--text-sec); margin-top:6px; display:flex; align-items:flex-start; gap:8px;">
+                                <i class="ph ${p.tipo_entrega === 'delivery' ? 'ph-motorcycle' : 'ph-storefront'}" style="color:var(--primary); font-size:16px; margin-top:1px; flex-shrink:0;"></i> 
+                                <div style="flex:1; min-width:0;">
+                                    <span style="text-transform:capitalize; font-weight:700; color:var(--text-main);">${escapeHtml(p.tipo_entrega)}</span>
+                                    ${p.cliente_direccion ? `<div style="color:var(--text-sec); font-size:12px; margin-top:3px; line-height:1.4; word-break:break-word;"><i class="ph ph-map-pin" style="color:var(--primary); font-size:13px; vertical-align:-1px; margin-right:2px;"></i> ${escapeHtml(p.cliente_direccion)}</div>` : ''}
+                                </div>
                             </div>
-                            <div style="font-size:12px; color:var(--text-sec); margin-top:3px;">
-                                <i class="ph ph-credit-card" style="vertical-align:middle;"></i> Pago: <b style="color:var(--text-main);">${escapeHtml(p.metodo_pago || 'Efectivo')}</b>
+                            <div style="font-size:12px; color:var(--text-sec); margin-top:6px; display:flex; align-items:center; gap:6px;">
+                                <i class="ph ph-credit-card" style="vertical-align:middle;"></i> 
+                                <span>Pago: <b style="color:var(--text-main);">${escapeHtml(formatMetodoPago(p.metodo_pago))}</b></span>
                             </div>
                         </div>
 
@@ -461,21 +466,23 @@
                     <div><b>Teléfono:</b> ${escapeHtml(p.cliente_telefono || '-')}</div>
                     <div><b>Entrega:</b> <span style="text-transform:capitalize; font-weight:600;">${escapeHtml(p.tipo_entrega)}</span></div>
                     ${p.cliente_direccion ? `<div><b>Dirección:</b> ${escapeHtml(p.cliente_direccion)}</div>` : ''}
-                    <div><b>Pago:</b> ${escapeHtml(p.metodo_pago)}</div>
+                    <div><b>Pago:</b> <b>${escapeHtml(formatMetodoPago(p.metodo_pago))}</b></div>
                     ${p.notas ? `<div style="margin-top:6px; color:var(--primary); font-weight:600;">Nota: ${escapeHtml(p.notas)}</div>` : ''}
                 </div>
 
                 <div style="margin-bottom: 14px; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px;">
-                    <div style="display:flex; justify-content:space-between; font-weight:700; margin-bottom:6px; color:var(--text-main);">
+                    <div style="display:flex; justify-content:space-between; font-weight:700; margin-bottom:8px; color:var(--text-main);">
                         <span>CANT · DESCRIPCIÓN</span>
                         <span>IMPORTE</span>
                     </div>
                     ${(p.items || []).map(it => `
-                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                            <span>${Number(it.cantidad)}x ${escapeHtml(it.producto_nombre)}</span>
-                            <span style="font-weight:600;">S/ ${Number(it.subtotal).toFixed(2)}</span>
+                        <div style="margin-bottom:8px;">
+                            <div style="display:flex; justify-content:space-between; font-weight:600;">
+                                <span>${Number(it.cantidad)}x ${escapeHtml(it.producto_nombre)}</span>
+                                <span>S/ ${Number(it.subtotal).toFixed(2)}</span>
+                            </div>
+                            ${it.notas ? `<div style="font-size:12px; color:var(--text-sec); margin-top:3px; line-height:1.4;">${formatNotasOExtras(it.notas, true)}</div>` : ''}
                         </div>
-                        ${it.notas ? `<div style="font-size:11.5px; color:var(--text-sec); margin-bottom:4px; font-style:italic;">↳ ${escapeHtml(it.notas)}</div>` : ''}
                     `).join('')}
                 </div>
 
@@ -514,6 +521,76 @@
         `);
         printWindow.document.close();
     };
+
+    function formatMetodoPago(mp) {
+        if (!mp) return 'Efectivo';
+        const str = String(mp).trim();
+        const map = {
+            '1': 'Yape',
+            '2': 'Plin',
+            '3': 'Efectivo',
+            '4': 'Tarjeta',
+            '5': 'Transferencia'
+        };
+        return map[str] || str;
+    }
+
+    function formatNotasOExtras(raw, isTicket = false) {
+        if (!raw) return '';
+        let str = String(raw).trim();
+        if (!str) return '';
+
+        // Si viene con formato JSON (Array u Object)
+        if (str.startsWith('[') || str.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(str);
+                if (Array.isArray(parsed)) {
+                    if (parsed.length === 0) return '';
+                    
+                    if (isTicket) {
+                        return parsed.map(item => {
+                            if (typeof item === 'string') return `  + ${item}`;
+                            const opt = item.option_name || item.name || item.title || JSON.stringify(item);
+                            const grp = item.group_name ? `[${item.group_name.trim()}] ` : '';
+                            const prc = Number(item.price) > 0 ? ` (+S/ ${Number(item.price).toFixed(2)})` : '';
+                            const qty = Number(item.qty) > 1 ? ` (${item.qty}x)` : '';
+                            return `  + ${grp}${opt}${qty}${prc}`;
+                        }).join('<br>');
+                    }
+
+                    // Renderizado en tarjeta estilo Badges modernos
+                    return `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; margin-bottom:4px;">` +
+                        parsed.map(item => {
+                            if (typeof item === 'string') {
+                                return `<span style="display:inline-flex; align-items:center; background:rgba(230, 81, 0, 0.08); color:var(--text-main); border:1px solid rgba(230, 81, 0, 0.2); border-radius:6px; padding:2px 7px; font-size:11px; line-height:1.3; font-weight:500;">${escapeHtml(item)}</span>`;
+                            }
+                            const opt = escapeHtml(item.option_name || item.name || item.title || '');
+                            const grp = item.group_name ? `<span style="color:var(--text-sec); font-size:10.5px; margin-right:4px;">${escapeHtml(item.group_name.trim())}:</span>` : '';
+                            const prc = Number(item.price) > 0 ? `<b style="color:var(--primary); font-size:10.5px; margin-left:4px;">(+S/${Number(item.price).toFixed(2)})</b>` : '';
+                            const qty = Number(item.qty) > 1 ? `<span style="color:var(--primary); font-size:10.5px; margin-left:2px; font-weight:700;">x${item.qty}</span>` : '';
+                            return `<span style="display:inline-flex; align-items:center; background:rgba(230, 81, 0, 0.08); color:var(--text-main); border:1px solid rgba(230, 81, 0, 0.2); border-radius:6px; padding:2px 7px; font-size:11.5px; line-height:1.3; font-weight:500;">${grp}<b style="color:var(--text-main); font-weight:600;">${opt}</b>${qty}${prc}</span>`;
+                        }).join('') +
+                    `</div>`;
+                } else if (typeof parsed === 'object' && parsed !== null) {
+                    const entries = Object.entries(parsed);
+                    if (isTicket) {
+                        return entries.map(([k, v]) => `  + ${k}: ${v}`).join('<br>');
+                    }
+                    return `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; margin-bottom:4px;">` +
+                        entries.map(([k, v]) => `<span style="display:inline-flex; align-items:center; background:rgba(230, 81, 0, 0.08); color:var(--text-main); border:1px solid rgba(230, 81, 0, 0.2); border-radius:6px; padding:2px 7px; font-size:11px;"><span style="color:var(--text-sec);">${escapeHtml(k)}: </span><b style="margin-left:3px;">${escapeHtml(v)}</b></span>`).join('') +
+                    `</div>`;
+                }
+            } catch (e) {
+                // Si falla JSON.parse, sigue como texto plano
+            }
+        }
+
+        // Texto plano normal (ej: "Sin mayonesa")
+        if (isTicket) {
+            return `  ↳ ${escapeHtml(str)}`;
+        }
+        return `<div style="font-size:11.5px; color:var(--text-sec); margin-top:2px; margin-bottom:4px; padding-left:8px; font-style:italic;">↳ ${escapeHtml(str)}</div>`;
+    }
 
     function escapeHtml(text) {
         if (!text) return '';

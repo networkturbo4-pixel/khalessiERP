@@ -5,6 +5,13 @@
 
     let productosData = [];
     let categoriasData = [];
+    let catalogosData = {
+        tipo_articulo: [],
+        unidad_medida: [],
+        ubicacion_fisica: [],
+        proveedor_habitual: [],
+        categoria: []
+    };
     let activeTab = 'productos';
     let expandedProductIds = new Set();
     let currentModalTab = 'info';
@@ -12,6 +19,16 @@
     let comprasDelProducto = [];
     let comprobanteFileAdjunto = null;
     let selectedCategoriaPill = '';
+    let gestorCatalogoTipoActual = '';
+    let productosCargaMasiva = [];
+    let camaraStream = null;
+    let camaraDispositivos = [];
+    let camaraDispositivoActualIdx = 0;
+    let comprasFiltroBusqueda = '';
+    let comprasFiltroFechaDesde = '';
+    let comprasFiltroFechaHasta = '';
+    let comprasFiltroPagina = 1;
+    let comprasFiltroLimite = 50;
 
     // Función principal invocada por el enrutador
     window.renderInventario = function(container) {
@@ -70,18 +87,25 @@
                         </div>
                     </div>
 
-                    <!-- Barra de Búsqueda y Acción Compacta (1 sola fila) -->
-                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
-                        <div style="position: relative; flex: 1;">
-                            <i class="ph ph-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-sec); font-size: 16px;"></i>
-                            <input type="text" id="filtro-prod-buscar" class="form-control" placeholder="Buscar insumo, SKU, proveedor..." style="padding-left: 38px; border-radius: 12px; height: 40px;" oninput="filtrarProductosInventario()">
+                    <!-- Barra de Búsqueda y Acciones Responsiva -->
+                    <div class="inv-toolbar-container">
+                        <div class="inv-search-wrapper">
+                            <div style="position: relative; flex: 1;">
+                                <i class="ph ph-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-sec); font-size: 16px;"></i>
+                                <input type="text" id="filtro-prod-buscar" class="form-control" placeholder="Buscar insumo, SKU, proveedor..." style="padding-left: 38px; border-radius: 12px; height: 42px;" oninput="filtrarProductosInventario()">
+                            </div>
+                            <button class="btn btn-secondary btn-icon" style="height: 42px; width: 42px; border-radius: 12px; flex-shrink: 0;" title="Refrescar catálogo" onclick="cargarProductosInventario(true)">
+                                <i class="ph ph-arrows-clockwise"></i>
+                            </button>
                         </div>
-                        <button class="btn btn-secondary btn-icon" style="height: 40px; width: 40px; border-radius: 12px; flex-shrink: 0;" title="Refrescar catálogo" onclick="cargarProductosInventario(true)">
-                            <i class="ph ph-arrows-clockwise"></i>
-                        </button>
-                        <button class="btn btn-primary" onclick="abrirModalProducto()" style="border-radius: 12px; font-weight: 600; height: 40px; padding: 0 14px; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;">
-                            <i class="ph ph-plus"></i> <span>Nuevo Producto</span>
-                        </button>
+                        <div class="inv-toolbar-actions">
+                            <button class="btn btn-secondary btn-toolbar-action" onclick="abrirModalCargaMasiva()" title="Carga masiva de múltiples productos">
+                                <i class="ph ph-cloud-arrow-up"></i> <span>Carga Masiva</span>
+                            </button>
+                            <button class="btn btn-primary btn-toolbar-action" onclick="abrirModalProducto()">
+                                <i class="ph ph-plus"></i> <span>+ Nuevo Producto</span>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Pestañas Horizontales de Categorías (Pills Ultra Compactas y Rápidas) -->
@@ -99,19 +123,19 @@
                 </div>
             </div>
 
-            <!-- MODAL: CREAR / EDITAR PRODUCTO (85% VH en PC, Tabs e Historial de Compras) -->
+            <!-- MODAL: CREAR / EDITAR PRODUCTO (88% VH en PC, Tabs e Historial de Compras) -->
             <div id="modal-producto" class="modal-backdrop hidden" onclick="if(event.target === this) cerrarModalProducto()">
                 <div class="modal">
                     <!-- Cabecera del Modal -->
                     <div class="modal-header">
                         <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="width: 42px; height: 42px; border-radius: 12px; background: #FEF3C7; color: #D97706; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">
+                            <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(239, 68, 68, 0.1); color: var(--primary); border: 1px solid rgba(239, 68, 68, 0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;">
                                 <i class="ph ph-package"></i>
                             </div>
                             <div>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <h3 id="modal-producto-titulo" style="margin: 0; font-size: 17px; font-weight: 700;">Registrar Nuevo Producto / Insumo</h3>
-                                    <span id="modal-badge-modo" class="badge" style="background: #E2E8F0; color: #475569; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; letter-spacing: 0.5px;">NUEVO</span>
+                                    <span id="modal-badge-modo" class="badge" style="background: rgba(239, 68, 68, 0.1); color: var(--primary); border: 1px solid rgba(239, 68, 68, 0.2); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; letter-spacing: 0.5px;">NUEVO</span>
                                 </div>
                                 <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-sec);">Gestión integral del insumo, costeo, control de mermas y auditoría de compras</p>
                             </div>
@@ -123,11 +147,13 @@
                     <div class="modal-tabs-strip">
                         <div class="modal-subtab active" id="btn-subtab-info" onclick="switchModalProductoTab('info')">
                             <i class="ph ph-info"></i>
-                            <span>1. Información del Producto & Imagen</span>
+                            <span class="tab-label-full">1. Información del Producto & Imagen</span>
+                            <span class="tab-label-mob">1. Info & Foto</span>
                         </div>
                         <div class="modal-subtab" id="btn-subtab-historial" onclick="switchModalProductoTab('historial')">
                             <i class="ph ph-receipt"></i>
-                            <span>2. Historial de Compras & Comprobantes</span>
+                            <span class="tab-label-full">2. Historial de Compras & Comprobantes</span>
+                            <span class="tab-label-mob">2. Compras</span>
                             <span class="tab-badge-counter" id="modal-tab-compras-count">0</span>
                         </div>
                     </div>
@@ -140,12 +166,12 @@
                                 <input type="hidden" id="prod-id" value="">
                                 <input type="hidden" id="prod-imagen-url" value="">
 
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; align-items: start;">
+                                <div class="modal-producto-form-grid">
                                     
-                                    <!-- COLUMNA IZQUIERDA: FOTOGRAFÍA -->
+                                    <!-- COLUMNA IZQUIERDA: FOTOGRAFÍA Y ACCESO RÁPIDO -->
                                     <div class="prod-photo-container">
                                         <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-sec); margin-bottom: 12px; text-align: center;">
-                                            FOTOGRAFÍA DEL INSUMO / PRODUCTO
+                                            FOTOGRAFÍA DEL PRODUCTO
                                         </div>
 
                                         <div class="prod-photo-preview" id="prod-photo-box" onclick="document.getElementById('prod-input-foto').click()" style="cursor: pointer;" title="Haz clic para subir o cambiar foto">
@@ -170,16 +196,26 @@
                                         <p style="font-size: 11px; color: var(--text-sec); margin-top: 10px; margin-bottom: 0; line-height: 1.4;">
                                             Formatos JPG, PNG o WebP. Se visualiza en las pantallas de ensamble y kárdex.
                                         </p>
+
+                                        <!-- Acceso Directo a Carga Masiva -->
+                                        <div style="margin-top: 14px; padding: 12px; background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.3); border-radius: 12px; text-align: center;">
+                                            <div style="font-size: 11.5px; font-weight: 600; color: var(--primary); margin-bottom: 6px;">
+                                                <i class="ph ph-lightning"></i> ¿Tienes varios productos?
+                                            </div>
+                                            <button type="button" class="btn btn-secondary btn-sm" onclick="cerrarModalProducto(); abrirModalCargaMasiva();" style="width: 100%; font-size: 11.5px; border-radius: 8px; font-weight: 600; color: var(--primary);">
+                                                <i class="ph ph-cloud-arrow-up"></i> Carga Masiva de Productos
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <!-- COLUMNA DERECHA: CAMPOS DEL PRODUCTO -->
                                     <div style="display: flex; flex-direction: column; gap: 14px;">
                                         
-                                        <!-- Fila 1: SKU y Nombre Comercial -->
-                                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px;">
+                                        <!-- Fila 1: SKU, Código de Barras (EAN-13) y Nombre Comercial -->
+                                        <div class="modal-row-sku-ean-name">
                                             <div class="form-group mb-0">
                                                 <label class="form-label font-bold" style="font-size: 12px;">Código / SKU <span class="text-danger">*</span></label>
-                                                <div style="display: flex; gap: 6px;">
+                                                <div style="display: flex; gap: 4px;">
                                                     <input type="text" id="prod-sku" class="form-control font-bold" placeholder="MP-013" style="font-family: monospace;" required>
                                                     <button type="button" class="btn btn-secondary btn-icon" onclick="generarSkuAutomatico()" title="Generar código automático">
                                                         <i class="ph ph-sparkle"></i>
@@ -187,61 +223,94 @@
                                                 </div>
                                             </div>
                                             <div class="form-group mb-0">
-                                                <label class="form-label font-bold" style="font-size: 12px;">Nombre Comercial del Insumo <span class="text-danger">*</span></label>
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <label class="form-label font-bold" style="font-size: 12px; margin-bottom: 0;">Cód. Barras (EAN)</label>
+                                                    <span id="prod-ean13-badge" class="ean13-tag" style="display: none;"></span>
+                                                </div>
+                                                <div style="display: flex; gap: 4px;">
+                                                    <input type="text" id="prod-codigo-barras" class="form-control font-bold" placeholder="7751234567890" style="font-family: monospace;" oninput="actualizarEstadoEAN13(this.value)">
+                                                    <button type="button" class="btn btn-secondary" onclick="generarCodigoBarrasEAN13()" style="border-radius: 10px; font-size: 11px; font-weight: 700; padding: 0 8px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;" title="Generar código de barras estándar EAN-13 (13 dígitos)">
+                                                        <i class="ph ph-barcode"></i> EAN-13
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="form-group mb-0 modal-name-field">
+                                                <label class="form-label font-bold" style="font-size: 12px;">Nombre Comercial del Insumo / Producto <span class="text-danger">*</span></label>
                                                 <input type="text" id="prod-nombre" class="form-control font-bold" placeholder="Ej: Champiñones Portobello Frescos" required>
                                             </div>
                                         </div>
 
-                                        <!-- Fila 2: Tipo de Artículo, Unidad de Medida Base y Ubicación Física -->
-                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+                                        <!-- Fila 2: Tipo de Artículo, Categoría y Unidad de Medida (Gestión dinámica) -->
+                                        <div class="modal-row-3col">
                                             <div class="form-group mb-0">
-                                                <label class="form-label font-bold" style="font-size: 12px;">Tipo de Artículo <span class="text-danger">*</span></label>
-                                                <select id="prod-tipo-articulo" class="form-control" required>
-                                                    <option value="materia_prima">Materia Prima (Insumo Base)</option>
-                                                    <option value="producto_terminado">Producto Terminado</option>
-                                                    <option value="subreceta">Insumo Procesado / Subreceta</option>
-                                                    <option value="bebida">Bebida / Envasado</option>
-                                                    <option value="empaque">Empaque / Descartable</option>
-                                                </select>
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <label class="form-label font-bold" style="font-size: 12px; margin-bottom: 0;">Tipo de Artículo <span class="text-danger">*</span></label>
+                                                    <a href="javascript:void(0)" onclick="abrirGestorCatalogo('tipo_articulo')" class="link-gestionar" title="Crear, editar o eliminar">+ Gestionar</a>
+                                                </div>
+                                                <div class="catalog-select-group">
+                                                    <select id="prod-tipo-articulo" class="form-control" required></select>
+                                                    <button type="button" class="btn-icon" onclick="abrirGestorCatalogo('tipo_articulo')" title="Gestionar tipos de artículo">
+                                                        <i class="ph ph-sliders"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="form-group mb-0">
-                                                <label class="form-label font-bold" style="font-size: 12px;">Unidad de Medida Base <span class="text-danger">*</span></label>
-                                                <select id="prod-unidad-medida" class="form-control" required>
-                                                    <option value="Kilogramos (kg)">Kilogramos (kg)</option>
-                                                    <option value="Litros (L)">Litros (L)</option>
-                                                    <option value="Unidades (und)">Unidades (und)</option>
-                                                    <option value="Gramos (g)">Gramos (g)</option>
-                                                    <option value="Mililitros (ml)">Mililitros (ml)</option>
-                                                    <option value="Porciones">Porciones</option>
-                                                </select>
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <label class="form-label font-bold" style="font-size: 12px; margin-bottom: 0;">Categoría en Catálogo</label>
+                                                    <a href="javascript:void(0)" onclick="abrirGestorCatalogo('categoria')" class="link-gestionar" title="Crear, editar o eliminar">+ Gestionar</a>
+                                                </div>
+                                                <div class="catalog-select-group">
+                                                    <select id="prod-categoria" class="form-control"></select>
+                                                    <button type="button" class="btn-icon" onclick="abrirGestorCatalogo('categoria')" title="Gestionar categorías de catálogo">
+                                                        <i class="ph ph-sliders"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="form-group mb-0">
-                                                <label class="form-label font-bold" style="font-size: 12px;">Ubicación Física <span class="text-danger">*</span></label>
-                                                <select id="prod-ubicacion-fisica" class="form-control">
-                                                    <option value="Cámara Fría">Cámara Fría</option>
-                                                    <option value="Almacén Seco">Almacén Seco</option>
-                                                    <option value="Barra / Mostrador">Barra / Mostrador</option>
-                                                    <option value="Cocina Caliente">Cocina Caliente</option>
-                                                    <option value="Congelador Principal">Congelador Principal</option>
-                                                    <option value="Estantería Central">Estantería Central</option>
-                                                </select>
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <label class="form-label font-bold" style="font-size: 12px; margin-bottom: 0;">Unidad de Medida Base <span class="text-danger">*</span></label>
+                                                    <a href="javascript:void(0)" onclick="abrirGestorCatalogo('unidad_medida')" class="link-gestionar" title="Crear, editar o eliminar">+ Gestionar</a>
+                                                </div>
+                                                <div class="catalog-select-group">
+                                                    <select id="prod-unidad-medida" class="form-control" required></select>
+                                                    <button type="button" class="btn-icon" onclick="abrirGestorCatalogo('unidad_medida')" title="Gestionar unidades de medida">
+                                                        <i class="ph ph-sliders"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <!-- Fila 3: Proveedor Habitual y Código de Barras / Lote Referencial -->
-                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                        <!-- Fila 3: Ubicación Física y Proveedor Habitual (Gestión dinámica) -->
+                                        <div class="modal-row-2col">
                                             <div class="form-group mb-0">
-                                                <label class="form-label font-bold" style="font-size: 12px;">Proveedor Habitual</label>
-                                                <input type="text" id="prod-proveedor" class="form-control" placeholder="Ej: Distribuidora Agrícola del Valle">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <label class="form-label font-bold" style="font-size: 12px; margin-bottom: 0;">Ubicación Física <span class="text-danger">*</span></label>
+                                                    <a href="javascript:void(0)" onclick="abrirGestorCatalogo('ubicacion_fisica')" class="link-gestionar" title="Crear, editar o eliminar">+ Gestionar</a>
+                                                </div>
+                                                <div class="catalog-select-group">
+                                                    <select id="prod-ubicacion-fisica" class="form-control"></select>
+                                                    <button type="button" class="btn-icon" onclick="abrirGestorCatalogo('ubicacion_fisica')" title="Gestionar ubicaciones físicas">
+                                                        <i class="ph ph-sliders"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="form-group mb-0">
-                                                <label class="form-label font-bold" style="font-size: 12px;">Código de Barras / Lote Referencial</label>
-                                                <input type="text" id="prod-codigo-barras" class="form-control" placeholder="775123456789">
+                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                                    <label class="form-label font-bold" style="font-size: 12px; margin-bottom: 0;">Proveedor Habitual</label>
+                                                    <a href="javascript:void(0)" onclick="abrirGestorCatalogo('proveedor_habitual')" class="link-gestionar" title="Crear, editar o eliminar">+ Gestionar</a>
+                                                </div>
+                                                <div class="catalog-select-group">
+                                                    <input type="text" id="prod-proveedor" list="dl-proveedores" class="form-control" placeholder="Ej: Distribuidora Agrícola del Valle">
+                                                    <datalist id="dl-proveedores"></datalist>
+                                                    <button type="button" class="btn-icon" onclick="abrirGestorCatalogo('proveedor_habitual')" title="Gestionar proveedores habituales">
+                                                        <i class="ph ph-sliders"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 
                                         <!-- Fila 4: CAJA DESTACADA DE COSTEO Y STOCKS -->
-                                        <div style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 14px; padding: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                                        <div class="modal-cost-stock-card">
                                             <div class="form-group mb-0">
                                                 <label class="form-label font-bold" style="font-size: 11.5px; text-transform: uppercase; color: var(--text-sec); letter-spacing: 0.5px;">STOCK INICIAL</label>
                                                 <input type="number" step="0.01" min="0" id="prod-stock-inicial" class="form-control font-bold" placeholder="10.00" value="0.00" required>
@@ -250,30 +319,24 @@
                                                 <label class="form-label font-bold" style="font-size: 11.5px; text-transform: uppercase; color: var(--text-sec); letter-spacing: 0.5px;">STOCK MÍNIMO (ALERTA)</label>
                                                 <input type="number" step="0.01" min="0" id="prod-stock-minimo" class="form-control font-bold" placeholder="5.00" value="5.00" required>
                                             </div>
-                                            <div class="form-group mb-0">
+                                            <div class="form-group mb-0 cost-field-span">
                                                 <label class="form-label font-bold" style="font-size: 11.5px; text-transform: uppercase; color: #059669; letter-spacing: 0.5px;">COSTO UNITARIO BASE (S/)</label>
                                                 <input type="number" step="0.01" min="0" id="prod-costo-unitario" class="form-control font-bold" style="color: #059669;" placeholder="2.50" value="0.00">
                                             </div>
                                         </div>
 
                                         <!-- Fila 5: Datos de Venta Comercial Complementarios -->
-                                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                                        <div class="modal-row-2col">
                                             <div class="form-group mb-0">
                                                 <label class="form-label font-bold" style="font-size: 12px;">Precio Venta Comercial (S/)</label>
                                                 <input type="number" step="0.10" min="0" id="prod-precio-venta" class="form-control font-bold" placeholder="0.00" value="0.00">
                                             </div>
                                             <div class="form-group mb-0">
-                                                <label class="form-label font-bold" style="font-size: 12px;">Categoría en Catálogo</label>
-                                                <select id="prod-categoria" class="form-control">
-                                                    <option value="">Sin Categoría</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group mb-0">
-                                                <label class="form-label font-bold" style="font-size: 12px;">Estado</label>
+                                                <label class="form-label font-bold" style="font-size: 12px;">Estado del Producto</label>
                                                 <select id="prod-estado" class="form-control">
-                                                    <option value="disponible">Disponible</option>
-                                                    <option value="agotado">Agotado</option>
-                                                    <option value="inactivo">Inactivo</option>
+                                                    <option value="disponible">Disponible (Activo en operaciones)</option>
+                                                    <option value="agotado">Agotado (Sin existencias)</option>
+                                                    <option value="inactivo">Inactivo (Deshabilitado)</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -294,48 +357,58 @@
                             <!-- Formulario: REGISTRAR NUEVA ORDEN / FACTURA DE COMPRA -->
                             <div class="card mb-3" style="border: 1px solid var(--border-color); border-radius: 14px;">
                                 <div class="card-body" style="padding: 16px 20px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                                         <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--text-main);">
-                                            <i class="ph ph-receipt" style="color: #D97706; font-size: 18px;"></i>
+                                            <i class="ph ph-receipt" style="color: var(--primary); font-size: 18px;"></i>
                                             REGISTRAR NUEVA ORDEN / FACTURA DE COMPRA
                                         </div>
-                                        <span style="font-size: 11.5px; color: var(--text-sec);">Adjunta comprobante tributario o guía</span>
+                                        <span style="font-size: 11.5px; color: var(--text-sec);">Toma foto o sube el comprobante tributario</span>
                                     </div>
 
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 12px;">
                                         <div class="form-group mb-0">
-                                            <label class="form-label font-bold" style="font-size: 11.5px;">Nº Comprobante / Factura</label>
+                                            <label class="form-label font-bold" style="font-size: 11.5px;">Nº Comprobante / Factura <span class="text-danger">*</span></label>
                                             <input type="text" id="compra-num-comprobante" class="form-control" placeholder="F001-004521">
                                         </div>
                                         <div class="form-group mb-0">
-                                            <label class="form-label font-bold" style="font-size: 11.5px;">Proveedor</label>
-                                            <input type="text" id="compra-proveedor" class="form-control" placeholder="Lácteos San Juan S.A.">
+                                            <label class="form-label font-bold" style="font-size: 11.5px;">Proveedor <span class="text-danger">*</span></label>
+                                            <input type="text" id="compra-proveedor" list="dl-proveedores" class="form-control" placeholder="Lácteos San Juan S.A.">
                                         </div>
                                         <div class="form-group mb-0">
-                                            <label class="form-label font-bold" style="font-size: 11.5px;">Cantidad Comprada</label>
-                                            <input type="number" step="0.01" min="0.01" id="compra-cantidad" class="form-control font-bold" placeholder="Ej: 20.0">
+                                            <label class="form-label font-bold" style="font-size: 11.5px;">Cantidad Comprada <span class="text-danger">*</span></label>
+                                            <input type="number" step="0.01" min="0.01" id="compra-cantidad" class="form-control font-bold" placeholder="Ej: 20.0" oninput="recalcularTotalCompraManual()">
                                         </div>
                                         <div class="form-group mb-0">
-                                            <label class="form-label font-bold" style="font-size: 11.5px;">Precio Unitario (S/)</label>
-                                            <input type="number" step="0.01" min="0" id="compra-precio-unitario" class="form-control font-bold" placeholder="Ej: 8.50">
+                                            <label class="form-label font-bold" style="font-size: 11.5px;">Precio Unitario (S/) <span class="text-danger">*</span></label>
+                                            <input type="number" step="0.01" min="0" id="compra-precio-unitario" class="form-control font-bold" placeholder="Ej: 8.50" oninput="recalcularTotalCompraManual()">
                                         </div>
                                     </div>
 
                                     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; justify-content: space-between;">
-                                        <div style="flex: 1; min-width: 240px;">
-                                            <label class="form-label font-bold" style="font-size: 11.5px;">Adjuntar Comprobante (Factura / Boleta / Foto)</label>
-                                            <div style="display: flex; gap: 8px; align-items: center;">
-                                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('compra-input-file').click()" style="font-size: 12.5px;">
-                                                    <i class="ph ph-paperclip"></i> <span id="compra-file-label">Seleccionar Archivo (PDF / JPG)</span>
+                                        <div style="flex: 1; min-width: 280px;">
+                                            <label class="form-label font-bold" style="font-size: 11.5px;">Comprobante de Pago & Escaneo OCR</label>
+                                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                                <button type="button" class="btn" onclick="abrirCamaraOCR()" style="background: #10B981; color: #FFFFFF; font-size: 12px; font-weight: 600; border-radius: 10px; padding: 7px 14px; display: inline-flex; align-items: center; gap: 6px;">
+                                                    <i class="ph ph-camera"></i> Tomar Foto & OCR
+                                                </button>
+                                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('compra-input-file').click()" style="font-size: 12px; border-radius: 10px;">
+                                                    <i class="ph ph-paperclip"></i> <span id="compra-file-label">Subir Archivo</span>
                                                 </button>
                                                 <input type="file" id="compra-input-file" accept="image/jpeg,image/png,image/webp,application/pdf" style="display: none;" onchange="manejarSeleccionComprobante(this)">
                                                 <button type="button" id="btn-remover-comprobante" class="btn btn-secondary text-danger btn-icon" style="display: none;" onclick="removerComprobanteAdjunto()" title="Remover archivo">
                                                     <i class="ph ph-trash"></i>
                                                 </button>
+                                                <span id="ocr-badge-status" style="display: none; font-size: 11px; font-weight: 600; color: #059669; padding: 3px 8px; background: rgba(16,185,129,0.12); border-radius: 6px;">
+                                                    <i class="ph ph-check"></i> OCR Procesado
+                                                </span>
                                             </div>
                                         </div>
-                                        <div>
-                                            <button type="button" class="btn" id="btn-agregar-compra" onclick="guardarCompraHistorial()" style="background: #1E293B; color: #FFFFFF; font-weight: 600; border-radius: 10px; padding: 9px 18px;">
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <div style="text-align: right;">
+                                                <div style="font-size: 10.5px; font-weight: 700; color: var(--text-sec); text-transform: uppercase;">Total Calculado</div>
+                                                <div id="compra-total-calculado" style="font-size: 16px; font-weight: 800; color: var(--text-main);">S/ 0.00</div>
+                                            </div>
+                                            <button type="button" class="btn btn-primary" id="btn-agregar-compra" onclick="guardarCompraHistorial()" style="font-weight: 600; border-radius: 10px; padding: 9px 18px; display: inline-flex; align-items: center; gap: 6px;">
                                                 <i class="ph ph-plus-circle"></i> + Añadir a Historial
                                             </button>
                                         </div>
@@ -343,14 +416,44 @@
                                 </div>
                             </div>
 
-                            <!-- Tabla: REGISTRO HISTÓRICO DE COMPRAS Y SUMINISTRO -->
+                            <!-- Tabla: REGISTRO HISTÓRICO DE COMPRAS CON BUSCADOR Y FILTROS -->
                             <div class="card" style="border: 1px solid var(--border-color); border-radius: 14px;">
                                 <div class="card-body" style="padding: 16px 20px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                        <div style="font-weight: 700; font-size: 13px; color: var(--text-main);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                                        <div style="font-weight: 700; font-size: 13px; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                                            <i class="ph ph-books" style="color: var(--primary); font-size: 16px;"></i>
                                             REGISTRO HISTÓRICO DE COMPRAS Y SUMINISTRO
                                         </div>
                                         <span style="font-size: 11.5px; color: var(--text-sec);">Auditoría contable y recepción</span>
+                                    </div>
+
+                                    <!-- Barra de Filtros Avanzados (para 20 o 50+ registros) -->
+                                    <div style="display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+                                        <div style="position: relative; flex: 1; min-width: 200px;">
+                                            <i class="ph ph-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-sec); font-size: 14px;"></i>
+                                            <input type="text" id="filtro-compras-buscar" class="form-control" placeholder="Buscar por comprobante o proveedor..." style="padding-left: 34px; border-radius: 10px; height: 36px; font-size: 12px;" oninput="filtrarComprasDelProducto(1)">
+                                        </div>
+                                        <div style="display: flex; gap: 6px; align-items: center;">
+                                            <span style="font-size: 11px; color: var(--text-sec);">Desde:</span>
+                                            <input type="date" id="filtro-compras-desde" class="form-control" style="width: 125px; height: 36px; font-size: 11.5px; border-radius: 10px;" onchange="filtrarComprasDelProducto(1)">
+                                            <span style="font-size: 11px; color: var(--text-sec);">Hasta:</span>
+                                            <input type="date" id="filtro-compras-hasta" class="form-control" style="width: 125px; height: 36px; font-size: 11.5px; border-radius: 10px;" onchange="filtrarComprasDelProducto(1)">
+                                        </div>
+                                        <div style="display: flex; gap: 6px; align-items: center;">
+                                            <span style="font-size: 11px; color: var(--text-sec);">Mostrar:</span>
+                                            <select id="filtro-compras-limite" class="form-control" style="width: 95px; height: 36px; font-size: 12px; border-radius: 10px;" onchange="cambiarLimiteCompras(this.value)">
+                                                <option value="10">10</option>
+                                                <option value="20">20</option>
+                                                <option value="50" selected>50</option>
+                                                <option value="999999">Todos</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Barra de Totales y Paginación -->
+                                    <div id="compras-resumen-barra" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; color: var(--text-sec); flex-wrap: wrap; gap: 8px;">
+                                        <div id="compras-totales-info">Mostrando 0 compras</div>
+                                        <div id="compras-paginacion-ctrl" style="display: flex; gap: 6px; align-items: center;"></div>
                                     </div>
 
                                     <div id="contenedor-tabla-compras" style="overflow-x: auto;">
@@ -362,14 +465,14 @@
                     </div>
 
                     <!-- PIE DEL MODAL -->
-                    <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-main);">
-                        <div style="display: flex; align-items: center; gap: 8px; color: #059669; font-size: 12.5px; font-weight: 500;">
-                            <i class="ph ph-check-circle" style="font-size: 18px; color: #10B981;"></i>
+                    <div class="modal-footer modal-producto-footer">
+                        <div class="modal-cpp-notice">
+                            <i class="ph ph-check-circle" style="font-size: 18px; color: #10B981; flex-shrink: 0;"></i>
                             <span>Validado para recálculo de Costo Promedio Ponderado (CPP)</span>
                         </div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <button type="button" class="btn btn-secondary" onclick="cerrarModalProducto()" style="border-radius: 10px;">Cerrar</button>
-                            <button type="button" class="btn" id="btn-guardar-producto" onclick="guardarProducto()" style="background: #D97706; color: #FFFFFF; font-weight: 600; border-radius: 10px; display: inline-flex; align-items: center; gap: 6px;">
+                        <div class="modal-producto-footer-btns">
+                            <button type="button" class="btn btn-secondary btn-modal-foot" onclick="cerrarModalProducto()">Cerrar</button>
+                            <button type="button" class="btn btn-primary btn-modal-foot" id="btn-guardar-producto" onclick="guardarProducto()" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600;">
                                 <i class="ph ph-floppy-disk"></i> Guardar Producto
                             </button>
                         </div>
@@ -423,16 +526,201 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" onclick="cerrarModalAjusteStock()">Cancelar</button>
-                        <button type="button" class="btn btn-primary" onclick="guardarAjusteStock()" id="btn-guardar-ajuste">
-                            <i class="ph ph-check"></i> Confirmar Ajuste
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: GESTOR DE CATÁLOGOS AUXILIARES (CRUD) -->
+            <div id="modal-gestor-catalogo" class="modal-backdrop hidden" onclick="if(event.target === this) cerrarGestorCatalogo()">
+                <div class="modal" style="max-width: 520px; width: 92%; max-height: 85vh; border-radius: 20px; display: flex; flex-direction: column;">
+                    <div class="modal-header" style="padding: 16px 22px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div id="gestor-cat-icon" style="width: 38px; height: 38px; border-radius: 10px; background: rgba(239, 68, 68, 0.1); color: var(--primary); border: 1px solid rgba(239, 68, 68, 0.2); display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                                <i class="ph ph-sliders"></i>
+                            </div>
+                            <div>
+                                <h3 id="gestor-cat-titulo" style="margin: 0; font-size: 16px; font-weight: 700;">Gestionar Opciones</h3>
+                                <p id="gestor-cat-subtitulo" style="margin: 2px 0 0 0; font-size: 11.5px; color: var(--text-sec);">Crea, edita o elimina elementos de este catálogo</p>
+                            </div>
+                        </div>
+                        <button class="btn-icon" onclick="cerrarGestorCatalogo()"><i class="ph ph-x"></i></button>
+                    </div>
+                    <div class="modal-body" style="padding: 18px 22px; overflow-y: auto; flex: 1;">
+                        <!-- Input para agregar -->
+                        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                            <input type="text" id="gestor-input-nuevo" class="form-control" placeholder="Escribe el nuevo nombre..." style="border-radius: 10px;" onkeydown="if(event.key==='Enter') agregarItemCatalogo()">
+                            <button type="button" class="btn btn-primary" onclick="agregarItemCatalogo()" style="white-space: nowrap; border-radius: 10px; font-weight: 600; padding: 0 16px;">
+                                <i class="ph ph-plus-circle"></i> Agregar
+                            </button>
+                        </div>
+                        <!-- Lista de elementos -->
+                        <div id="gestor-cat-lista" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Items dinámicos -->
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="padding: 12px 22px; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="cerrarGestorCatalogo()" style="border-radius: 10px;">Listo / Cerrar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: CARGA MASIVA DE PRODUCTOS (CSV O TABLA MANUAL) -->
+            <div id="modal-carga-masiva" class="modal-backdrop hidden" onclick="if(event.target === this) cerrarModalCargaMasiva()">
+                <div class="modal" style="max-width: 1080px; width: 95%; height: 88vh; max-height: 90vh; border-radius: 20px; display: flex; flex-direction: column;">
+                    <div class="modal-header" style="padding: 18px 26px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(59, 130, 246, 0.12); color: #2563EB; display: flex; align-items: center; justify-content: center; font-size: 22px;">
+                                <i class="ph ph-cloud-arrow-up"></i>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; font-size: 17px; font-weight: 700;">Carga Masiva de Productos e Insumos</h3>
+                                <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-sec);">Importa por archivo CSV o registra múltiples filas en lote</p>
+                            </div>
+                        </div>
+                        <button class="btn-icon" onclick="cerrarModalCargaMasiva()"><i class="ph ph-x"></i></button>
+                    </div>
+
+                    <div class="modal-tabs-strip">
+                        <div class="modal-subtab active" id="btn-tab-masiva-archivo" onclick="switchMasivaTab('archivo')">
+                            <i class="ph ph-file-csv"></i>
+                            <span>1. Importar Archivo CSV</span>
+                        </div>
+                        <div class="modal-subtab" id="btn-tab-masiva-manual" onclick="switchMasivaTab('manual')">
+                            <i class="ph ph-table"></i>
+                            <span>2. Tabla Rápida Editable</span>
+                        </div>
+                    </div>
+
+                    <div class="modal-body" style="padding: 20px 26px; overflow-y: auto; flex: 1;">
+                        <!-- Tab 1: CSV Upload -->
+                        <div id="view-masiva-archivo">
+                            <div style="display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap;">
+                                <div style="font-size: 12.5px; color: var(--text-sec);">
+                                    Descarga la plantilla con encabezados estándar para completar tus productos y subirlos en bloque.
+                                </div>
+                                <button type="button" class="btn btn-secondary" onclick="descargarPlantillaCSV()" style="border-radius: 10px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i class="ph ph-download-simple"></i> Descargar Plantilla CSV
+                                </button>
+                            </div>
+
+                            <div id="dropzone-csv" class="dropzone-area" onclick="document.getElementById('input-archivo-csv').click()" style="border: 2px dashed var(--border-color); border-radius: 14px; padding: 36px 20px; text-align: center; cursor: pointer; background: var(--bg-main); transition: all 0.2s;">
+                                <i class="ph ph-file-csv" style="font-size: 44px; color: #2563EB; margin-bottom: 8px; display: block;"></i>
+                                <div style="font-weight: 600; font-size: 14px; color: var(--text-main); margin-bottom: 4px;">Haz clic para seleccionar o arrastra tu archivo CSV aquí</div>
+                                <div style="font-size: 12px; color: var(--text-sec);">Formato .CSV delimitado por comas o punto y coma (UTF-8)</div>
+                                <input type="file" id="input-archivo-csv" accept=".csv" style="display: none;" onchange="procesarArchivoCSV(this)">
+                            </div>
+
+                            <div id="contenedor-preview-csv" style="margin-top: 18px; display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <span id="preview-csv-count" style="font-weight: 700; font-size: 13px; color: var(--text-main);">0 productos detectados</span>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="limpiarPreviewCSV()">Limpiar</button>
+                                </div>
+                                <div style="max-height: 280px; overflow-y: auto; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 12px;">
+                                    <table class="table" style="width: 100%; font-size: 12px;" id="tabla-preview-csv"></table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: Manual Fast Table -->
+                        <div id="view-masiva-manual" style="display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <span style="font-size: 12.5px; color: var(--text-sec);">Completa los insumos o productos directamente en la tabla y pulsa guardar.</span>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="agregarFilaMasivaManual()" style="border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                                    <i class="ph ph-plus"></i> + Añadir Fila
+                                </button>
+                            </div>
+                            <div style="max-height: 380px; overflow-y: auto; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 12px;">
+                                <table class="table" style="width: 100%; min-width: 820px; font-size: 12px;" id="tabla-masiva-manual">
+                                    <thead>
+                                        <tr style="background: var(--bg-main); border-bottom: 1px solid var(--border-color);">
+                                            <th style="padding: 8px 10px; width: 40px;">#</th>
+                                            <th style="padding: 8px 10px; min-width: 180px;">Nombre *</th>
+                                            <th style="padding: 8px 10px; width: 110px;">SKU</th>
+                                            <th style="padding: 8px 10px; width: 140px;">Tipo</th>
+                                            <th style="padding: 8px 10px; width: 120px;">Unidad</th>
+                                            <th style="padding: 8px 10px; width: 90px; text-align: right;">Stock</th>
+                                            <th style="padding: 8px 10px; width: 90px; text-align: right;">Costo (S/)</th>
+                                            <th style="padding: 8px 10px; width: 90px; text-align: right;">Precio (S/)</th>
+                                            <th style="padding: 8px 10px; width: 40px; text-align: center;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-masiva-manual"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer" style="padding: 14px 26px; display: flex; justify-content: space-between; align-items: center;">
+                        <div id="masiva-status-msg" style="font-size: 12.5px; color: var(--text-sec);">Listo para procesar</div>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="button" class="btn btn-secondary" onclick="cerrarModalCargaMasiva()" style="border-radius: 10px;">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="btn-procesar-masiva" onclick="procesarGuardadoMasivo()" style="border-radius: 10px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                                <i class="ph ph-check"></i> Guardar Todos los Productos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: CÁMARA EN VIVO Y ESCANEO OCR DE COMPROBANTES -->
+            <div id="modal-camara-ocr" class="modal-backdrop hidden" onclick="if(event.target === this) cerrarCamaraOCR()">
+                <div class="modal" style="max-width: 580px; width: 92%; border-radius: 20px; display: flex; flex-direction: column; overflow: hidden;">
+                    <div class="modal-header" style="padding: 16px 20px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(16, 185, 129, 0.12); color: #059669; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                                <i class="ph ph-camera"></i>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Capturar Factura / Boleta & OCR</h3>
+                                <p style="margin: 2px 0 0 0; font-size: 11.5px; color: var(--text-sec);">Enfoca el comprobante físico con buena iluminación</p>
+                            </div>
+                        </div>
+                        <button class="btn-icon" onclick="cerrarCamaraOCR()"><i class="ph ph-x"></i></button>
+                    </div>
+
+                    <div class="modal-body" style="padding: 16px 20px; background: #0F172A; text-align: center;">
+                        <div style="position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                            <video id="camara-video" autoplay playsinline style="width: 100%; height: auto; max-height: 380px; object-fit: contain;"></video>
+                            <canvas id="camara-canvas" style="display: none; width: 100%; height: auto; max-height: 380px; object-fit: contain;"></canvas>
+                            
+                            <!-- Guía de encuadre -->
+                            <div id="camara-guia-encuadre" style="position: absolute; inset: 16px; border: 2px dashed rgba(255,255,255,0.4); border-radius: 8px; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 8px;">
+                                <span style="color: rgba(255,255,255,0.8); font-size: 11px; text-align: left;">Coloca la factura o boleta aquí</span>
+                                <span style="color: rgba(255,255,255,0.8); font-size: 11px; text-align: right;">Asegura texto nítido</span>
+                            </div>
+
+                            <!-- Overlay de procesamiento OCR -->
+                            <div id="camara-ocr-overlay" style="display: none; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.88); flex-direction: column; align-items: center; justify-content: center; color: #fff; padding: 20px;">
+                                <i class="ph ph-spinner ph-spin" style="font-size: 36px; color: #10B981; margin-bottom: 12px;"></i>
+                                <div id="camara-ocr-status" style="font-size: 13.5px; font-weight: 600;">Reconociendo texto con OCR...</div>
+                                <div style="font-size: 11.5px; color: rgba(255,255,255,0.7); margin-top: 4px;">Extrayendo comprobante, proveedor y montos</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer" style="padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;">
+                        <button type="button" class="btn btn-secondary" id="btn-cambiar-camara" onclick="cambiarDispositivoCamara()" style="border-radius: 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="ph ph-arrows-clockwise"></i> Girar Cámara
                         </button>
+                        <div style="display: flex; gap: 8px;" id="camara-controles-captura">
+                            <button type="button" class="btn btn-secondary" onclick="cerrarCamaraOCR()" style="border-radius: 10px;">Cancelar</button>
+                            <button type="button" class="btn" onclick="capturarFotoCamara()" style="background: #10B981; color: #fff; border-radius: 10px; font-weight: 600; padding: 8px 18px; display: inline-flex; align-items: center; gap: 6px;">
+                                <i class="ph ph-aperture"></i> Tomar Foto
+                            </button>
+                        </div>
+                        <div style="display: none; gap: 8px;" id="camara-controles-resultado">
+                            <button type="button" class="btn btn-secondary" onclick="repetirCapturaCamara()" style="border-radius: 10px;">↺ Repetir</button>
+                            <button type="button" class="btn btn-primary" onclick="confirmarYEjecutarOCR()" style="border-radius: 10px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                                <i class="ph ph-check"></i> Usar & Aplicar OCR
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         `;
 
         // Inicializar datos
-        cargarCategoriasInventario();
+        cargarCatalogosInventario();
         cargarProductosInventario();
     };
 
@@ -503,28 +791,87 @@
         contenedor.innerHTML = html;
     }
 
-    // Cargar categorías
-    window.cargarCategoriasInventario = async function() {
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Cargar Catálogos Auxiliares (Tipos, Unidades, Ubicaciones, Proveedores, Categorías)
+    window.cargarCatalogosInventario = async function() {
         try {
-            const res = await fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/list_categorias');
+            const res = await fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/list_catalogos');
             const data = await res.json();
-            if (data.status === 'success') {
-                categoriasData = data.data || [];
+            if (data.status === 'success' && data.data) {
+                catalogosData = data.data;
+                categoriasData = (data.data.categoria || []).map(c => ({ id: c.id, nombre: c.valor }));
+
+                // 1. Renderizar pills de categorías
                 renderizarCategoryPills();
 
+                // 2. Poblar selector de categorías
                 const modalCat = document.getElementById('prod-categoria');
-                let modalHtml = '<option value="">Sin Categoría</option>';
+                if (modalCat) {
+                    const currentVal = modalCat.value;
+                    let catHtml = '<option value="">Sin Categoría</option>';
+                    (catalogosData.categoria || []).forEach(c => {
+                        catHtml += `<option value="${c.id}">${escapeHtml(c.valor)}</option>`;
+                    });
+                    modalCat.innerHTML = catHtml;
+                    if (currentVal) modalCat.value = currentVal;
+                }
 
-                categoriasData.forEach(c => {
-                    modalHtml += `<option value="${c.id}">${c.nombre}</option>`;
-                });
+                // 3. Poblar selector de tipos de artículo
+                const modalTipo = document.getElementById('prod-tipo-articulo');
+                if (modalTipo) {
+                    const currentVal = modalTipo.value;
+                    let tipoHtml = '';
+                    (catalogosData.tipo_articulo || []).forEach(t => {
+                        tipoHtml += `<option value="${escapeHtml(t.valor)}">${escapeHtml(t.valor)}</option>`;
+                    });
+                    modalTipo.innerHTML = tipoHtml;
+                    if (currentVal) modalTipo.value = currentVal;
+                }
 
-                if (modalCat) modalCat.innerHTML = modalHtml;
+                // 4. Poblar selector de unidades de medida
+                const modalUnidad = document.getElementById('prod-unidad-medida');
+                if (modalUnidad) {
+                    const currentVal = modalUnidad.value;
+                    let undHtml = '';
+                    (catalogosData.unidad_medida || []).forEach(u => {
+                        undHtml += `<option value="${escapeHtml(u.valor)}">${escapeHtml(u.valor)}</option>`;
+                    });
+                    modalUnidad.innerHTML = undHtml;
+                    if (currentVal) modalUnidad.value = currentVal;
+                }
+
+                // 5. Poblar selector de ubicaciones físicas
+                const modalUbicacion = document.getElementById('prod-ubicacion-fisica');
+                if (modalUbicacion) {
+                    const currentVal = modalUbicacion.value;
+                    let ubiHtml = '';
+                    (catalogosData.ubicacion_fisica || []).forEach(u => {
+                        ubiHtml += `<option value="${escapeHtml(u.valor)}">${escapeHtml(u.valor)}</option>`;
+                    });
+                    modalUbicacion.innerHTML = ubiHtml;
+                    if (currentVal) modalUbicacion.value = currentVal;
+                }
+
+                // 6. Poblar datalist de proveedores habituales
+                const dlProv = document.getElementById('dl-proveedores');
+                if (dlProv) {
+                    let provHtml = '';
+                    (catalogosData.proveedor_habitual || []).forEach(p => {
+                        provHtml += `<option value="${escapeHtml(p.valor)}"></option>`;
+                    });
+                    dlProv.innerHTML = provHtml;
+                }
             }
         } catch (e) {
-            console.error('Error cargando categorías:', e);
+            console.error('Error cargando catálogos:', e);
         }
     };
+    window.cargarCategoriasInventario = window.cargarCatalogosInventario; // compatibilidad
+
 
     // Cargar catálogo de productos
     window.cargarProductosInventario = async function(manual = false) {
@@ -744,7 +1091,7 @@
                         </div>
                     </td>
                     <td>
-                        <span class="badge" style="background: rgba(217, 119, 6, 0.1); color: #D97706; font-weight: 600; font-size: 11px;">
+                        <span class="badge" style="background: rgba(239, 68, 68, 0.08); color: var(--primary); font-weight: 600; font-size: 11px; border: 1px solid rgba(239, 68, 68, 0.2);">
                             ${formatearTipoArticulo(p.tipo_articulo)}
                         </span>
                     </td>
@@ -828,7 +1175,7 @@
                             </div>
                             <div class="prod-mobile-badges">
                                 <span class="prod-mobile-sku">${p.codigo_sku || 'S/N'}</span>
-                                <span class="badge" style="background: rgba(217, 119, 6, 0.1); color: #D97706; font-size: 10.5px; font-weight: 600; white-space: nowrap;">
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.08); color: var(--primary); font-size: 10.5px; font-weight: 600; white-space: nowrap; border: 1px solid rgba(239, 68, 68, 0.2);">
                                     ${formatearTipoArticulo(p.tipo_articulo)}
                                 </span>
                                 ${p.categoria_nombre ? `<span style="font-size: 11px; color: var(--text-sec); white-space: nowrap;">• ${p.categoria_nombre}</span>` : ''}
@@ -836,28 +1183,30 @@
                         </div>
                     </div>
 
-                    <!-- Grid de Datos Clave en 2 Columnas (Sin saltos de línea molestos) -->
+                    <!-- Grid de Datos Clave en 2 Columnas (Sin colisiones de texto en móvil) -->
                     <div class="prod-mobile-stats">
                         <div class="prod-stat-col">
-                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px;">
-                                <span class="prod-stat-title" style="white-space: nowrap;">Existencias</span>
-                                <span style="font-size: 10.5px; color: var(--text-sec); white-space: nowrap;">Mín: ${stockMin}</span>
-                            </div>
+                            <span class="prod-stat-title">Existencias</span>
                             <div class="prod-stat-val">
-                                <span class="badge ${stockBadgeClass}" style="font-size: 11.5px; font-weight: 700; padding: 3px 8px; white-space: nowrap;">
+                                <span class="badge ${stockBadgeClass}" style="font-size: 11.5px; font-weight: 700; padding: 2px 7px; display: inline-block;">
                                     ${stock} ${unidadCorta}
                                 </span>
                             </div>
+                            <div style="font-size: 10px; color: var(--text-sec); margin-top: 2px; white-space: nowrap;">
+                                Mín: <strong style="color: var(--text-main);">${stockMin}</strong>
+                            </div>
                         </div>
                         <div class="prod-stat-col" style="text-align: right;">
-                            <div style="display: flex; justify-content: flex-end; align-items: baseline; margin-bottom: 2px;">
-                                <span class="prod-stat-title" style="white-space: nowrap;">Precio Venta</span>
-                                ${costo > 0 ? `<span style="font-size: 10.5px; color: var(--text-sec); margin-left: 5px; white-space: nowrap;">Costo: S/ ${costo.toFixed(2)}</span>` : ''}
-                            </div>
-                            <div class="prod-stat-val">
-                                <span style="font-weight: 700; color: var(--text-main); font-size: 13.5px; white-space: nowrap;">
+                            <span class="prod-stat-title" style="text-align: right;">
+                                ${precio > 0 ? 'Precio Venta' : 'Costo Prom. (CPP)'}
+                            </span>
+                            <div class="prod-stat-val" style="text-align: right;">
+                                <span style="font-weight: 700; color: var(--text-main); font-size: 13.5px;">
                                     ${precio > 0 ? `S/ ${precio.toFixed(2)}` : `<span style="color:#059669;">S/ ${costo.toFixed(2)}</span>`}
                                 </span>
+                            </div>
+                            <div style="font-size: 10px; color: var(--text-sec); text-align: right; margin-top: 2px; white-space: nowrap;">
+                                ${precio > 0 && costo > 0 ? `CPP: S/ ${costo.toFixed(2)}` : (precio > 0 ? 'Sin compras' : 'Costo unit.')}
                             </div>
                         </div>
                     </div>
@@ -963,6 +1312,29 @@
         document.getElementById('prod-imagen-url').value = '';
         document.getElementById('modal-tab-compras-count').innerText = '0';
         comprasDelProducto = [];
+        comprasFiltroBusqueda = '';
+        comprasFiltroFechaDesde = '';
+        comprasFiltroFechaHasta = '';
+        comprasFiltroPagina = 1;
+        const bInput = document.getElementById('filtro-compras-buscar');
+        if (bInput) bInput.value = '';
+        const fDesde = document.getElementById('filtro-compras-desde');
+        if (fDesde) fDesde.value = '';
+        const fHasta = document.getElementById('filtro-compras-hasta');
+        if (fHasta) fHasta.value = '';
+        const cLim = document.getElementById('filtro-compras-limite');
+        if (cLim) cLim.value = '50';
+        comprasFiltroLimite = 50;
+
+        document.getElementById('compra-num-comprobante').value = '';
+        document.getElementById('compra-proveedor').value = '';
+        document.getElementById('compra-cantidad').value = '';
+        document.getElementById('compra-precio-unitario').value = '';
+        const compTotal = document.getElementById('compra-total-calculado');
+        if (compTotal) compTotal.innerText = 'S/ 0.00';
+        const ocrBadge = document.getElementById('ocr-badge-status');
+        if (ocrBadge) ocrBadge.style.display = 'none';
+
         comprobanteFileAdjunto = null;
         removerComprobanteAdjunto();
 
@@ -984,8 +1356,9 @@
                 titulo.innerText = 'Editar Producto / Insumo';
                 if (badgeModo) {
                     badgeModo.innerText = 'EDITAR';
-                    badgeModo.style.background = '#FEF3C7';
-                    badgeModo.style.color = '#D97706';
+                    badgeModo.style.background = 'rgba(59, 130, 246, 0.12)';
+                    badgeModo.style.color = '#2563EB';
+                    badgeModo.style.borderColor = 'rgba(59, 130, 246, 0.25)';
                 }
 
                 document.getElementById('prod-id').value = p.id;
@@ -1013,6 +1386,7 @@
                     }
                 }
 
+                actualizarEstadoEAN13(p.codigo_barras || '');
                 cargarHistorialCompras(p.id);
             }
         } else {
@@ -1020,11 +1394,13 @@
             titulo.innerText = 'Registrar Nuevo Producto / Insumo';
             if (badgeModo) {
                 badgeModo.innerText = 'NUEVO';
-                badgeModo.style.background = '#E2E8F0';
-                badgeModo.style.color = '#475569';
+                badgeModo.style.background = 'rgba(239, 68, 68, 0.1)';
+                badgeModo.style.color = 'var(--primary)';
+                badgeModo.style.borderColor = 'rgba(239, 68, 68, 0.2)';
             }
             generarSkuAutomatico();
-            renderizarTablaCompras([]);
+            actualizarEstadoEAN13('');
+            filtrarComprasDelProducto(1);
         }
 
         modal.classList.remove('hidden');
@@ -1074,11 +1450,27 @@
     };
 
     // Quitar foto del producto
-    window.eliminarFotoProducto = function() {
+    window.eliminarFotoProducto = async function() {
+        const inputUrl = document.getElementById('prod-imagen-url');
         const photoImg = document.getElementById('prod-photo-img');
         const photoPlaceholder = document.getElementById('prod-photo-placeholder');
-        const inputUrl = document.getElementById('prod-imagen-url');
         const inputFile = document.getElementById('prod-input-foto');
+
+        if ((inputUrl && inputUrl.value) || (photoImg && photoImg.src && !photoImg.src.endsWith('#') && photoImg.style.display !== 'none')) {
+            const confirmarFn = window.confirmarAccion || function(opts) {
+                return Promise.resolve(confirm(opts.mensaje || '¿Quitar foto?'));
+            };
+            const confirmado = await confirmarFn({
+                titulo: '¿Quitar Fotografía?',
+                mensaje: '¿Deseas remover la foto actual de este producto?',
+                detalle: 'El producto se mostrará con el icono predeterminado sin imagen.',
+                tipo: 'warning',
+                icono: 'trash',
+                textoConfirmar: 'Sí, Quitar',
+                textoCancelar: 'Cancelar'
+            });
+            if (!confirmado) return;
+        }
 
         if (photoImg) {
             photoImg.src = '';
@@ -1196,7 +1588,92 @@
     // GESTIÓN DE HISTORIAL DE COMPRAS & COMPROBANTES (TAB 2)
     // ========================================================
 
-    // Cargar compras del producto
+    // ========================================================
+    // GESTIÓN DE HISTORIAL DE COMPRAS, FILTROS & COMPROBANTES (TAB 2)
+    // ========================================================
+
+    // Recalcular total estimado en registro de compra
+    window.recalcularTotalCompraManual = function() {
+        const cant = parseFloat(document.getElementById('compra-cantidad')?.value) || 0;
+        const pu = parseFloat(document.getElementById('compra-precio-unitario')?.value) || 0;
+        const tot = cant * pu;
+        const el = document.getElementById('compra-total-calculado');
+        if (el) el.innerText = 'S/ ' + tot.toFixed(2);
+    };
+
+    // Cambiar límite de compras por página (10, 20, 50, Todos)
+    window.cambiarLimiteCompras = function(nuevoLimite) {
+        comprasFiltroLimite = parseInt(nuevoLimite, 10) || 50;
+        filtrarComprasDelProducto(1);
+    };
+
+    // Filtrar compras del producto en tiempo real por búsqueda y fechas
+    window.filtrarComprasDelProducto = function(pagina = 1) {
+        comprasFiltroPagina = pagina;
+        const query = (document.getElementById('filtro-compras-buscar')?.value || '').toLowerCase().trim();
+        const desde = document.getElementById('filtro-compras-desde')?.value || '';
+        const hasta = document.getElementById('filtro-compras-hasta')?.value || '';
+
+        let filtradas = (comprasDelProducto || []).filter(c => {
+            if (query) {
+                const num = (c.numero_comprobante || '').toLowerCase();
+                const prov = (c.proveedor || '').toLowerCase();
+                if (!num.includes(query) && !prov.includes(query)) return false;
+            }
+            const fecha = c.fecha ? c.fecha.substring(0, 10) : '';
+            if (desde && fecha && fecha < desde) return false;
+            if (hasta && fecha && fecha > hasta) return false;
+            return true;
+        });
+
+        // Totales de la selección filtrada
+        let sumaCantidad = 0;
+        let sumaTotal = 0;
+        filtradas.forEach(c => {
+            const cant = parseFloat(c.cantidad) || 0;
+            const pu = parseFloat(c.precio_unitario) || 0;
+            const tot = parseFloat(c.total) || (cant * pu);
+            sumaCantidad += cant;
+            sumaTotal += tot;
+        });
+
+        const totalItems = filtradas.length;
+        const limite = comprasFiltroLimite || 50;
+        const totalPaginas = Math.ceil(totalItems / limite) || 1;
+        if (comprasFiltroPagina > totalPaginas) comprasFiltroPagina = totalPaginas;
+
+        const inicio = (comprasFiltroPagina - 1) * limite;
+        const fin = inicio + limite;
+        const paginadas = filtradas.slice(inicio, fin);
+
+        // Actualizar barra de resumen y totales
+        const infoTotales = document.getElementById('compras-totales-info');
+        if (infoTotales) {
+            infoTotales.innerHTML = `Mostrando <strong>${paginadas.length}</strong> de <strong>${totalItems}</strong> registros &bull; Total compras: <strong style="color:#059669;">S/ ${sumaTotal.toFixed(2)}</strong> (${sumaCantidad.toFixed(2)} unidades)`;
+        }
+
+        // Renderizar controles de paginación
+        const ctrlPag = document.getElementById('compras-paginacion-ctrl');
+        if (ctrlPag) {
+            if (totalPaginas <= 1) {
+                ctrlPag.innerHTML = '';
+            } else {
+                ctrlPag.innerHTML = `
+                    <button type="button" class="btn btn-secondary btn-sm" ${comprasFiltroPagina <= 1 ? 'disabled' : ''} onclick="filtrarComprasDelProducto(${comprasFiltroPagina - 1})" style="padding: 2px 8px; font-size: 11px; border-radius: 6px;">
+                        <i class="ph ph-caret-left"></i> Ant
+                    </button>
+                    <span style="font-size: 11.5px; font-weight: 600; padding: 0 4px;">Pág. ${comprasFiltroPagina} de ${totalPaginas}</span>
+                    <button type="button" class="btn btn-secondary btn-sm" ${comprasFiltroPagina >= totalPaginas ? 'disabled' : ''} onclick="filtrarComprasDelProducto(${comprasFiltroPagina + 1})" style="padding: 2px 8px; font-size: 11px; border-radius: 6px;">
+                        Sig <i class="ph ph-caret-right"></i>
+                    </button>
+                `;
+            }
+        }
+
+        renderizarTablaCompras(paginadas);
+    };
+
+    // Cargar compras del producto desde el servidor
     async function cargarHistorialCompras(idProducto) {
         const contadorBadge = document.getElementById('modal-tab-compras-count');
         try {
@@ -1205,15 +1682,16 @@
             if (data.status === 'success') {
                 comprasDelProducto = data.data || [];
                 if (contadorBadge) contadorBadge.innerText = comprasDelProducto.length;
-                renderizarTablaCompras(comprasDelProducto);
+                filtrarComprasDelProducto(1);
             }
         } catch (e) {
             console.error('Error cargando compras:', e);
-            renderizarTablaCompras([]);
+            comprasDelProducto = [];
+            filtrarComprasDelProducto(1);
         }
     }
 
-    // Renderizar tabla del historial de compras
+    // Renderizar filas de la tabla de compras
     function renderizarTablaCompras(compras) {
         const contenedor = document.getElementById('contenedor-tabla-compras');
         if (!contenedor) return;
@@ -1225,10 +1703,10 @@
                         <i class="ph ph-file-text"></i>
                     </div>
                     <div style="font-size: 13.5px; font-weight: 600; color: var(--text-main); margin-bottom: 2px;">
-                        No hay compras ni comprobantes registrados para este insumo.
+                        No hay compras ni comprobantes registrados que coincidan con la búsqueda.
                     </div>
                     <div style="font-size: 12px; color: var(--text-sec);">
-                        Puedes registrar una compra arriba y adjuntar su factura escaneada o foto.
+                        Puedes registrar una compra arriba o ajustar los filtros de búsqueda y fechas.
                     </div>
                 </div>
             `;
@@ -1307,7 +1785,7 @@
         const btnRemove = document.getElementById('btn-remover-comprobante');
 
         if (input) input.value = '';
-        if (label) label.innerText = 'Seleccionar Archivo (PDF / JPG)';
+        if (label) label.innerText = 'Subir Archivo';
         if (btnRemove) btnRemove.style.display = 'none';
     };
 
@@ -1392,6 +1870,10 @@
                 document.getElementById('compra-proveedor').value = '';
                 document.getElementById('compra-cantidad').value = '';
                 document.getElementById('compra-precio-unitario').value = '';
+                const compTotal = document.getElementById('compra-total-calculado');
+                if (compTotal) compTotal.innerText = 'S/ 0.00';
+                const ocrB = document.getElementById('ocr-badge-status');
+                if (ocrB) ocrB.style.display = 'none';
                 removerComprobanteAdjunto();
 
                 // Recargar historial y catálogo
@@ -1410,6 +1892,954 @@
             }
         }
     };
+
+    // ========================================================
+    // CÓDIGOS DE BARRAS ESTÁNDAR EAN-13
+    // ========================================================
+    window.calcularDigitoVerificadorEAN13 = function(codigo12) {
+        if (!codigo12 || codigo12.length !== 12 || !/^\d{12}$/.test(codigo12)) return null;
+        let suma = 0;
+        for (let i = 0; i < 12; i++) {
+            const digito = parseInt(codigo12.charAt(i), 10);
+            suma += (i % 2 === 0) ? digito * 1 : digito * 3;
+        }
+        const resto = suma % 10;
+        return (resto === 0) ? 0 : 10 - resto;
+    };
+
+    window.generarCodigoBarrasEAN13 = function() {
+        const prefijo = '775'; // Prefijo Perú GS1
+        let centro = '';
+        for (let i = 0; i < 9; i++) {
+            centro += Math.floor(Math.random() * 10).toString();
+        }
+        const codigo12 = prefijo + centro;
+        const dv = calcularDigitoVerificadorEAN13(codigo12);
+        const ean13 = codigo12 + dv;
+
+        const input = document.getElementById('prod-codigo-barras');
+        if (input) {
+            input.value = ean13;
+            actualizarEstadoEAN13(ean13);
+        }
+        if (typeof showToast === 'function') {
+            showToast('Código EAN-13 generado: ' + ean13, 'info');
+        }
+    };
+
+    window.actualizarEstadoEAN13 = function(val) {
+        const badge = document.getElementById('prod-ean13-badge');
+        if (!badge) return;
+        val = (val || '').trim();
+        if (!val) {
+            badge.style.display = 'none';
+            return;
+        }
+        badge.style.display = 'inline-block';
+        if (/^\d{13}$/.test(val)) {
+            const codigo12 = val.substring(0, 12);
+            const dvReal = parseInt(val.charAt(12), 10);
+            const dvCalc = calcularDigitoVerificadorEAN13(codigo12);
+            if (dvReal === dvCalc) {
+                badge.className = 'ean13-tag valid';
+                badge.innerHTML = '<i class="ph ph-check"></i> EAN-13 Válido';
+            } else {
+                badge.className = 'ean13-tag invalid';
+                badge.innerHTML = `<i class="ph ph-warning"></i> DV Inválido (${dvCalc})`;
+            }
+        } else {
+            badge.className = 'ean13-tag invalid';
+            badge.innerHTML = `<i class="ph ph-x"></i> ${val.length}/13 dígitos`;
+        }
+    };
+
+    // ========================================================
+    // GESTOR DE CATÁLOGOS AUXILIARES DINÁMICO (CRUD)
+    // ========================================================
+    const NOMBRES_CATALOGOS = {
+        tipo_articulo: { titulo: 'Tipos de Artículo', subtitulo: 'Clasificación operativa (materia prima, perecible, etc.)', icon: 'ph-tag' },
+        unidad_medida: { titulo: 'Unidades de Medida', subtitulo: 'Unidades para control de inventario (kg, L, und, etc.)', icon: 'ph-scales' },
+        ubicacion_fisica: { titulo: 'Ubicaciones Físicas', subtitulo: 'Zonas de almacenamiento (Cámara Fría, Anaquel, etc.)', icon: 'ph-map-pin' },
+        proveedor_habitual: { titulo: 'Proveedores Habituales', subtitulo: 'Directorio de proveedores frecuentes', icon: 'ph-truck' },
+        categoria: { titulo: 'Categorías en Catálogo', subtitulo: 'Categorías de productos para carta o almacén', icon: 'ph-squares-four' }
+    };
+
+    window.abrirGestorCatalogo = function(tipo) {
+        gestorCatalogoTipoActual = tipo;
+        const config = NOMBRES_CATALOGOS[tipo] || { titulo: 'Gestor de Opciones', subtitulo: '', icon: 'ph-sliders' };
+        
+        const tit = document.getElementById('gestor-cat-titulo');
+        const sub = document.getElementById('gestor-cat-subtitulo');
+        const iconDiv = document.getElementById('gestor-cat-icon');
+        const inputNuevo = document.getElementById('gestor-input-nuevo');
+        
+        if (tit) tit.innerText = 'Gestionar ' + config.titulo;
+        if (sub) sub.innerText = config.subtitulo;
+        if (iconDiv) iconDiv.innerHTML = `<i class="ph ${config.icon}"></i>`;
+        if (inputNuevo) {
+            inputNuevo.value = '';
+            inputNuevo.placeholder = `Nuevo ítem para ${config.titulo}...`;
+        }
+
+        renderizarListaGestorCatalogo();
+
+        const modal = document.getElementById('modal-gestor-catalogo');
+        if (modal) {
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => modal.classList.add('show'));
+            if (typeof window.renderPhosphorIcons === 'function') {
+                window.renderPhosphorIcons(modal);
+            }
+        }
+    };
+
+    window.cerrarGestorCatalogo = function() {
+        const modal = document.getElementById('modal-gestor-catalogo');
+        if (!modal) return;
+        modal.classList.remove('show');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    };
+
+    window.renderizarListaGestorCatalogo = function() {
+        const listaCont = document.getElementById('gestor-cat-lista');
+        if (!listaCont) return;
+
+        const tipo = gestorCatalogoTipoActual;
+        const items = (catalogosData && catalogosData[tipo]) ? catalogosData[tipo] : [];
+
+        if (items.length === 0) {
+            listaCont.innerHTML = `
+                <div style="text-align: center; padding: 24px; color: var(--text-sec); font-size: 13px;">
+                    <i class="ph ph-folder-open" style="font-size: 28px; display: block; margin-bottom: 6px;"></i>
+                    No hay elementos en este catálogo. Agrega el primero arriba.
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        items.forEach((item, idx) => {
+            const id = item.id;
+            const valor = (tipo === 'categoria') ? item.nombre : item.valor;
+            const extra = (tipo === 'categoria' && item.descripcion) ? `<span style="font-size: 11px; color: var(--text-sec); margin-left: 6px;">(${item.descripcion})</span>` : '';
+            const safeValor = (valor || '').replace(/'/g, "\\'");
+
+            html += `
+                <div class="gestor-cat-item" style="display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px;">
+                    <div style="font-size: 13px; font-weight: 500; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                        <span style="width: 20px; height: 20px; border-radius: 50%; background: var(--bg-card); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text-sec);">${idx + 1}</span>
+                        <span>${valor}</span>
+                        ${extra}
+                    </div>
+                    <div style="display: flex; gap: 4px;">
+                        <button type="button" class="btn-icon" onclick="editarItemCatalogo(${id}, '${tipo}', '${safeValor}')" title="Editar nombre" style="padding: 4px; border-radius: 6px; color: #2563EB;">
+                            <i class="ph ph-pencil-simple"></i>
+                        </button>
+                        <button type="button" class="btn-icon" onclick="eliminarItemCatalogo(${id}, '${tipo}', '${safeValor}')" title="Eliminar opción" style="padding: 4px; border-radius: 6px; color: #DC2626;">
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        listaCont.innerHTML = html;
+        if (typeof window.renderPhosphorIcons === 'function') {
+            window.renderPhosphorIcons(listaCont);
+        }
+    };
+
+    window.agregarItemCatalogo = async function() {
+        const tipo = gestorCatalogoTipoActual;
+        const input = document.getElementById('gestor-input-nuevo');
+        const valor = input ? input.value.trim() : '';
+
+        if (!valor) {
+            if (typeof showToast === 'function') showToast('Escribe un nombre o valor válido', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/save_catalogo_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tipo, valor })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                if (typeof showToast === 'function') showToast('Opción agregada exitosamente', 'success');
+                if (input) input.value = '';
+                await cargarCatalogosInventario();
+                renderizarListaGestorCatalogo();
+
+                // Seleccionar automáticamente en el formulario
+                if (tipo === 'tipo_articulo') {
+                    const sel = document.getElementById('prod-tipo-articulo');
+                    if (sel) sel.value = valor;
+                } else if (tipo === 'unidad_medida') {
+                    const sel = document.getElementById('prod-unidad-medida');
+                    if (sel) sel.value = valor;
+                } else if (tipo === 'ubicacion_fisica') {
+                    const sel = document.getElementById('prod-ubicacion-fisica');
+                    if (sel) sel.value = valor;
+                } else if (tipo === 'proveedor_habitual') {
+                    const inp = document.getElementById('prod-proveedor');
+                    if (inp) inp.value = valor;
+                } else if (tipo === 'categoria' && data.data?.id) {
+                    const sel = document.getElementById('prod-categoria');
+                    if (sel) sel.value = data.data.id;
+                }
+            } else {
+                if (typeof showToast === 'function') showToast(data.message || 'Error al guardar elemento', 'error');
+            }
+        } catch (e) {
+            console.error('Error al agregar ítem de catálogo:', e);
+            if (typeof showToast === 'function') showToast('Error de conexión', 'error');
+        }
+    };
+
+    window.editarItemCatalogo = async function(id, tipo, valorActual) {
+        const config = NOMBRES_CATALOGOS[tipo] || { titulo: 'opción' };
+        const nuevoValor = prompt(`Modificar ${config.titulo.toLowerCase().replace(/s$/, '')}:`, valorActual);
+        if (!nuevoValor || nuevoValor.trim() === '' || nuevoValor.trim() === valorActual) return;
+
+        try {
+            const res = await fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/save_catalogo_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id,
+                    tipo,
+                    valor: nuevoValor.trim()
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                if (typeof showToast === 'function') showToast('Actualizado con éxito', 'success');
+                await cargarCatalogosInventario();
+                renderizarListaGestorCatalogo();
+            } else {
+                if (typeof showToast === 'function') showToast(data.message || 'Error al actualizar', 'error');
+            }
+        } catch (e) {
+            console.error('Error al editar catálogo:', e);
+            if (typeof showToast === 'function') showToast('Error de conexión', 'error');
+        }
+    };
+
+    window.eliminarItemCatalogo = async function(id, tipo, valor) {
+        const confirmarFn = window.confirmarAccion || function(opts) {
+            return Promise.resolve(confirm(opts.mensaje || '¿Eliminar opción?'));
+        };
+
+        const confirmado = await confirmarFn({
+            titulo: '¿Eliminar Opción del Catálogo?',
+            mensaje: '¿Estás seguro de que deseas eliminar esta opción?',
+            item: valor,
+            detalle: 'Esta opción dejará de aparecer en las listas desplegables del inventario.',
+            tipo: 'danger',
+            icono: 'trash',
+            textoConfirmar: 'Sí, Eliminar',
+            textoCancelar: 'Cancelar'
+        });
+
+        if (!confirmado) return;
+
+        try {
+            const res = await fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/delete_catalogo_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, tipo, valor })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                if (typeof showToast === 'function') showToast('Opción eliminada', 'success');
+                await cargarCatalogosInventario();
+                renderizarListaGestorCatalogo();
+            } else {
+                if (typeof showToast === 'function') showToast(data.message || 'Error al eliminar', 'error');
+            }
+        } catch (e) {
+            console.error('Error al eliminar ítem de catálogo:', e);
+            if (typeof showToast === 'function') showToast('Error de conexión', 'error');
+        }
+    };
+
+    // ========================================================
+    // CARGA MASIVA DE PRODUCTOS (CSV O TABLA MANUAL)
+    // ========================================================
+    window.abrirModalCargaMasiva = function() {
+        productosCargaMasiva = [];
+        limpiarPreviewCSV();
+
+        const tbody = document.getElementById('tbody-masiva-manual');
+        if (tbody && tbody.children.length === 0) {
+            for (let i = 0; i < 3; i++) {
+                agregarFilaMasivaManual();
+            }
+        }
+
+        switchMasivaTab('archivo');
+
+        const modal = document.getElementById('modal-carga-masiva');
+        if (modal) {
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => modal.classList.add('show'));
+            if (typeof window.renderPhosphorIcons === 'function') {
+                window.renderPhosphorIcons(modal);
+            }
+        }
+    };
+
+    window.cerrarModalCargaMasiva = function() {
+        const modal = document.getElementById('modal-carga-masiva');
+        if (!modal) return;
+        modal.classList.remove('show');
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    };
+
+    window.switchMasivaTab = function(tab) {
+        const tabArchivo = document.getElementById('btn-tab-masiva-archivo');
+        const tabManual = document.getElementById('btn-tab-masiva-manual');
+        const viewArchivo = document.getElementById('view-masiva-archivo');
+        const viewManual = document.getElementById('view-masiva-manual');
+
+        if (tab === 'archivo') {
+            if (tabArchivo) tabArchivo.classList.add('active');
+            if (tabManual) tabManual.classList.remove('active');
+            if (viewArchivo) viewArchivo.style.display = 'block';
+            if (viewManual) viewManual.style.display = 'none';
+        } else {
+            if (tabManual) tabManual.classList.add('active');
+            if (tabArchivo) tabArchivo.classList.remove('active');
+            if (viewManual) viewManual.style.display = 'block';
+            if (viewArchivo) viewArchivo.style.display = 'none';
+        }
+    };
+
+    window.descargarPlantillaCSV = function() {
+        const cabeceras = [
+            'Nombre',
+            'SKU',
+            'Tipo',
+            'Categoria',
+            'Unidad',
+            'StockInicial',
+            'StockMinimo',
+            'CostoUnitario',
+            'PrecioVenta',
+            'Ubicacion',
+            'Proveedor',
+            'CodigoBarras'
+        ].join(',');
+
+        const ejemplo1 = [
+            'Tomate Chonto Fresco',
+            'TOM-001',
+            'Materia Prima',
+            'Vegetales',
+            'Kilogramos (kg)',
+            '25.00',
+            '5.00',
+            '3.20',
+            '0.00',
+            'Cámara Fría',
+            'Agrícola San Juan',
+            '7751234567890'
+        ].join(',');
+
+        const ejemplo2 = [
+            'Aceite Vegetal 1 Litro',
+            'ACE-002',
+            'Insumo General',
+            'Abarrotes',
+            'Unidades (und)',
+            '40.00',
+            '10.00',
+            '7.80',
+            '12.00',
+            'Almacén Seco',
+            'Distribuidora Central',
+            '7759876543210'
+        ].join(',');
+
+        const csvContent = '\uFEFF' + [cabeceras, ejemplo1, ejemplo2].join('\r\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'plantilla_productos_khalessi.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    window.procesarArchivoCSV = function(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            if (!text) {
+                if (typeof showToast === 'function') showToast('El archivo CSV está vacío', 'error');
+                return;
+            }
+
+            const lineas = text.split(/\r\n|\n/).filter(l => l.trim().length > 0);
+            if (lineas.length < 2) {
+                if (typeof showToast === 'function') showToast('El archivo no contiene filas de datos', 'error');
+                return;
+            }
+
+            const sep = lineas[0].includes(';') ? ';' : ',';
+            productosCargaMasiva = [];
+
+            for (let i = 1; i < lineas.length; i++) {
+                const fila = lineas[i];
+                if (!fila.trim()) continue;
+
+                const cols = parsearLineaCSV(fila, sep);
+                if (cols.length === 0) continue;
+
+                const prod = {
+                    nombre: cols[0] || '',
+                    codigo_sku: cols[1] || '',
+                    tipo_articulo: cols[2] || 'materia_prima',
+                    categoria: cols[3] || '',
+                    unidad_medida: cols[4] || 'Kilogramos (kg)',
+                    stock_actual: parseFloat(cols[5]) || 0,
+                    stock_minimo: parseFloat(cols[6]) || 5,
+                    costo_unitario: parseFloat(cols[7]) || 0,
+                    precio_venta: parseFloat(cols[8]) || 0,
+                    ubicacion_fisica: cols[9] || 'Cámara Fría',
+                    proveedor_habitual: cols[10] || '',
+                    codigo_barras: cols[11] || ''
+                };
+
+                if (prod.nombre) {
+                    productosCargaMasiva.push(prod);
+                }
+            }
+
+            if (productosCargaMasiva.length === 0) {
+                if (typeof showToast === 'function') showToast('No se encontraron productos con nombre válido en el CSV', 'warning');
+                return;
+            }
+
+            renderizarPreviewCSV();
+        };
+
+        reader.readAsText(file, 'UTF-8');
+        input.value = '';
+    };
+
+    function parsearLineaCSV(linea, sep) {
+        const res = [];
+        let cur = '';
+        let insideQuotes = false;
+        for (let i = 0; i < linea.length; i++) {
+            const char = linea[i];
+            if (char === '"') {
+                insideQuotes = !insideQuotes;
+            } else if (char === sep && !insideQuotes) {
+                res.push(cur.trim().replace(/^"|"$/g, ''));
+                cur = '';
+            } else {
+                cur += char;
+            }
+        }
+        res.push(cur.trim().replace(/^"|"$/g, ''));
+        return res;
+    }
+
+    window.renderizarPreviewCSV = function() {
+        const cont = document.getElementById('contenedor-preview-csv');
+        const countSpan = document.getElementById('preview-csv-count');
+        const tabla = document.getElementById('tabla-preview-csv');
+        const statusMsg = document.getElementById('masiva-status-msg');
+
+        if (!cont || !tabla) return;
+        cont.style.display = 'block';
+
+        if (countSpan) countSpan.innerText = `${productosCargaMasiva.length} productos listos para importar`;
+        if (statusMsg) statusMsg.innerHTML = `<span style="color:#059669; font-weight:600;"><i class="ph ph-check-circle"></i> Archivo validado (${productosCargaMasiva.length} ítems)</span>`;
+
+        let html = `
+            <thead>
+                <tr style="background: var(--bg-main); border-bottom: 1px solid var(--border-color);">
+                    <th style="padding: 6px 10px;">#</th>
+                    <th style="padding: 6px 10px;">Nombre</th>
+                    <th style="padding: 6px 10px;">SKU</th>
+                    <th style="padding: 6px 10px;">Tipo</th>
+                    <th style="padding: 6px 10px;">Unidad</th>
+                    <th style="padding: 6px 10px; text-align: right;">Stock</th>
+                    <th style="padding: 6px 10px; text-align: right;">Costo (S/)</th>
+                    <th style="padding: 6px 10px; text-align: right;">Precio (S/)</th>
+                    <th style="padding: 6px 10px;">Ubicación</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+
+        productosCargaMasiva.forEach((p, idx) => {
+            html += `
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 6px 10px; font-weight: 600; color: var(--text-sec);">${idx + 1}</td>
+                    <td style="padding: 6px 10px; font-weight: 600; color: var(--text-main);">${p.nombre}</td>
+                    <td style="padding: 6px 10px; font-family: monospace;">${p.codigo_sku || '-'}</td>
+                    <td style="padding: 6px 10px;">${p.tipo_articulo || '-'}</td>
+                    <td style="padding: 6px 10px;">${p.unidad_medida || '-'}</td>
+                    <td style="padding: 6px 10px; text-align: right; font-weight: 600;">${p.stock_actual}</td>
+                    <td style="padding: 6px 10px; text-align: right; color: #059669; font-weight: 600;">S/ ${p.costo_unitario.toFixed(2)}</td>
+                    <td style="padding: 6px 10px; text-align: right;">S/ ${p.precio_venta.toFixed(2)}</td>
+                    <td style="padding: 6px 10px; color: var(--text-sec);">${p.ubicacion_fisica || '-'}</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody>';
+        tabla.innerHTML = html;
+    };
+
+    window.limpiarPreviewCSV = function() {
+        productosCargaMasiva = [];
+        const cont = document.getElementById('contenedor-preview-csv');
+        const tabla = document.getElementById('tabla-preview-csv');
+        const statusMsg = document.getElementById('masiva-status-msg');
+        if (cont) cont.style.display = 'none';
+        if (tabla) tabla.innerHTML = '';
+        if (statusMsg) statusMsg.innerText = 'Listo para procesar';
+    };
+
+    window.agregarFilaMasivaManual = function() {
+        const tbody = document.getElementById('tbody-masiva-manual');
+        if (!tbody) return;
+
+        const rowCount = tbody.children.length + 1;
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border-color)';
+
+        const tipos = (catalogosData && catalogosData.tipo_articulo) ? catalogosData.tipo_articulo : [];
+        let tiposOptions = tipos.map(t => `<option value="${t.valor}">${t.valor}</option>`).join('');
+        if (!tiposOptions) tiposOptions = '<option value="materia_prima">Materia Prima</option>';
+
+        const unidades = (catalogosData && catalogosData.unidad_medida) ? catalogosData.unidad_medida : [];
+        let unidadesOptions = unidades.map(u => `<option value="${u.valor}">${u.valor}</option>`).join('');
+        if (!unidadesOptions) unidadesOptions = '<option value="Kilogramos (kg)">Kilogramos (kg)</option><option value="Unidades (und)">Unidades (und)</option>';
+
+        tr.innerHTML = `
+            <td style="padding: 6px 8px; font-weight: 600; color: var(--text-sec);">${rowCount}</td>
+            <td style="padding: 6px 8px;">
+                <input type="text" class="form-control form-control-sm fila-masiva-nombre" placeholder="Nombre del producto" style="font-size: 12px;">
+            </td>
+            <td style="padding: 6px 8px;">
+                <input type="text" class="form-control form-control-sm fila-masiva-sku" placeholder="SKU" style="font-size: 12px; font-family: monospace;">
+            </td>
+            <td style="padding: 6px 8px;">
+                <select class="form-control form-control-sm fila-masiva-tipo" style="font-size: 11.5px;">${tiposOptions}</select>
+            </td>
+            <td style="padding: 6px 8px;">
+                <select class="form-control form-control-sm fila-masiva-unidad" style="font-size: 11.5px;">${unidadesOptions}</select>
+            </td>
+            <td style="padding: 6px 8px;">
+                <input type="number" step="0.01" min="0" class="form-control form-control-sm fila-masiva-stock" value="0.00" style="font-size: 12px; text-align: right;">
+            </td>
+            <td style="padding: 6px 8px;">
+                <input type="number" step="0.01" min="0" class="form-control form-control-sm fila-masiva-costo" value="0.00" style="font-size: 12px; text-align: right; color: #059669;">
+            </td>
+            <td style="padding: 6px 8px;">
+                <input type="number" step="0.01" min="0" class="form-control form-control-sm fila-masiva-precio" value="0.00" style="font-size: 12px; text-align: right;">
+            </td>
+            <td style="padding: 6px 8px; text-align: center;">
+                <button type="button" class="btn-icon" onclick="eliminarFilaMasivaManual(this)" title="Eliminar fila" style="color: #DC2626; padding: 4px;">
+                    <i class="ph ph-trash"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+        if (typeof window.renderPhosphorIcons === 'function') {
+            window.renderPhosphorIcons(tr);
+        }
+    };
+
+    window.eliminarFilaMasivaManual = function(btn) {
+        const tr = btn.closest('tr');
+        if (tr) {
+            tr.remove();
+            const tbody = document.getElementById('tbody-masiva-manual');
+            if (tbody) {
+                Array.from(tbody.children).forEach((row, i) => {
+                    row.children[0].innerText = i + 1;
+                });
+            }
+        }
+    };
+
+    window.procesarGuardadoMasivo = async function() {
+        const btn = document.getElementById('btn-procesar-masiva');
+        const isArchivo = document.getElementById('btn-tab-masiva-archivo')?.classList.contains('active');
+        let productos = [];
+
+        if (isArchivo) {
+            productos = productosCargaMasiva;
+            if (productos.length === 0) {
+                if (typeof showToast === 'function') showToast('Primero selecciona un archivo CSV con productos', 'warning');
+                return;
+            }
+        } else {
+            const tbody = document.getElementById('tbody-masiva-manual');
+            if (!tbody) return;
+            const filas = tbody.querySelectorAll('tr');
+            filas.forEach(f => {
+                const nombre = f.querySelector('.fila-masiva-nombre')?.value.trim();
+                if (nombre) {
+                    productos.push({
+                        nombre,
+                        codigo_sku: f.querySelector('.fila-masiva-sku')?.value.trim() || '',
+                        tipo_articulo: f.querySelector('.fila-masiva-tipo')?.value || 'materia_prima',
+                        unidad_medida: f.querySelector('.fila-masiva-unidad')?.value || 'Kilogramos (kg)',
+                        stock_actual: parseFloat(f.querySelector('.fila-masiva-stock')?.value) || 0,
+                        costo_unitario: parseFloat(f.querySelector('.fila-masiva-costo')?.value) || 0,
+                        precio_venta: parseFloat(f.querySelector('.fila-masiva-precio')?.value) || 0
+                    });
+                }
+            });
+
+            if (productos.length === 0) {
+                if (typeof showToast === 'function') showToast('Escribe al menos el nombre de un producto en la tabla', 'warning');
+                return;
+            }
+        }
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Guardando...';
+        }
+
+        try {
+            const res = await fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/save_batch_productos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productos })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.status === 'success') {
+                const msg = `Se guardaron ${data.data?.insertados || productos.length} productos correctamente`;
+                if (typeof showToast === 'function') showToast(msg, 'success');
+                cerrarModalCargaMasiva();
+                await cargarProductosInventario();
+            } else {
+                if (typeof showToast === 'function') showToast(data.message || 'Error al guardar productos masivos', 'error');
+            }
+        } catch (e) {
+            console.error('Error en carga masiva:', e);
+            if (typeof showToast === 'function') showToast('Error al procesar la carga masiva', 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph ph-check"></i> Guardar Todos los Productos';
+            }
+        }
+    };
+
+    // ========================================================
+    // CÁMARA EN VIVO & ESCANEO OCR DE COMPROBANTES
+    // ========================================================
+    window.abrirCamaraOCR = async function() {
+        const modal = document.getElementById('modal-camara-ocr');
+        if (!modal) return;
+
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => modal.classList.add('show'));
+
+        const video = document.getElementById('camara-video');
+        const canvas = document.getElementById('camara-canvas');
+        const ctrlCap = document.getElementById('camara-controles-captura');
+        const ctrlRes = document.getElementById('camara-controles-resultado');
+        const overlay = document.getElementById('camara-ocr-overlay');
+
+        if (video) video.style.display = 'block';
+        if (canvas) canvas.style.display = 'none';
+        if (ctrlCap) ctrlCap.style.display = 'flex';
+        if (ctrlRes) ctrlRes.style.display = 'none';
+        if (overlay) overlay.style.display = 'none';
+
+        await iniciarStreamCamara();
+
+        if (typeof window.renderPhosphorIcons === 'function') {
+            window.renderPhosphorIcons(modal);
+        }
+    };
+
+    window.cerrarCamaraOCR = function() {
+        const modal = document.getElementById('modal-camara-ocr');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+        detenerStreamCamara();
+    };
+
+    function detenerStreamCamara() {
+        if (camaraStream) {
+            camaraStream.getTracks().forEach(track => track.stop());
+            camaraStream = null;
+        }
+        const video = document.getElementById('camara-video');
+        if (video) video.srcObject = null;
+    }
+
+    async function iniciarStreamCamara(facingMode = 'environment') {
+        detenerStreamCamara();
+        const video = document.getElementById('camara-video');
+        if (!video) return;
+
+        try {
+            const constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: false
+            };
+
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (errFacing) {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+
+            camaraStream = stream;
+            video.srcObject = stream;
+            await video.play();
+        } catch (err) {
+            console.error('Error accediendo a cámara:', err);
+            if (typeof showToast === 'function') {
+                showToast('No se pudo acceder a la cámara. Verifica los permisos del navegador.', 'error');
+            }
+        }
+    }
+
+    let camaraFacingActual = 'environment';
+    window.cambiarDispositivoCamara = async function() {
+        camaraFacingActual = (camaraFacingActual === 'environment') ? 'user' : 'environment';
+        await iniciarStreamCamara(camaraFacingActual);
+    };
+
+    window.capturarFotoCamara = function() {
+        const video = document.getElementById('camara-video');
+        const canvas = document.getElementById('camara-canvas');
+        const ctrlCap = document.getElementById('camara-controles-captura');
+        const ctrlRes = document.getElementById('camara-controles-resultado');
+
+        if (!video || !canvas) return;
+
+        const w = video.videoWidth || 1280;
+        const h = video.videoHeight || 720;
+        canvas.width = w;
+        canvas.height = h;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, w, h);
+
+        video.style.display = 'none';
+        canvas.style.display = 'block';
+
+        if (ctrlCap) ctrlCap.style.display = 'none';
+        if (ctrlRes) ctrlRes.style.display = 'flex';
+    };
+
+    window.repetirCapturaCamara = function() {
+        const video = document.getElementById('camara-video');
+        const canvas = document.getElementById('camara-canvas');
+        const ctrlCap = document.getElementById('camara-controles-captura');
+        const ctrlRes = document.getElementById('camara-controles-resultado');
+
+        if (video) video.style.display = 'block';
+        if (canvas) canvas.style.display = 'none';
+        if (ctrlCap) ctrlCap.style.display = 'flex';
+        if (ctrlRes) ctrlRes.style.display = 'none';
+    };
+
+    window.confirmarYEjecutarOCR = async function() {
+        const canvas = document.getElementById('camara-canvas');
+        const overlay = document.getElementById('camara-ocr-overlay');
+        const statusText = document.getElementById('camara-ocr-status');
+
+        if (!canvas) return;
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+        // Crear objeto File para comprobanteFileAdjunto
+        try {
+            const arr = dataUrl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            const blobFile = new File([u8arr], `comprobante_cam_${Date.now()}.jpg`, { type: mime });
+            comprobanteFileAdjunto = blobFile;
+
+            const label = document.getElementById('compra-file-label');
+            const btnRemove = document.getElementById('btn-remover-comprobante');
+            if (label) label.innerText = `Foto Comprobante (${(blobFile.size / 1024).toFixed(0)} KB)`;
+            if (btnRemove) btnRemove.style.display = 'inline-flex';
+        } catch (fErr) {
+            console.warn('Error convirtiendo imagen a File:', fErr);
+        }
+
+        if (overlay) overlay.style.display = 'flex';
+        if (statusText) statusText.innerText = 'Analizando comprobante con OCR...';
+
+        try {
+            await asegurarTesseractCargado();
+
+            if (statusText) statusText.innerText = 'Extrayendo texto y números...';
+
+            const resultadoOCR = await Tesseract.recognize(dataUrl, 'spa+eng', {
+                logger: m => {
+                    if (m.status === 'recognizing text' && statusText) {
+                        statusText.innerText = `Reconociendo texto: ${(m.progress * 100).toFixed(0)}%`;
+                    }
+                }
+            });
+
+            const rawText = resultadoOCR?.data?.text || '';
+            const datosDetectados = parsearTextoComprobanteOCR(rawText);
+
+            aplicarDatosOCREnFormulario(datosDetectados);
+
+            const badgeOCR = document.getElementById('ocr-badge-status');
+            if (badgeOCR) {
+                badgeOCR.style.display = 'inline-block';
+                badgeOCR.innerHTML = '<i class="ph ph-check"></i> OCR Procesado';
+            }
+
+            if (typeof showToast === 'function') {
+                showToast('Foto adjuntada y datos leídos con éxito', 'success');
+            }
+        } catch (ocrErr) {
+            console.warn('OCR no completado:', ocrErr);
+            if (typeof showToast === 'function') {
+                showToast('Foto adjuntada como comprobante. Completa los campos si faltan datos.', 'info');
+            }
+        } finally {
+            cerrarCamaraOCR();
+        }
+    };
+
+    function asegurarTesseractCargado() {
+        return new Promise((resolve, reject) => {
+            if (window.Tesseract) {
+                resolve(window.Tesseract);
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+            script.async = true;
+
+            const timer = setTimeout(() => {
+                reject(new Error('Tiempo de espera agotado al cargar el motor OCR'));
+            }, 10000);
+
+            script.onload = () => {
+                clearTimeout(timer);
+                resolve(window.Tesseract);
+            };
+            script.onerror = () => {
+                clearTimeout(timer);
+                reject(new Error('No se pudo descargar el motor OCR'));
+            };
+            document.head.appendChild(script);
+        });
+    }
+
+    function parsearTextoComprobanteOCR(rawText) {
+        const resultado = {
+            numero_comprobante: '',
+            proveedor: '',
+            monto_total: 0
+        };
+
+        if (!rawText) return resultado;
+
+        // Detección de Serie y Número (ej: F001-00012345, B002-123456)
+        const regexComprobante = /([FB0-9][0-9A-Z]{2,4}[-\s]\d{3,8})/i;
+        const matchComp = rawText.match(regexComprobante);
+        if (matchComp) {
+            resultado.numero_comprobante = matchComp[1].replace(/\s/g, '-').toUpperCase();
+        }
+
+        // Detección de RUC y Proveedor
+        const regexRuc = /(?:RUC|R\.U\.C\.?)[\s:]*([12]0\d{9})/i;
+        const matchRuc = rawText.match(regexRuc);
+        
+        const lineas = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+        for (const l of lineas) {
+            if (/(?:S\.A\.C|SAC|S\.A\.|E\.I\.R\.L|EIRL|S\.R\.L|SRL|COMERCIAL|DISTRIBUIDORA|AGR[IÍ]COLA|AV[IÍ]COLA|MERCADO)/i.test(l)) {
+                resultado.proveedor = l.replace(/[^\w\s\.\,\-áéíóúÁÉÍÓÚñÑ]/g, '').trim();
+                break;
+            }
+        }
+        if (!resultado.proveedor && matchRuc) {
+            resultado.proveedor = 'RUC ' + matchRuc[1];
+        }
+
+        // Detección de Monto Total
+        const regexTotal = /(?:TOTAL|IMPORTE\s*TOTAL|VENTA\s*TOTAL)[\s:S/$\.]*([0-9]{1,6}[.,]\d{2})/i;
+        const matchTotal = rawText.match(regexTotal);
+        if (matchTotal) {
+            const rawMonto = matchTotal[1].replace(',', '.');
+            resultado.monto_total = parseFloat(rawMonto) || 0;
+        } else {
+            const montos = rawText.match(/\b\d{1,5}[.,]\d{2}\b/g);
+            if (montos && montos.length > 0) {
+                const parsedMontos = montos.map(m => parseFloat(m.replace(',', '.'))).filter(n => !isNaN(n));
+                if (parsedMontos.length > 0) {
+                    resultado.monto_total = Math.max(...parsedMontos);
+                }
+            }
+        }
+
+        return resultado;
+    }
+
+    function aplicarDatosOCREnFormulario(datos) {
+        if (datos.numero_comprobante) {
+            const numInput = document.getElementById('compra-num-comprobante');
+            if (numInput) numInput.value = datos.numero_comprobante;
+        }
+
+        if (datos.proveedor) {
+            const provInput = document.getElementById('compra-proveedor');
+            if (provInput) provInput.value = datos.proveedor;
+        }
+
+        if (datos.monto_total && datos.monto_total > 0) {
+            const cantInput = document.getElementById('compra-cantidad');
+            const puInput = document.getElementById('compra-precio-unitario');
+            
+            if (cantInput && (!cantInput.value || parseFloat(cantInput.value) <= 0)) {
+                cantInput.value = '1';
+            }
+            const cant = parseFloat(cantInput ? cantInput.value : 1) || 1;
+            
+            if (puInput) {
+                puInput.value = (datos.monto_total / cant).toFixed(2);
+            }
+            recalcularTotalCompraManual();
+        }
+    }
 
     // ========================================================
     // MODAL DE AJUSTE RÁPIDO DE STOCK
@@ -1489,30 +2919,42 @@
         }
     };
 
-    // Eliminar Producto
-    window.eliminarProducto = function(id, nombre) {
-        if (!confirm(`¿Estás seguro de que deseas eliminar el producto / insumo "${nombre}"?\nEsta acción retirará el ítem del catálogo.`)) {
-            return;
-        }
+    // Eliminar Producto (Con Modal Moderno del Sistema)
+    window.eliminarProducto = async function(id, nombre) {
+        const confirmarFn = window.confirmarAccion || function(opts) {
+            return Promise.resolve(confirm(opts.mensaje || '¿Eliminar producto?'));
+        };
 
-        fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/delete_producto', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id })
-        })
-        .then(res => res.json())
-        .then(data => {
+        const confirmado = await confirmarFn({
+            titulo: '¿Eliminar Producto / Insumo?',
+            mensaje: '¿Estás seguro de que deseas eliminar este ítem del catálogo?',
+            item: nombre,
+            detalle: 'Esta acción retirará el ítem del catálogo de existencias. Su historial y registros de compras quedarán archivados para auditoría contable.',
+            tipo: 'danger',
+            icono: 'trash',
+            textoConfirmar: 'Sí, Eliminar',
+            textoCancelar: 'Cancelar'
+        });
+
+        if (!confirmado) return;
+
+        try {
+            const res = await fetch((window.APP_BASE || '') + '/api/index.php?request=inventario/delete_producto', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            const data = await res.json();
             if (data.status === 'success') {
                 if (typeof showToast === 'function') showToast('Producto eliminado exitosamente', 'success');
                 cargarProductosInventario();
             } else {
                 if (typeof showToast === 'function') showToast(data.message || 'Error al eliminar', 'error');
             }
-        })
-        .catch(err => {
+        } catch (err) {
             console.error(err);
             if (typeof showToast === 'function') showToast('Error al eliminar producto', 'error');
-        });
+        }
     };
 
 })();

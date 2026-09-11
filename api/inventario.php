@@ -457,6 +457,294 @@ else if ($method === 'POST' && ($accion === 'ajustar_stock' || $accion === 'ajus
         respondError($e->getMessage());
     }
 }
+// Listar Catálogos Auxiliares (Tipos, Unidades, Ubicaciones, Proveedores, Categorías)
+else if ($method === 'GET' && ($accion === 'list_catalogos' || $accion === 'catalogos')) {
+    // Asegurar existencia de tabla catalogos_inventario
+    $db->exec("CREATE TABLE IF NOT EXISTS catalogos_inventario (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tipo VARCHAR(50) NOT NULL,
+        valor VARCHAR(150) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_tipo_valor (tipo, valor)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Verificar si necesita semillas iniciales
+    $countStmt = $db->query("SELECT COUNT(*) FROM catalogos_inventario");
+    if ($countStmt && (int)$countStmt->fetchColumn() === 0) {
+        $seeds = [
+            // Tipos de Artículo
+            ['tipo' => 'tipo_articulo', 'valor' => 'Materia Prima (Insumo Base)'],
+            ['tipo' => 'tipo_articulo', 'valor' => 'Producto Terminado'],
+            ['tipo' => 'tipo_articulo', 'valor' => 'Insumo Procesado / Subreceta'],
+            ['tipo' => 'tipo_articulo', 'valor' => 'Bebida / Envasado'],
+            ['tipo' => 'tipo_articulo', 'valor' => 'Empaque / Descartable'],
+            // Unidades de Medida
+            ['tipo' => 'unidad_medida', 'valor' => 'Kilogramos (kg)'],
+            ['tipo' => 'unidad_medida', 'valor' => 'Litros (L)'],
+            ['tipo' => 'unidad_medida', 'valor' => 'Unidades (und)'],
+            ['tipo' => 'unidad_medida', 'valor' => 'Gramos (g)'],
+            ['tipo' => 'unidad_medida', 'valor' => 'Mililitros (ml)'],
+            ['tipo' => 'unidad_medida', 'valor' => 'Porciones'],
+            ['tipo' => 'unidad_medida', 'valor' => 'Cajas'],
+            ['tipo' => 'unidad_medida', 'valor' => 'Paquetes'],
+            // Ubicaciones Físicas
+            ['tipo' => 'ubicacion_fisica', 'valor' => 'Cámara Fría'],
+            ['tipo' => 'ubicacion_fisica', 'valor' => 'Almacén Seco'],
+            ['tipo' => 'ubicacion_fisica', 'valor' => 'Barra / Mostrador'],
+            ['tipo' => 'ubicacion_fisica', 'valor' => 'Cocina Caliente'],
+            ['tipo' => 'ubicacion_fisica', 'valor' => 'Congelador Principal'],
+            ['tipo' => 'ubicacion_fisica', 'valor' => 'Estantería Central'],
+            // Proveedores Habituales
+            ['tipo' => 'proveedor_habitual', 'valor' => 'Distribuidora Agrícola del Valle'],
+            ['tipo' => 'proveedor_habitual', 'valor' => 'Lácteos San Juan S.A.'],
+            ['tipo' => 'proveedor_habitual', 'valor' => 'Avícola San Fernando'],
+            ['tipo' => 'proveedor_habitual', 'valor' => 'Mercado Central Mayorista']
+        ];
+        $ins = $db->prepare("INSERT IGNORE INTO catalogos_inventario (tipo, valor) VALUES (:tipo, :valor)");
+        foreach ($seeds as $s) {
+            $ins->execute([':tipo' => $s['tipo'], ':valor' => $s['valor']]);
+        }
+    }
+
+    // Consultar elementos de catalogos_inventario
+    $cStmt = $db->query("SELECT id, tipo, valor FROM catalogos_inventario ORDER BY valor ASC");
+    $rawItems = $cStmt ? $cStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+
+    $catalogos = [
+        'tipo_articulo' => [],
+        'unidad_medida' => [],
+        'ubicacion_fisica' => [],
+        'proveedor_habitual' => [],
+        'categoria' => []
+    ];
+
+    foreach ($rawItems as $item) {
+        $t = $item['tipo'];
+        if (isset($catalogos[$t])) {
+            $catalogos[$t][] = [
+                'id' => (int)$item['id'],
+                'valor' => $item['valor']
+            ];
+        }
+    }
+
+    // Categorías de catálogo (desde tabla categorias)
+    $catStmt = $db->query("SELECT id, nombre as valor FROM categorias ORDER BY nombre ASC");
+    if ($catStmt) {
+        $catalogos['categoria'] = $catStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    respondSuccess($catalogos);
+}
+// Guardar / Actualizar Elemento de Catálogo Auxiliar
+else if ($method === 'POST' && ($accion === 'save_catalogo_item' || $accion === 'guardar_catalogo_item')) {
+    $rawInput = preg_replace('/^\xEF\xBB\xBF/', '', file_get_contents("php://input"));
+    $input = json_decode($rawInput, true) ?: [];
+    $tipo = trim($input['tipo'] ?? '');
+    $id = !empty($input['id']) ? (int)$input['id'] : null;
+    $valor = trim($input['valor'] ?? '');
+
+    if (empty($tipo) || empty($valor)) {
+        respondError("Tipo y valor son obligatorios");
+    }
+
+    if ($tipo === 'categoria') {
+        if ($id) {
+            $stmt = $db->prepare("UPDATE categorias SET nombre = :v WHERE id = :id");
+            $stmt->execute([':v' => $valor, ':id' => $id]);
+            respondSuccess(['id' => $id, 'valor' => $valor], "Categoría actualizada correctamente");
+        } else {
+            $stmt = $db->prepare("INSERT INTO categorias (nombre) VALUES (:v)");
+            $stmt->execute([':v' => $valor]);
+            $newId = (int)$db->lastInsertId();
+            respondSuccess(['id' => $newId, 'valor' => $valor], "Categoría creada correctamente");
+        }
+    } else {
+        $db->exec("CREATE TABLE IF NOT EXISTS catalogos_inventario (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tipo VARCHAR(50) NOT NULL,
+            valor VARCHAR(150) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_tipo_valor (tipo, valor)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        if ($id) {
+            $stmt = $db->prepare("UPDATE catalogos_inventario SET valor = :v WHERE id = :id");
+            $stmt->execute([':v' => $valor, ':id' => $id]);
+            respondSuccess(['id' => $id, 'valor' => $valor], "Elemento actualizado correctamente");
+        } else {
+            $stmt = $db->prepare("INSERT INTO catalogos_inventario (tipo, valor) VALUES (:t, :v) ON DUPLICATE KEY UPDATE valor = :v");
+            $stmt->execute([':t' => $tipo, ':v' => $valor]);
+            $newId = (int)$db->lastInsertId();
+            if (!$newId) {
+                $sel = $db->prepare("SELECT id FROM catalogos_inventario WHERE tipo = :t AND valor = :v");
+                $sel->execute([':t' => $tipo, ':v' => $valor]);
+                $newId = (int)$sel->fetchColumn();
+            }
+            respondSuccess(['id' => $newId, 'valor' => $valor], "Elemento guardado correctamente");
+        }
+    }
+}
+// Eliminar Elemento de Catálogo Auxiliar
+else if ($method === 'POST' && ($accion === 'delete_catalogo_item' || $accion === 'eliminar_catalogo_item')) {
+    $rawInput = preg_replace('/^\xEF\xBB\xBF/', '', file_get_contents("php://input"));
+    $input = json_decode($rawInput, true) ?: [];
+    $tipo = trim($input['tipo'] ?? '');
+    $id = !empty($input['id']) ? (int)$input['id'] : null;
+
+    if (empty($tipo) || !$id) {
+        respondError("Parámetros incompletos para eliminar");
+    }
+
+    if ($tipo === 'categoria') {
+        // Desvincular productos de esta categoría o verificar uso
+        $checkStmt = $db->prepare("SELECT COUNT(*) FROM productos WHERE id_categoria = :id");
+        $checkStmt->execute([':id' => $id]);
+        $enUso = (int)$checkStmt->fetchColumn();
+        if ($enUso > 0) {
+            // Reasignar a fallback o desasociar
+            $fb = $db->query("SELECT id FROM categorias WHERE id != $id LIMIT 1")->fetchColumn();
+            if ($fb) {
+                $upd = $db->prepare("UPDATE productos SET id_categoria = :fb WHERE id_categoria = :id");
+                $upd->execute([':fb' => $fb, ':id' => $id]);
+            }
+        }
+        $stmt = $db->prepare("DELETE FROM categorias WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        respondSuccess(null, "Categoría eliminada exitosamente");
+    } else {
+        $stmt = $db->prepare("DELETE FROM catalogos_inventario WHERE id = :id AND tipo = :tipo");
+        $stmt->execute([':id' => $id, ':tipo' => $tipo]);
+        respondSuccess(null, "Elemento eliminado exitosamente");
+    }
+}
+// Carga Masiva de Múltiples Productos
+else if ($method === 'POST' && ($accion === 'save_batch_productos' || $accion === 'importar_masivo')) {
+    $rawInput = preg_replace('/^\xEF\xBB\xBF/', '', file_get_contents("php://input"));
+    $input = json_decode($rawInput, true) ?: [];
+    $productos = $input['productos'] ?? [];
+
+    if (!is_array($productos) || empty($productos)) {
+        respondError("No se recibieron productos para procesar");
+    }
+
+    $db->beginTransaction();
+    try {
+        $creados = 0;
+        $actualizados = 0;
+        $errores = [];
+
+        // Categoría por defecto
+        $catFallback = $db->query("SELECT id FROM categorias LIMIT 1")->fetchColumn() ?: 1;
+
+        $checkSku = $db->prepare("SELECT id FROM productos WHERE codigo_sku = :sku LIMIT 1");
+        
+        $updStmt = $db->prepare("UPDATE productos SET 
+            nombre = :nombre,
+            id_categoria = :id_categoria,
+            tipo_articulo = :tipo_articulo,
+            unidad_medida = :unidad_medida,
+            ubicacion_fisica = :ubicacion_fisica,
+            proveedor_habitual = :proveedor_habitual,
+            codigo_barras = :codigo_barras,
+            descripcion = :descripcion,
+            precio_venta = :precio_venta,
+            costo_unitario = :costo_unitario,
+            stock_actual = :stock_actual,
+            stock_minimo = :stock_minimo,
+            estado = :estado
+            WHERE id = :id");
+
+        $insStmt = $db->prepare("INSERT INTO productos (
+            nombre, id_categoria, tipo_articulo, unidad_medida, ubicacion_fisica, 
+            proveedor_habitual, codigo_barras, codigo_sku, descripcion, precio_venta, 
+            costo_unitario, stock_actual, stock_minimo, estado
+        ) VALUES (
+            :nombre, :id_categoria, :tipo_articulo, :unidad_medida, :ubicacion_fisica, 
+            :proveedor_habitual, :codigo_barras, :codigo_sku, :descripcion, :precio_venta, 
+            :costo_unitario, :stock_actual, :stock_minimo, :estado
+        )");
+
+        foreach ($productos as $idx => $p) {
+            $nombre = trim($p['nombre'] ?? '');
+            if (empty($nombre)) {
+                $errores[] = "Fila " . ($idx + 1) . ": Nombre de producto vacío";
+                continue;
+            }
+
+            $sku = trim($p['codigo_sku'] ?? '');
+            if (empty($sku)) {
+                $sku = 'MP-' . strtoupper(substr(uniqid(), -4)) . rand(10, 99);
+            }
+
+            $id_cat = !empty($p['id_categoria']) ? (int)$p['id_categoria'] : (int)$catFallback;
+            $tipo = trim($p['tipo_articulo'] ?? 'Materia Prima (Insumo Base)');
+            $unidad = trim($p['unidad_medida'] ?? 'Kilogramos (kg)');
+            $ubicacion = trim($p['ubicacion_fisica'] ?? 'Almacén Seco');
+            $proveedor = trim($p['proveedor_habitual'] ?? '');
+            $codigo_barras = trim($p['codigo_barras'] ?? '');
+            $descripcion = trim($p['descripcion'] ?? '');
+            $stock = (float)($p['stock_actual'] ?? 0);
+            $stock_min = (float)($p['stock_minimo'] ?? 5);
+            $costo = (float)($p['costo_unitario'] ?? 0);
+            $precio = (float)($p['precio_venta'] ?? 0);
+            $estado = ($stock > 0) ? 'disponible' : 'agotado';
+
+            // Comprobar si ya existe por SKU
+            $checkSku->execute([':sku' => $sku]);
+            $existId = $checkSku->fetchColumn();
+
+            if ($existId) {
+                $updStmt->execute([
+                    ':nombre' => $nombre,
+                    ':id_categoria' => $id_cat,
+                    ':tipo_articulo' => $tipo,
+                    ':unidad_medida' => $unidad,
+                    ':ubicacion_fisica' => $ubicacion,
+                    ':proveedor_habitual' => $proveedor,
+                    ':codigo_barras' => $codigo_barras,
+                    ':descripcion' => $descripcion,
+                    ':precio_venta' => $precio,
+                    ':costo_unitario' => $costo,
+                    ':stock_actual' => $stock,
+                    ':stock_minimo' => $stock_min,
+                    ':estado' => $estado,
+                    ':id' => $existId
+                ]);
+                $actualizados++;
+            } else {
+                $insStmt->execute([
+                    ':nombre' => $nombre,
+                    ':id_categoria' => $id_cat,
+                    ':tipo_articulo' => $tipo,
+                    ':unidad_medida' => $unidad,
+                    ':ubicacion_fisica' => $ubicacion,
+                    ':proveedor_habitual' => $proveedor,
+                    ':codigo_barras' => $codigo_barras,
+                    ':codigo_sku' => $sku,
+                    ':descripcion' => $descripcion,
+                    ':precio_venta' => $precio,
+                    ':costo_unitario' => $costo,
+                    ':stock_actual' => $stock,
+                    ':stock_minimo' => $stock_min,
+                    ':estado' => $estado
+                ]);
+                $creados++;
+            }
+        }
+
+        $db->commit();
+        respondSuccess([
+            'total_procesados' => count($productos),
+            'creados' => $creados,
+            'actualizados' => $actualizados,
+            'errores' => $errores
+        ], "Carga masiva procesada exitosamente ($creados creados, $actualizados actualizados)");
+    } catch (Exception $e) {
+        $db->rollBack();
+        respondError("Error en carga masiva: " . $e->getMessage());
+    }
+}
 else {
     respondError("Acción de inventario no válida", 404);
 }

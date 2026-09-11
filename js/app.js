@@ -200,6 +200,125 @@ function showModal(title, content, onConfirm = null) {
     };
 }
 
+/**
+ * Modal Moderno de Confirmación / Eliminación del Sistema (Reemplaza confirm() nativo)
+ */
+window.confirmarAccion = function(options = {}) {
+    return new Promise((resolve) => {
+        const modalEl = document.getElementById('modal-confirmacion-sistema');
+        if (!modalEl) {
+            const ok = confirm((options.titulo ? options.titulo + '\n\n' : '') + (options.mensaje || '¿Confirmar acción?'));
+            resolve(ok);
+            return;
+        }
+
+        const tipo = options.tipo || 'danger';
+        const icono = options.icono || (tipo === 'danger' ? 'trash' : (tipo === 'warning' ? 'warning' : 'info'));
+        const titulo = options.titulo || (tipo === 'danger' ? '¿Estás seguro de eliminar?' : '¿Confirmar acción?');
+        const mensaje = options.mensaje || '';
+        const detalle = options.detalle !== undefined ? options.detalle : 'Esta acción no se puede deshacer.';
+        const textoConfirmar = options.textoConfirmar || (tipo === 'danger' ? 'Sí, Eliminar' : 'Confirmar');
+        const textoCancelar = options.textoCancelar || 'Cancelar';
+
+        const titEl = document.getElementById('confirm-modal-titulo');
+        const msgEl = document.getElementById('confirm-modal-mensaje');
+        const badgeEl = document.getElementById('confirm-modal-item-badge');
+        const detEl = document.getElementById('confirm-modal-detalle');
+        const iconBox = document.getElementById('confirm-modal-icon-box');
+        const iconEl = document.getElementById('confirm-modal-icon');
+        const btnCancel = document.getElementById('confirm-modal-btn-cancel');
+        const btnAccept = document.getElementById('confirm-modal-btn-accept');
+        const btnIcon = document.getElementById('confirm-modal-btn-icon');
+        const btnText = document.getElementById('confirm-modal-btn-text');
+
+        if (titEl) titEl.innerHTML = titulo;
+        if (msgEl) msgEl.innerHTML = mensaje;
+        
+        if (badgeEl) {
+            if (options.item) {
+                badgeEl.style.display = 'flex';
+                badgeEl.innerHTML = `<i class="ph ph-tag" style="color: ${tipo === 'danger' ? '#DC2626' : 'var(--primary)'}; flex-shrink: 0;"></i> <span style="font-weight: 700; word-break: break-word;">${options.item}</span>`;
+            } else {
+                badgeEl.style.display = 'none';
+            }
+        }
+
+        if (detEl) {
+            detEl.innerHTML = detalle;
+            detEl.style.display = detalle ? 'block' : 'none';
+        }
+
+        if (iconBox) {
+            iconBox.className = 'confirm-icon-box ' + tipo;
+        }
+        if (iconEl) {
+            iconEl.className = 'ph ph-' + icono;
+        }
+
+        if (btnCancel) {
+            btnCancel.innerText = textoCancelar;
+        }
+
+        if (btnAccept) {
+            btnAccept.className = 'btn btn-confirm-accept ' + tipo;
+        }
+        if (btnIcon) {
+            btnIcon.className = 'ph ph-' + icono;
+        }
+        if (btnText) {
+            btnText.innerText = textoConfirmar;
+        }
+
+        let isResolved = false;
+
+        const cleanup = () => {
+            document.removeEventListener('keydown', keyHandler);
+            modalEl.classList.remove('show');
+            setTimeout(() => modalEl.classList.add('hidden'), 200);
+            window._resolverConfirmacion = null;
+        };
+
+        const keyHandler = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (!isResolved) {
+                    isResolved = true;
+                    cleanup();
+                    resolve(false);
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (!isResolved) {
+                    isResolved = true;
+                    cleanup();
+                    resolve(true);
+                }
+            }
+        };
+
+        window._resolverConfirmacion = (valor) => {
+            if (!isResolved) {
+                isResolved = true;
+                cleanup();
+                if (typeof triggerHaptic === 'function') triggerHaptic(valor ? 25 : 10);
+                resolve(valor);
+            }
+        };
+
+        document.addEventListener('keydown', keyHandler);
+
+        modalEl.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            modalEl.classList.add('show');
+            if (btnCancel) btnCancel.focus();
+        });
+
+        if (typeof window.renderPhosphorIcons === 'function') {
+            window.renderPhosphorIcons(modalEl);
+        }
+    });
+};
+
 
 // ==============================
 // ENRUTADOR Y LAYOUT
@@ -4124,7 +4243,16 @@ window.copiarSecretoSupervisor = function() {
 };
 
 window.regenerarTotpSupervisor = async function() {
-    if (!confirm('¿Estás seguro de regenerar la clave secreta de Google Authenticator? Deberás volver a escanear el QR en tu teléfono.')) return;
+    const confirmado = await window.confirmarAccion({
+        titulo: '¿Regenerar Clave Secreta TOTP?',
+        mensaje: '¿Estás seguro de regenerar la clave secreta de Google Authenticator?',
+        detalle: 'Deberás volver a escanear el nuevo código QR en tu teléfono para poder generar códigos válidos.',
+        tipo: 'warning',
+        icono: 'warning',
+        textoConfirmar: 'Sí, Regenerar',
+        textoCancelar: 'Cancelar'
+    });
+    if (!confirmado) return;
     
     try {
         const res = await fetch('/khalessierp/api/index.php?request=rrhh/regenerar_totp_supervisor', { method: 'POST' });

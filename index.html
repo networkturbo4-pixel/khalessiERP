@@ -45,7 +45,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Icons (Phosphor SVG Universal - 100% Local, Offline & Apple Lockdown Mode Compatible) -->
-    <script src="js/phosphor-svg.js?v=2.7.4"></script>
+    <script src="js/phosphor-svg.js?v=2.7.5"></script>
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -54,7 +54,7 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
     <!-- Global CSS -->
-    <link rel="stylesheet" href="css/index.css?v=2.7.9">
+    <link rel="stylesheet" href="css/index.css?v=2.8.3">
 </head>
 <body>
     
@@ -77,6 +77,35 @@
             <div class="modal-footer" id="modal-footer">
                 <button class="btn btn-secondary" id="btn-cancel-modal">Cancelar</button>
                 <button class="btn btn-primary" id="btn-confirm-modal">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Moderno de Confirmación / Eliminación del Sistema -->
+    <div id="modal-confirmacion-sistema" class="modal-backdrop hidden" style="z-index: 12000;" onclick="if(event.target === this && typeof window._resolverConfirmacion === 'function') window._resolverConfirmacion(false)">
+        <div class="modal modal-confirm-box" onclick="event.stopPropagation()">
+            <div class="modal-confirm-header">
+                <div class="confirm-icon-box danger" id="confirm-modal-icon-box">
+                    <i id="confirm-modal-icon" class="ph ph-trash"></i>
+                </div>
+                <button type="button" class="btn-icon" id="confirm-modal-btn-close" onclick="if(typeof window._resolverConfirmacion === 'function') window._resolverConfirmacion(false)">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <div class="modal-confirm-body">
+                <h3 id="confirm-modal-titulo" class="confirm-modal-title">¿Eliminar elemento?</h3>
+                <p id="confirm-modal-mensaje" class="confirm-modal-msg">¿Estás seguro de realizar esta acción?</p>
+                <div id="confirm-modal-item-badge" class="confirm-modal-item-badge" style="display: none;"></div>
+                <p id="confirm-modal-detalle" class="confirm-modal-detail">Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="modal-confirm-footer">
+                <button type="button" class="btn btn-secondary btn-confirm-cancel" id="confirm-modal-btn-cancel" onclick="if(typeof window._resolverConfirmacion === 'function') window._resolverConfirmacion(false)">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-confirm-accept danger" id="confirm-modal-btn-accept" onclick="if(typeof window._resolverConfirmacion === 'function') window._resolverConfirmacion(true)">
+                    <i class="ph ph-trash" id="confirm-modal-btn-icon"></i>
+                    <span id="confirm-modal-btn-text">Sí, Eliminar</span>
+                </button>
             </div>
         </div>
     </div>
@@ -199,9 +228,9 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/modules/inventario.js?v=2.5.1"></script>
+    <script src="js/modules/inventario.js?v=2.5.5"></script>
     <script src="js/modules/recetas.js?v=2.2.0"></script>
-    <script src="js/app.js?v=2.7.5"></script>
+    <script src="js/app.js?v=2.7.6"></script>
     <script>
         if ('serviceWorker' in navigator) {
             // Comprobación segura de Cache API (Safari en Modo Hermético / Lockdown Mode deshabilita caches)

@@ -9,6 +9,8 @@ uploads/comprobantes/*
 !uploads/comprobantes/.gitkeep
 uploads/productos/*
 !uploads/productos/.gitkeep
+uploads/tiendas/*
+!uploads/tiendas/.gitkeep
 
 # Entornos y logs locales
 .env

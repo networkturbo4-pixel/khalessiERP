@@ -351,7 +351,16 @@ else if ($method === 'POST' && ($accion === 'crear' || $accion === 'save' || $ac
                 $item_notas = is_array($it['extras']) ? json_encode($it['extras'], JSON_UNESCAPED_UNICODE) : $it['extras'];
             }
 
-            // Si no tenemos id_producto directo, intentar buscar por nombre en productos del ERP
+            // Validar si el id_producto existe realmente en el catálogo del ERP
+            if ($item_id_producto) {
+                $sCheckP = $db->prepare("SELECT id FROM productos WHERE id = :id LIMIT 1");
+                $sCheckP->execute([':id' => $item_id_producto]);
+                if (!$sCheckP->fetchColumn()) {
+                    $item_id_producto = null;
+                }
+            }
+
+            // Si no tenemos id_producto válido, intentar buscar por nombre o SKU
             if (!$item_id_producto) {
                 $sFindProd = $db->prepare("SELECT id FROM productos WHERE nombre = :nom OR codigo_sku = :sku LIMIT 1");
                 $sFindProd->execute([':nom' => $item_nombre, ':sku' => $item_nombre]);
@@ -476,6 +485,200 @@ else if ($method === 'GET' && $accion === 'stats') {
         'pedidos_en_preparacion' => $pedidosPreparacion,
         'pedidos_completados' => $pedidosEntregados
     ]);
+}
+
+// Sincronizar pedidos existentes desde Tienda Roma hacia el ERP
+else if ($accion === 'sincronizar_tienda' || $accion === 'sync') {
+    $apiKey = 'kh_sec_roma_2026_pizzakhalessi';
+    
+    // 1. Determinar URL de Tienda Roma
+    $isLocal = in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1']);
+    $urlSync = $isLocal 
+        ? 'http://localhost/TIENDAROMA/api/sync_khalessi.php' 
+        : 'https://pizzakhalessi.com/api/sync_khalessi.php';
+
+    $pedidosTienda = [];
+
+    // Intentar vía cURL primero
+    $ch = curl_init($urlSync);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: ' . $apiKey]);
+    curl_setopt($ch, CURLOPT_TIMEOUT_MS, 4000);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $raw = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && !empty($raw)) {
+        $json = json_decode($raw, true);
+        if (!empty($json['orders'])) {
+            $pedidosTienda = $json['orders'];
+        }
+    }
+
+    // Fallback: Si cURL falla y estamos en el mismo servidor MySQL, intentar lectura directa de BD
+    if (empty($pedidosTienda)) {
+        try {
+            // Nombre de la base de datos de Tienda Roma (local o cPanel)
+            $dbNameTienda = $isLocal ? 'tiendaroma' : 'pizzjkyq_tiendaroma';
+            
+            // Usar mismas credenciales que el ERP
+            $configFile = __DIR__ . '/config.prod.php';
+            $dbHost = 'localhost';
+            $dbUser = 'root';
+            $dbPass = '';
+            if (file_exists($configFile)) {
+                $cfg = include $configFile;
+                $dbHost = $cfg['DB_HOST'] ?? 'localhost';
+                $dbUser = $cfg['DB_USER'] ?? 'root';
+                $dbPass = $cfg['DB_PASS'] ?? '';
+            }
+
+            $pdoTienda = new PDO("mysql:host={$dbHost};dbname={$dbNameTienda};charset=utf8mb4", $dbUser, $dbPass);
+            $stmtT = $pdoTienda->query("SELECT * FROM orders ORDER BY id DESC LIMIT 60");
+            $pedidosTienda = $stmtT->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($pedidosTienda as &$pt) {
+                $sItems = $pdoTienda->prepare("SELECT * FROM order_items WHERE order_id = ?");
+                $sItems->execute([$pt['id']]);
+                $pt['items'] = $sItems->fetchAll(PDO::FETCH_ASSOC);
+            }
+        } catch (Exception $ex) {}
+    }
+
+    if (empty($pedidosTienda)) {
+        respondSuccess(['importados' => 0, 'actualizados' => 0], "No se encontraron pedidos en Tienda Roma para sincronizar.");
+    }
+
+    $mapEstados = [
+        'pending' => 'pendiente',
+        'confirmed' => 'confirmado',
+        'preparing' => 'en_preparacion',
+        'ready' => 'listo',
+        'shipped' => 'en_camino',
+        'on_way' => 'en_camino',
+        'delivered' => 'entregado',
+        'cancelled' => 'cancelado'
+    ];
+
+    $nuevos = 0;
+    $actualizados = 0;
+
+    foreach ($pedidosTienda as $pt) {
+        $idExterno = (string)$pt['id'];
+        $estadoMapeado = $mapEstados[$pt['status']] ?? 'pendiente';
+        $total = floatval($pt['total'] ?? 0);
+        $subtotal = floatval($pt['subtotal'] ?? $total);
+        $descuento = floatval($pt['discount'] ?? 0);
+        $envio = floatval($pt['delivery_fee'] ?? 0);
+        $clienteNombre = trim($pt['customer_name'] ?? 'Cliente');
+        $clienteTel = trim($pt['customer_phone'] ?? '');
+        $clienteDir = trim($pt['delivery_address'] ?? '');
+        $tipoEntrega = in_array($pt['delivery_method'] ?? '', ['delivery', 'pickup', 'mesa']) ? $pt['delivery_method'] : 'pickup';
+        $metodoPago = trim($pt['payment_method'] ?? 'Efectivo');
+        $fechaCreacion = !empty($pt['created_at']) ? $pt['created_at'] : date('Y-m-d H:i:s');
+
+        // Chequear si ya existe en pedidos
+        $check = $db->prepare("SELECT id, estado FROM pedidos WHERE id_pedido_externo = :ext LIMIT 1");
+        $check->execute([':ext' => $idExterno]);
+        $existente = $check->fetch(PDO::FETCH_ASSOC);
+
+        if ($existente) {
+            // Si el estado cambió en Tienda Roma, actualizar en el ERP
+            if ($existente['estado'] !== $estadoMapeado) {
+                $u = $db->prepare("UPDATE pedidos SET estado = :est WHERE id = :id");
+                $u->execute([':est' => $estadoMapeado, ':id' => $existente['id']]);
+                $actualizados++;
+            }
+        } else {
+            // Insertar nuevo pedido importado
+            $prefijo = 'PED-ROMA-' . str_pad($idExterno, 4, '0', STR_PAD_LEFT);
+            
+            // Buscar o crear cliente
+            $idCliente = null;
+            if (!empty($clienteTel)) {
+                $sCli = $db->prepare("SELECT id FROM clientes WHERE telefono = :tel LIMIT 1");
+                $sCli->execute([':tel' => $clienteTel]);
+                $idCliente = $sCli->fetchColumn() ?: null;
+            }
+            if (!$idCliente) {
+                $iCli = $db->prepare("INSERT INTO clientes (nombre, telefono, direccion) VALUES (:n, :t, :d)");
+                $iCli->execute([':n' => $clienteNombre, ':t' => $clienteTel ?: null, ':d' => $clienteDir ?: null]);
+                $idCliente = $db->lastInsertId();
+            }
+
+            $qIns = "INSERT INTO pedidos (codigo_pedido, id_local, id_cliente, origen, id_pedido_externo, 
+                                         cliente_nombre, cliente_telefono, cliente_direccion, tipo_entrega, 
+                                         metodo_pago, subtotal, descuento, costo_envio, total, estado, fecha_creacion) 
+                     VALUES (:cod, 1, :cli, 'tienda_roma', :ext, :cnom, :ctel, :cdir, :tentrega, :mpago, :sub, :desc, :env, :tot, :est, :fec)";
+            $sIns = $db->prepare($qIns);
+            $sIns->execute([
+                ':cod' => $prefijo,
+                ':cli' => $idCliente,
+                ':ext' => $idExterno,
+                ':cnom' => $clienteNombre,
+                ':ctel' => $clienteTel ?: null,
+                ':cdir' => $clienteDir ?: null,
+                ':tentrega' => $tipoEntrega,
+                ':mpago' => $metodoPago,
+                ':sub' => $subtotal,
+                ':desc' => $descuento,
+                ':env' => $envio,
+                ':tot' => $total,
+                ':est' => $estadoMapeado,
+                ':fec' => $fechaCreacion
+            ]);
+
+            $idPedidoNuevo = $db->lastInsertId();
+
+            // Insertar items
+            if (!empty($pt['items']) && is_array($pt['items'])) {
+                $qIt = "INSERT INTO pedidos_detalle (id_pedido, id_producto, producto_nombre, cantidad, precio_unitario, subtotal, notas) 
+                        VALUES (:idp, :prod, :nom, :cant, :prec, :sub, :not)";
+                $sIt = $db->prepare($qIt);
+
+                foreach ($pt['items'] as $it) {
+                    $prodNom = trim($it['product_name'] ?? $it['name'] ?? 'Producto');
+                    $cant = floatval($it['quantity'] ?? $it['qty'] ?? 1);
+                    $prec = floatval($it['price'] ?? 0);
+                    $sub = floatval($it['total'] ?? ($cant * $prec));
+                    $extras = !empty($it['extras']) ? (is_array($it['extras']) ? json_encode($it['extras']) : $it['extras']) : null;
+
+                    $prodId = !empty($it['product_id']) ? (int)$it['product_id'] : null;
+                    if ($prodId) {
+                        $sChkP = $db->prepare("SELECT id FROM productos WHERE id = :id LIMIT 1");
+                        $sChkP->execute([':id' => $prodId]);
+                        if (!$sChkP->fetchColumn()) {
+                            $prodId = null;
+                        }
+                    }
+                    if (!$prodId) {
+                        $sChkNom = $db->prepare("SELECT id FROM productos WHERE nombre = :nom LIMIT 1");
+                        $sChkNom->execute([':nom' => $prodNom]);
+                        $prodId = $sChkNom->fetchColumn() ?: null;
+                    }
+
+                    $sIt->execute([
+                        ':idp' => $idPedidoNuevo,
+                        ':prod' => $prodId,
+                        ':nom' => $prodNom,
+                        ':cant' => $cant,
+                        ':prec' => $prec,
+                        ':sub' => $sub,
+                        ':not' => $extras
+                    ]);
+                }
+            }
+
+            $nuevos++;
+        }
+    }
+
+    respondSuccess([
+        'importados' => $nuevos,
+        'actualizados' => $actualizados,
+        'total_procesados' => count($pedidosTienda)
+    ], "Sincronización con Tienda Roma exitosa: {$nuevos} nuevos pedidos importados, {$actualizados} actualizados.");
 }
 
 else {

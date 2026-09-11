@@ -17,11 +17,12 @@
                         Recepción y despacho en tiempo real sincronizado con Tienda Roma
                     </p>
                 </div>
-                <div style="display:flex; gap:12px; align-items:center;">
+                <div style="display:flex; gap:10px; align-items:center;">
                     <div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--text-sec); background:var(--bg-panel); padding:8px 14px; border-radius:12px; border:1px solid var(--border-color); box-shadow:var(--shadow-sm);">
                         <span id="pedidos-pulse-dot" style="width:8px; height:8px; border-radius:50%; background:#10B981; display:inline-block; box-shadow:0 0 8px #10B981;"></span>
                         <span id="pedidos-refresh-label">En vivo</span>
                     </div>
+                    <button class="btn btn-secondary btn-sm" id="btn-sync-tiendaroma" onclick="window.sincronizarTiendaRoma()"><i class="ph ph-arrows-clockwise"></i> Sincronizar Tienda</button>
                     <button class="btn btn-secondary btn-sm" onclick="window.cargarPedidos()"><i class="ph ph-arrows-clockwise"></i> Actualizar</button>
                 </div>
             </div>
@@ -133,18 +134,50 @@
             </div>
         `;
 
+        // Auto-sincronizar con Tienda Roma en segundo plano
+        window.sincronizarTiendaRoma(true);
+
         await window.cargarPedidos();
         await window.cargarStatsPedidos();
 
         if (autoRefreshTimer) clearInterval(autoRefreshTimer);
         autoRefreshTimer = setInterval(() => {
             if (window.location.pathname.includes('/pedidos')) {
+                window.sincronizarTiendaRoma(true);
                 window.cargarPedidos(true);
                 window.cargarStatsPedidos();
             } else {
                 clearInterval(autoRefreshTimer);
             }
         }, 15000);
+    };
+
+    window.sincronizarTiendaRoma = async function(isSilent = false) {
+        const btnSync = document.getElementById('btn-sync-tiendaroma');
+        if (btnSync && !isSilent) {
+            btnSync.disabled = true;
+            btnSync.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Sincronizando...';
+        }
+        try {
+            const res = await fetch((window.APP_BASE || '') + '/api/pedidos/sincronizar_tienda');
+            const data = await res.json();
+            if (data.status === 'success') {
+                if (!isSilent && typeof showToast === 'function') {
+                    showToast(data.message || 'Sincronizado con Tienda Roma', 'success');
+                }
+                await window.cargarPedidos(true);
+                await window.cargarStatsPedidos();
+            } else if (!isSilent && typeof showToast === 'function') {
+                showToast(data.message || 'Error en sincronización', 'warning');
+            }
+        } catch (err) {
+            console.warn("Aviso en sincronización con Tienda Roma:", err);
+        } finally {
+            if (btnSync && !isSilent) {
+                btnSync.disabled = false;
+                btnSync.innerHTML = '<i class="ph ph-arrows-clockwise"></i> Sincronizar Tienda';
+            }
+        }
     };
 
     window.cargarStatsPedidos = async function() {

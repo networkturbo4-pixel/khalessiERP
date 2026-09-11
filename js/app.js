@@ -505,10 +505,10 @@ function renderAppLayout(container) {
                     </a>` : ''}
 
                     ${(isAdministrador || (user.permisos && user.permisos.find(x => x.modulo === 'pedidos' && x.puede_ver == 1))) ? `
-                    <a href="javascript:navigate('/pedidos')" class="nav-item" data-path="/pedidos" style="position:relative;">
-                        <i class="ph ph-shopping-bag-open"></i>
+                    <a href="javascript:navigate('/pedidos')" class="nav-item" data-path="/pedidos">
+                        <i class="ph ph-shopping-cart"></i>
                         <span>Pedidos Online</span>
-                        <span id="sidebar-pedidos-badge" style="display:none; margin-left:auto; background:var(--danger); color:#fff; font-size:11px; font-weight:700; padding:2px 7px; border-radius:12px;">0</span>
+                        <span id="sidebar-pedidos-badge" style="display:none; margin-left:auto; background:var(--primary); color:#fff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; line-height:1.2;">0</span>
                     </a>` : ''}
                     
                     ${(isAdministrador || (user.permisos && user.permisos.find(x => x.modulo === 'inventario' && x.puede_ver == 1))) ? `
